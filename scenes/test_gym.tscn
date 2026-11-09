@@ -48,10 +48,10 @@ anchor_left = 0.5
 anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
-offset_left = -120.0
-offset_top = -60.0
-offset_right = 120.0
-offset_bottom = 60.0
+offset_left = -180.0
+offset_top = -100.0
+offset_right = 180.0
+offset_bottom = 100.0
 grow_horizontal = 2
 grow_vertical = 2
 
@@ -62,6 +62,20 @@ layout_mode = 2
 layout_mode = 2
 text = "Multiplayer Test Gym"
 horizontal_alignment = 1
+
+[node name="LocalPUIDLabel" type="RichTextLabel" parent="UI/Panel/VBoxContainer" unique_id=1849182041]
+layout_mode = 2
+bbcode_enabled = true
+fit_content = true
+selection_enabled = true
+text = "Local PUID: (Initializing EOS...)"
+
+[node name="ModeOptionButton" type="OptionButton" parent="UI/Panel/VBoxContainer" unique_id=1930491823]
+layout_mode = 2
+
+[node name="TargetPUIDInput" type="LineEdit" parent="UI/Panel/VBoxContainer" unique_id=1492049182]
+layout_mode = 2
+placeholder_text = "Target Host PUID"
 
 [node name="HostButton" type="Button" parent="UI/Panel/VBoxContainer" unique_id=1319976575]
 layout_mode = 2

@@ -3,7 +3,7 @@
 ## Architectural Constraints
 - **Engine Version:** Godot 4.7.2 (GDScript only). Do not use deprecated Godot 3 networking syntax.
 - **Perspective:** First-Person (Camera inside Head node at eye level ~1.6m).
-- **Multiplayer Architecture:** Listen-server using ENetMultiplayerPeer on port 8910 (2 players max).
+- **Multiplayer Architecture:** Dual-backend listen-server: Local ENet (port 8910) and Epic Online Services P2P (via EOSGMultiplayerPeer, socket "SpyVsSpySocket", 2 players max).
 - **Authority Boundaries:**
   - Client-authoritative movement (`set_multiplayer_authority(name.to_int())`).
   - Spatial replication: `MultiplayerSynchronizer` syncing `:position`, `:rotation:y` (Body Yaw), and head pitch float.

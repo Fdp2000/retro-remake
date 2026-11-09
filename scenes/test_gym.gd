@@ -9,14 +9,30 @@ const SPAWN_POINTS: Dictionary = {
 
 @onready var players_container: Node3D = $Players
 @onready var ui_layer: CanvasLayer = $UI
+@onready var status_label: Label = $UI/Panel/VBoxContainer/StatusLabel
+@onready var local_puid_label: RichTextLabel = $UI/Panel/VBoxContainer/LocalPUIDLabel
+@onready var mode_option_button: OptionButton = $UI/Panel/VBoxContainer/ModeOptionButton
+@onready var target_puid_input: LineEdit = $UI/Panel/VBoxContainer/TargetPUIDInput
 @onready var host_button: Button = $UI/Panel/VBoxContainer/HostButton
 @onready var join_button: Button = $UI/Panel/VBoxContainer/JoinButton
-@onready var status_label: Label = $UI/Panel/VBoxContainer/StatusLabel
+
 
 func _is_peer_active() -> bool:
 	return multiplayer.has_multiplayer_peer() and multiplayer.multiplayer_peer.get_connection_status() == MultiplayerPeer.CONNECTION_CONNECTED
 
+
 func _ready() -> void:
+	# Network mode setup
+	mode_option_button.clear()
+	mode_option_button.add_item("Online (EOS P2P)", NetworkManager.NetworkMode.EOS_P2P)
+	mode_option_button.add_item("Local (ENet)", NetworkManager.NetworkMode.ENET_LOCAL)
+
+	var default_idx: int = mode_option_button.get_item_index(NetworkManager.current_mode)
+	if default_idx != -1:
+		mode_option_button.select(default_idx)
+	mode_option_button.item_selected.connect(_on_mode_selected)
+	_update_mode_ui(NetworkManager.current_mode)
+
 	EOSManager.login_success.connect(_on_eos_login_success)
 	if EOSManager.local_puid != "":
 		_on_eos_login_success(EOSManager.local_puid)
@@ -56,13 +72,32 @@ func _ready() -> void:
 			if not players_container.has_node(str(multiplayer.get_unique_id())):
 				_spawn_player(multiplayer.get_unique_id())
 
+
 func _unhandled_input(event: InputEvent) -> void:
 	if ui_layer.visible and not NetworkManager.is_online():
+		# Do not trigger shortcuts when user is focused on LineEdit
+		if get_viewport().gui_get_focus_owner() is LineEdit:
+			return
 		if event is InputEventKey and event.pressed:
 			if event.keycode == KEY_H:
 				_on_host_pressed()
 			elif event.keycode == KEY_J:
 				_on_join_pressed()
+
+
+func _on_mode_selected(index: int) -> void:
+	var mode: int = mode_option_button.get_item_id(index)
+	NetworkManager.current_mode = mode as NetworkManager.NetworkMode
+	_update_mode_ui(NetworkManager.current_mode)
+
+
+func _update_mode_ui(mode: NetworkManager.NetworkMode) -> void:
+	if mode == NetworkManager.NetworkMode.EOS_P2P:
+		target_puid_input.visible = true
+		target_puid_input.placeholder_text = "Target Host PUID"
+	else:
+		target_puid_input.visible = false
+
 
 func _on_host_pressed() -> void:
 	var err: Error = NetworkManager.start_host()
@@ -71,22 +106,40 @@ func _on_host_pressed() -> void:
 	else:
 		status_label.text = "Failed to start host: %s" % error_string(err)
 
+
 func _on_join_pressed() -> void:
-	var err: Error = NetworkManager.start_join()
-	if err == OK:
-		status_label.text = "Connecting to 127.0.0.1:8910..."
+	if NetworkManager.current_mode == NetworkManager.NetworkMode.EOS_P2P:
+		var target_puid: String = target_puid_input.text.strip_edges()
+		if target_puid.is_empty():
+			status_label.text = "Error: Enter Target Host PUID."
+			return
+		var err: Error = NetworkManager.start_join(target_puid)
+		if err == OK:
+			status_label.text = "Connecting via EOS to %s..." % target_puid
+		else:
+			status_label.text = "Failed to join: %s" % error_string(err)
 	else:
-		status_label.text = "Failed to connect: %s" % error_string(err)
+		var target_addr: String = target_puid_input.text.strip_edges() if target_puid_input.text.strip_edges() != "" else "127.0.0.1"
+		var err: Error = NetworkManager.start_join(target_addr)
+		if err == OK:
+			status_label.text = "Connecting via ENet to %s:%d..." % [target_addr, NetworkManager.PORT]
+		else:
+			status_label.text = "Failed to connect: %s" % error_string(err)
+
 
 func _on_eos_login_success(puid: String) -> void:
-	status_label.text = "EOS Connected: %s" % puid
+	local_puid_label.text = "Local PUID: %s" % puid
+	status_label.text = "EOS Connected"
+
 
 func _on_network_active() -> void:
 	ui_layer.visible = false
 
+
 func _on_connection_failed() -> void:
 	ui_layer.visible = true
 	status_label.text = "Connection failed."
+
 
 func _on_server_disconnected() -> void:
 	print("TestGym: Server disconnected.")
@@ -95,11 +148,13 @@ func _on_server_disconnected() -> void:
 	for child in players_container.get_children():
 		child.queue_free()
 
+
 func _on_player_connected(peer_id: int) -> void:
 	# Only the server instantiates players in the multiplayer tree
 	if not NetworkManager.is_host():
 		return
 	_spawn_player(peer_id)
+
 
 func _on_player_disconnected(peer_id: int) -> void:
 	# Only Peer 1 (Host/Server) handles despawning in the multiplayer tree
@@ -109,6 +164,7 @@ func _on_player_disconnected(peer_id: int) -> void:
 	if player_node:
 		print("TestGym: Despawning player for peer %d" % peer_id)
 		player_node.queue_free()
+
 
 func _spawn_player(peer_id: int) -> void:
 	if players_container.has_node(str(peer_id)):

@@ -20,7 +20,6 @@ config/icon="res://icon.svg"
 _mcp_game_helper="*res://addons/godot_ai/runtime/game_helper.gd"
 NetworkManager="*res://core/network_manager.gd"
 EOSGRuntime="*uid://7saywdx0ipep"
-EOSManager="*res://core/eos_manager.gd"
 HPlatform="*uid://yl2muvqrdiud"
 HAuth="*uid://786t1jiowvvg"
 HAchievements="*uid://bis404dty5u5c"
@@ -30,6 +29,7 @@ HLeaderboards="*uid://b06khhf20mplm"
 HLobbies="*uid://6iqvm33q0tb1"
 HP2P="*uid://u6ae5fpm6l8q"
 HSessions="*uid://bieh2rxxahuu2"
+EOSManager="*res://core/eos_manager.gd"
 
 [display]
 
