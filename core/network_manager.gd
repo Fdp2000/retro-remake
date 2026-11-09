@@ -5,6 +5,7 @@ signal player_disconnected(peer_id: int)
 signal server_started()
 signal connection_failed()
 signal connected_to_server()
+signal server_disconnected()
 
 const DEFAULT_PORT: int = 8910
 const MAX_PLAYERS: int = 2
@@ -20,6 +21,11 @@ func _ready() -> void:
 	multiplayer.server_disconnected.connect(_on_server_disconnected)
 	
 	call_deferred("_check_cmdline_args")
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_CLOSE_REQUEST:
+		if peer:
+			peer.close()
 
 func _check_cmdline_args() -> void:
 	var args: Array = OS.get_cmdline_args() + OS.get_cmdline_user_args()
@@ -56,10 +62,10 @@ func start_join(address: String = DEFAULT_HOST, port: int = DEFAULT_PORT) -> Err
 	return OK
 
 func is_online() -> bool:
-	return peer != null
+	return peer != null and peer.get_connection_status() == MultiplayerPeer.CONNECTION_CONNECTED
 
 func is_host() -> bool:
-	return peer != null and multiplayer.is_server()
+	return is_online() and multiplayer.is_server()
 
 func _on_peer_connected(id: int) -> void:
 	print("NetworkManager: Peer connected: %d" % id)
@@ -81,3 +87,4 @@ func _on_server_disconnected() -> void:
 	print("NetworkManager: Server disconnected.")
 	peer = null
 	multiplayer.multiplayer_peer = null
+	server_disconnected.emit()

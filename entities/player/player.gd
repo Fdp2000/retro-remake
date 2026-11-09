@@ -15,13 +15,17 @@ extends CharacterBody3D
 
 var gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity", 9.8)
 
+# Puppet smoothing variables
 var _target_position: Vector3 = Vector3.ZERO
+var _target_yaw: float = 0.0
 var _initial_pos_set: bool = false
+var _initial_yaw_set: bool = false
 var _interact_key_down: bool = false
 
 func _enter_tree() -> void:
 	set_multiplayer_authority(name.to_int())
 	_target_position = position
+	_target_yaw = rotation.y
 
 func _ready() -> void:
 	if is_multiplayer_authority():
@@ -39,16 +43,32 @@ func _ready() -> void:
 func _set(property: StringName, value: Variant) -> bool:
 	if not is_inside_tree():
 		return false
-	if property == &"position" and not is_multiplayer_authority():
-		_target_position = value
-		if not _initial_pos_set:
-			_initial_pos_set = true
-			return false
-		return true
+	if not is_multiplayer_authority():
+		if property == &"position":
+			_target_position = value
+			if not _initial_pos_set:
+				_initial_pos_set = true
+				return false
+			return true
+		elif property == &"rotation:y":
+			_target_yaw = value
+			if not _initial_yaw_set:
+				_initial_yaw_set = true
+				return false
+			return true
+		elif property == &"rotation":
+			_target_yaw = (value as Vector3).y
+			if not _initial_yaw_set:
+				_initial_yaw_set = true
+				return false
+			return true
 	return false
 
+func _is_peer_connected() -> bool:
+	return multiplayer.has_multiplayer_peer() and multiplayer.multiplayer_peer.get_connection_status() == MultiplayerPeer.CONNECTION_CONNECTED
+
 func _process(_delta: float) -> void:
-	if not is_multiplayer_authority():
+	if not _is_peer_connected() or not is_multiplayer_authority():
 		return
 
 	var is_interactable: bool = false
@@ -79,20 +99,21 @@ func _unhandled_input(event: InputEvent) -> void:
 	if not is_multiplayer_authority():
 		return
 
-	# Toggle mouse capture with ui_cancel (Escape)
-	if event.is_action_pressed("ui_cancel"):
+	# Toggle Input.mouse_mode between CAPTURED and VISIBLE when pressing ui_cancel (Escape)
+	if event.is_action_pressed("ui_cancel") or (event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE):
 		if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 			Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 		else:
 			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 		return
 
-	# Click into window to recapture mouse
+	# If clicking left mouse button while VISIBLE, re-capture the cursor
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
-		if Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
+		if Input.mouse_mode == Input.MOUSE_MODE_VISIBLE:
 			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 			return
 
+	# First-person mouse look (only active when mouse is captured)
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		# Mouse horizontal motion rotates the CharacterBody3D around the Y-axis
 		rotate_y(-event.relative.x * mouse_sensitivity)
@@ -105,13 +126,18 @@ func _unhandled_input(event: InputEvent) -> void:
 		head_pitch = head.rotation.x
 
 func _physics_process(delta: float) -> void:
-	if not is_multiplayer_authority():
-		# Remote puppets interpolate position and update Head pitch visually
+	if not _is_peer_connected() or not is_multiplayer_authority():
+		# Remote puppet smoothing:
+		# 1. Position interpolation (snaps if distance > 4m to prevent stretching on spawn/teleport)
 		if position.distance_squared_to(_target_position) > 16.0:
 			position = _target_position
 		else:
 			position = position.lerp(_target_position, 20.0 * delta)
 
+		# 2. Body yaw rotation interpolation (handles angular wrapping)
+		rotation.y = lerp_angle(rotation.y, _target_yaw, 20.0 * delta)
+
+		# 3. Head pitch interpolation
 		head.rotation.x = lerp_angle(head.rotation.x, head_pitch, 20.0 * delta)
 		return
 

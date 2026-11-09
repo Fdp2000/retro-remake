@@ -13,22 +13,36 @@ const SPAWN_POINTS: Dictionary = {
 @onready var join_button: Button = $UI/Panel/VBoxContainer/JoinButton
 @onready var status_label: Label = $UI/Panel/VBoxContainer/StatusLabel
 
+func _is_peer_active() -> bool:
+	return multiplayer.has_multiplayer_peer() and multiplayer.multiplayer_peer.get_connection_status() == MultiplayerPeer.CONNECTION_CONNECTED
+
 func _ready() -> void:
 	NetworkManager.player_connected.connect(_on_player_connected)
 	NetworkManager.player_disconnected.connect(_on_player_disconnected)
 	NetworkManager.server_started.connect(_on_network_active)
 	NetworkManager.connected_to_server.connect(_on_network_active)
 	NetworkManager.connection_failed.connect(_on_connection_failed)
+	NetworkManager.server_disconnected.connect(_on_server_disconnected)
 
 	host_button.pressed.connect(_on_host_pressed)
 	join_button.pressed.connect(_on_join_pressed)
 
 	players_container.child_entered_tree.connect(func(node: Node):
+		var is_srv: bool = multiplayer.is_server() if _is_peer_active() else false
+		var is_auth: bool = node.is_multiplayer_authority() if _is_peer_active() else false
 		print("TestGym [%s]: Child entered Players: %s (auth: %d, is_auth: %s)" % [
-			"Server" if multiplayer.is_server() else "Client",
+			"Server" if is_srv else "Client",
 			node.name,
 			node.get_multiplayer_authority(),
-			node.is_multiplayer_authority()
+			is_auth
+		])
+	)
+
+	players_container.child_exiting_tree.connect(func(node: Node):
+		var is_srv: bool = multiplayer.is_server() if _is_peer_active() else false
+		print("TestGym [%s]: Child exited Players: %s" % [
+			"Server" if is_srv else "Client",
+			node.name
 		])
 	)
 
@@ -67,6 +81,13 @@ func _on_connection_failed() -> void:
 	ui_layer.visible = true
 	status_label.text = "Connection failed."
 
+func _on_server_disconnected() -> void:
+	print("TestGym: Server disconnected.")
+	ui_layer.visible = true
+	status_label.text = "Server disconnected."
+	for child in players_container.get_children():
+		child.queue_free()
+
 func _on_player_connected(peer_id: int) -> void:
 	# Only the server instantiates players in the multiplayer tree
 	if not NetworkManager.is_host():
@@ -74,7 +95,8 @@ func _on_player_connected(peer_id: int) -> void:
 	_spawn_player(peer_id)
 
 func _on_player_disconnected(peer_id: int) -> void:
-	if not NetworkManager.is_host():
+	# Only Peer 1 (Host/Server) handles despawning in the multiplayer tree
+	if multiplayer.get_unique_id() != 1:
 		return
 	var player_node: Node = players_container.get_node_or_null(str(peer_id))
 	if player_node:
