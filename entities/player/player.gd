@@ -84,7 +84,6 @@ func _process(_delta: float) -> void:
 
 	var interact_pressed: bool = (
 		Input.is_action_just_pressed("interact")
-		or Input.is_action_just_pressed("ui_accept")
 		or Input.is_key_pressed(KEY_E)
 	)
 
@@ -92,7 +91,7 @@ func _process(_delta: float) -> void:
 		_interact_key_down = true
 		target_collider.request_interaction(multiplayer.get_unique_id())
 
-	if not (Input.is_action_pressed("interact") or Input.is_action_pressed("ui_accept") or Input.is_key_pressed(KEY_E)):
+	if not (Input.is_action_pressed("interact") or Input.is_key_pressed(KEY_E)):
 		_interact_key_down = false
 
 func _unhandled_input(event: InputEvent) -> void:
