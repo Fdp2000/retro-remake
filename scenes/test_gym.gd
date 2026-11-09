@@ -17,6 +17,10 @@ func _is_peer_active() -> bool:
 	return multiplayer.has_multiplayer_peer() and multiplayer.multiplayer_peer.get_connection_status() == MultiplayerPeer.CONNECTION_CONNECTED
 
 func _ready() -> void:
+	EOSManager.login_success.connect(_on_eos_login_success)
+	if EOSManager.local_puid != "":
+		_on_eos_login_success(EOSManager.local_puid)
+
 	NetworkManager.player_connected.connect(_on_player_connected)
 	NetworkManager.player_disconnected.connect(_on_player_disconnected)
 	NetworkManager.server_started.connect(_on_network_active)
@@ -73,6 +77,9 @@ func _on_join_pressed() -> void:
 		status_label.text = "Connecting to 127.0.0.1:8910..."
 	else:
 		status_label.text = "Failed to connect: %s" % error_string(err)
+
+func _on_eos_login_success(puid: String) -> void:
+	status_label.text = "EOS Connected: %s" % puid
 
 func _on_network_active() -> void:
 	ui_layer.visible = false

@@ -16,6 +16,7 @@
 
 ## Directory Structure
 - `res://core/network_manager.gd` (Autoload)
+- `res://core/eos_manager.gd` (Autoload)
 - `res://entities/player/player.tscn` & `player.gd`
 - `res://entities/interactable_box.tscn` & `interactable_box.gd`
 - `res://scenes/test_gym.tscn` & `test_gym.gd`
