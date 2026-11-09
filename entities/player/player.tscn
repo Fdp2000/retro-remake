@@ -1,0 +1,75 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://entities/player/player.gd" id="1_symyc"]
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_abrql"]
+radius = 0.4
+height = 1.8
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_sglur"]
+radius = 0.4
+height = 1.8
+
+[sub_resource type="SceneReplicationConfig" id="SceneReplicationConfig_bls4j"]
+properties/0/path = NodePath(".:position")
+properties/0/spawn = true
+properties/0/replication_mode = 1
+properties/1/path = NodePath(".:rotation:y")
+properties/1/spawn = true
+properties/1/replication_mode = 1
+properties/2/path = NodePath(".:head_pitch")
+properties/2/spawn = true
+properties/2/replication_mode = 1
+
+[node name="Player" type="CharacterBody3D" unique_id=342218980]
+script = ExtResource("1_symyc")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=1080515802]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9, 0)
+shape = SubResource("CapsuleShape3D_abrql")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="." unique_id=990300380]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9, 0)
+mesh = SubResource("CapsuleMesh_sglur")
+
+[node name="Head" type="Node3D" parent="." unique_id=1115623243]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.6, 0)
+
+[node name="Camera3D" type="Camera3D" parent="Head" unique_id=926585414]
+
+[node name="RayCast3D" type="RayCast3D" parent="Head/Camera3D" unique_id=974057279]
+target_position = Vector3(0, 0, -2.5)
+collision_mask = 2
+
+[node name="MultiplayerSynchronizer" type="MultiplayerSynchronizer" parent="." unique_id=2116920433]
+replication_interval = 0.033333
+replication_config = SubResource("SceneReplicationConfig_bls4j")
+
+[node name="HUD" type="CanvasLayer" parent="." unique_id=324151931]
+
+[node name="CrosshairContainer" type="CenterContainer" parent="HUD" unique_id=432958397]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 2
+
+[node name="Crosshair" type="ColorRect" parent="HUD/CrosshairContainer" unique_id=249639468]
+custom_minimum_size = Vector2(4, 4)
+layout_mode = 2
+mouse_filter = 2
+
+[node name="PromptLabel" type="Label" parent="HUD" unique_id=142688960]
+visible = false
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -100.0
+offset_top = 16.0
+offset_right = 100.0
+offset_bottom = 40.0
+grow_horizontal = 2
+grow_vertical = 2
+text = "[E] Interact"
+horizontal_alignment = 1

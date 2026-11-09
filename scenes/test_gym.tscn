@@ -1,0 +1,84 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scenes/test_gym.gd" id="1_cppg0"]
+[ext_resource type="PackedScene" path="res://entities/interactable_box.tscn" id="2_v7oap"]
+[ext_resource type="Script" path="res://entities/interactable_box.gd" id="3_3dxdl"]
+
+[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_8qy8g"]
+
+[sub_resource type="Sky" id="Sky_unxgw"]
+sky_material = SubResource("ProceduralSkyMaterial_8qy8g")
+
+[sub_resource type="Environment" id="Environment_63yqs"]
+background_mode = 2
+sky = SubResource("Sky_unxgw")
+ambient_light_source = 3
+reflected_light_source = 2
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_onsmx"]
+albedo_color = Color(0.35, 0.38, 0.42, 1)
+
+[node name="TestGym" type="Node3D" unique_id=93966209]
+script = ExtResource("1_cppg0")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=495605076]
+environment = SubResource("Environment_63yqs")
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=1645396586]
+transform = Transform3D(0.866, 0, 0.5, 0.25, 0.866, -0.433, -0.433, 0.5, 0.75, 0, 10, 0)
+shadow_enabled = true
+
+[node name="Floor" type="CSGBox3D" parent="." unique_id=1077159762]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.5, 0)
+use_collision = true
+size = Vector3(25, 1, 25)
+material = SubResource("StandardMaterial3D_onsmx")
+
+[node name="Players" type="Node3D" parent="." unique_id=69997764]
+
+[node name="MultiplayerSpawner" type="MultiplayerSpawner" parent="." unique_id=863613403]
+_spawnable_scenes = PackedStringArray("res://entities/player/player.tscn")
+spawn_path = NodePath("../Players")
+
+[node name="UI" type="CanvasLayer" parent="." unique_id=171618583]
+
+[node name="Panel" type="PanelContainer" parent="UI" unique_id=1635851458]
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -120.0
+offset_top = -60.0
+offset_right = 120.0
+offset_bottom = 60.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="VBoxContainer" type="VBoxContainer" parent="UI/Panel" unique_id=547957675]
+layout_mode = 2
+
+[node name="StatusLabel" type="Label" parent="UI/Panel/VBoxContainer" unique_id=1137688520]
+layout_mode = 2
+text = "Multiplayer Test Gym"
+horizontal_alignment = 1
+
+[node name="HostButton" type="Button" parent="UI/Panel/VBoxContainer" unique_id=1319976575]
+layout_mode = 2
+text = "Host (H)"
+
+[node name="JoinButton" type="Button" parent="UI/Panel/VBoxContainer" unique_id=1579685733]
+layout_mode = 2
+text = "Join (J)"
+
+[node name="InteractableBox1" type="StaticBody3D" parent="." unique_id=1101952191 instance=ExtResource("2_v7oap")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1, 0.5, 0)
+collision_layer = 3
+script = ExtResource("3_3dxdl")
+prop_id = 1
+
+[node name="InteractableBox2" type="StaticBody3D" parent="." unique_id=1591125465 instance=ExtResource("2_v7oap")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0.5, 0)
+collision_layer = 3
+script = ExtResource("3_3dxdl")
+prop_id = 2

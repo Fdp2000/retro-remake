@@ -1,0 +1,17 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://entities/interactable_box.gd" id="1_ivhqe"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_m0raf"]
+
+[sub_resource type="BoxMesh" id="BoxMesh_1oif1"]
+
+[node name="InteractableBox" type="StaticBody3D" unique_id=1101952191]
+collision_layer = 3
+script = ExtResource("1_ivhqe")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=818397491]
+shape = SubResource("BoxShape3D_m0raf")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="." unique_id=1997512601]
+mesh = SubResource("BoxMesh_1oif1")
