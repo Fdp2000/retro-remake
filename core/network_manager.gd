@@ -30,6 +30,7 @@ var current_mode: NetworkMode = NetworkMode.EOS_P2P
 var current_relay_mode: RelayControlMode = RelayControlMode.ALLOW_RELAYS
 var peer: MultiplayerPeer = null
 var last_p2p_network_type: String = "NONE"
+var _interrupted_timer: SceneTreeTimer = null
 
 
 func _ready() -> void:
@@ -179,6 +180,7 @@ func _connect_eos_peer_diagnostics(eos_peer: EOSGMultiplayerPeer) -> void:
 
 
 func _on_eos_peer_connection_established(data: Dictionary) -> void:
+	_interrupted_timer = null
 	var remote_user_id: String = str(data.get("remote_user_id", ""))
 	var net_type: int = int(data.get("network_type", -1))
 	var type_str: String = "UNKNOWN"
@@ -205,14 +207,37 @@ func _on_eos_peer_connection_established(data: Dictionary) -> void:
 
 
 func _on_eos_peer_connection_interrupted(data: Dictionary) -> void:
-	print("NetworkManager: Connection interrupted with peer %s" % str(data.get("remote_user_id", "")))
+	var remote_user_id: String = str(data.get("remote_user_id", ""))
+	print("NetworkManager: Connection interrupted with peer %s" % remote_user_id)
+
+	# Start a 3-second watchdog timer in case peer abruptly terminated
+	if _interrupted_timer == null:
+		_interrupted_timer = get_tree().create_timer(3.0)
+		_interrupted_timer.timeout.connect(func():
+			_interrupted_timer = null
+			if peer != null and not is_host():
+				print("NetworkManager: Host connection interruption timed out. Triggering server_disconnected.")
+				_cleanup_peer(true)
+				server_disconnected.emit()
+			elif peer != null and is_host():
+				print("NetworkManager: Client connection interruption timed out. Triggering player_disconnected.")
+				player_disconnected.emit(2)
+		)
 
 
 func _on_eos_peer_connection_closed(data: Dictionary) -> void:
-	print("NetworkManager: Connection closed with peer %s (reason: %s)" % [
-		str(data.get("remote_user_id", "")),
-		str(data.get("reason", ""))
-	])
+	_interrupted_timer = null
+	var remote_user_id: String = str(data.get("remote_user_id", ""))
+	var reason: String = str(data.get("reason", ""))
+	print("NetworkManager: Connection closed with peer %s (reason: %s)" % [remote_user_id, reason])
+
+	if not is_host():
+		print("NetworkManager: Host peer connection was closed. Triggering server_disconnected.")
+		_cleanup_peer(true)
+		server_disconnected.emit()
+	else:
+		print("NetworkManager: Client peer connection was closed. Triggering player_disconnected.")
+		player_disconnected.emit(2)
 
 
 func disconnect_session() -> void:
