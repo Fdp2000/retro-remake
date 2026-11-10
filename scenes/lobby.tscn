@@ -86,7 +86,7 @@ selection_enabled = true
 
 [node name="QuickMatchButton" type="Button" parent="MarginContainer/MatchmakingContainer/MatchmakingPanel/EOSControls"]
 layout_mode = 2
-text = "Quick Match (1-Click)"
+text = "Find Match"
 
 [node name="HostPrivateButton" type="Button" parent="MarginContainer/MatchmakingContainer/MatchmakingPanel/EOSControls"]
 layout_mode = 2
@@ -124,6 +124,45 @@ layout_mode = 2
 layout_mode = 2
 text = "Idle"
 horizontal_alignment = 1
+
+[node name="SearchingContainer" type="PanelContainer" parent="MarginContainer"]
+visible = false
+custom_minimum_size = Vector2(420, 240)
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+
+[node name="SearchingPanel" type="VBoxContainer" parent="MarginContainer/SearchingContainer"]
+layout_mode = 2
+theme_override_constants/separation = 16
+alignment = 1
+
+[node name="SearchingTitle" type="Label" parent="MarginContainer/SearchingContainer/SearchingPanel"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "MATCHMAKING QUEUE"
+horizontal_alignment = 1
+
+[node name="HSeparator" type="HSeparator" parent="MarginContainer/SearchingContainer/SearchingPanel"]
+layout_mode = 2
+
+[node name="SearchTimerLabel" type="Label" parent="MarginContainer/SearchingContainer/SearchingPanel"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 32
+text = "00:00"
+horizontal_alignment = 1
+
+[node name="SearchStatusLabel" type="Label" parent="MarginContainer/SearchingContainer/SearchingPanel"]
+layout_mode = 2
+text = "Searching for an available match..."
+horizontal_alignment = 1
+autowrap_mode = 2
+
+[node name="CancelSearchButton" type="Button" parent="MarginContainer/SearchingContainer/SearchingPanel"]
+custom_minimum_size = Vector2(160, 40)
+layout_mode = 2
+size_flags_horizontal = 4
+text = "Cancel Search"
 
 [node name="StagingContainer" type="VBoxContainer" parent="MarginContainer"]
 visible = false

@@ -10,10 +10,18 @@ var lobby_state: Dictionary = {
 
 var _local_ready: bool = false
 var client_peer_id: int = 0
+var is_in_matchmaking_queue: bool = false
+var matchmaking_search_elapsed: float = 0.0
 
 # UI References
 @onready var matchmaking_container: PanelContainer = $MarginContainer/MatchmakingContainer
+@onready var searching_container: PanelContainer = $MarginContainer/SearchingContainer
 @onready var staging_container: VBoxContainer = $MarginContainer/StagingContainer
+
+# Searching Controls
+@onready var search_timer_label: Label = $MarginContainer/SearchingContainer/SearchingPanel/SearchTimerLabel
+@onready var search_status_label: Label = $MarginContainer/SearchingContainer/SearchingPanel/SearchStatusLabel
+@onready var cancel_search_button: Button = $MarginContainer/SearchingContainer/SearchingPanel/CancelSearchButton
 
 # Matchmaking Controls
 @onready var mode_option_button: OptionButton = $MarginContainer/MatchmakingContainer/MatchmakingPanel/ModeOptionButton
@@ -64,7 +72,8 @@ func _ready() -> void:
 	enet_join_button.pressed.connect(_on_enet_join_pressed)
 
 	# EOS button bindings
-	quick_match_button.pressed.connect(_on_quick_match_pressed)
+	quick_match_button.pressed.connect(_on_find_match_pressed)
+	cancel_search_button.pressed.connect(_on_cancel_search_pressed)
 	host_private_button.pressed.connect(_on_host_private_pressed)
 	join_private_button.pressed.connect(_on_join_private_pressed)
 	cancel_match_button.pressed.connect(_on_cancel_match_pressed)
@@ -109,19 +118,37 @@ func _ready() -> void:
 		_show_matchmaking()
 
 
+func _process(delta: float) -> void:
+	if is_in_matchmaking_queue:
+		matchmaking_search_elapsed += delta
+		var minutes: int = int(matchmaking_search_elapsed) / 60
+		var seconds: int = int(matchmaking_search_elapsed) % 60
+		search_timer_label.text = "%02d:%02d" % [minutes, seconds]
+
+
 # ==========================================
 # UI Mode / View Visibility
 # ==========================================
 
 func _show_matchmaking() -> void:
+	is_in_matchmaking_queue = false
 	matchmaking_container.visible = true
+	searching_container.visible = false
 	staging_container.visible = false
 	_local_ready = false
 	ready_button.text = "READY UP"
 
 
-func _enter_staging() -> void:
+func _show_searching_view() -> void:
 	matchmaking_container.visible = false
+	searching_container.visible = true
+	staging_container.visible = false
+
+
+func _enter_staging() -> void:
+	is_in_matchmaking_queue = false
+	matchmaking_container.visible = false
+	searching_container.visible = false
 	staging_container.visible = true
 	_local_ready = false
 	ready_button.text = "READY UP"
@@ -240,13 +267,25 @@ func _on_enet_join_pressed() -> void:
 		status_label.text = "Failed to connect: %s" % error_string(err)
 
 
-func _on_quick_match_pressed() -> void:
-	cancel_match_button.visible = true
-	room_code_display.visible = false
+func _on_find_match_pressed() -> void:
+	is_in_matchmaking_queue = true
+	matchmaking_search_elapsed = 0.0
+	search_timer_label.text = "00:00"
+	search_status_label.text = "Searching for an available match..."
+	_show_searching_view()
 	SessionManager.start_quick_match()
 
 
+func _on_cancel_search_pressed() -> void:
+	is_in_matchmaking_queue = false
+	SessionManager.destroy_active_session()
+	NetworkManager.disconnect_session()
+	_show_matchmaking()
+	status_label.text = "Matchmaking cancelled."
+
+
 func _on_host_private_pressed() -> void:
+	is_in_matchmaking_queue = false
 	var code: String = SessionManager.generate_room_code()
 	DisplayServer.clipboard_set(code)
 	room_code_display.text = "Your Room Code: %s (Copied)" % code
@@ -256,6 +295,7 @@ func _on_host_private_pressed() -> void:
 
 
 func _on_join_private_pressed() -> void:
+	is_in_matchmaking_queue = false
 	var code: String = room_code_input.text.strip_edges().to_upper()
 	if code.length() != 4:
 		status_label.text = "Room code must be exactly 4 characters."
@@ -266,6 +306,7 @@ func _on_join_private_pressed() -> void:
 
 
 func _on_cancel_match_pressed() -> void:
+	is_in_matchmaking_queue = false
 	cancel_match_button.visible = false
 	room_code_display.visible = false
 	SessionManager.destroy_active_session()
@@ -287,10 +328,15 @@ func _on_eos_login_failed(err: String) -> void:
 
 
 func _on_matchmaking_status_changed(message: String) -> void:
-	status_label.text = message
+	if is_in_matchmaking_queue:
+		search_status_label.text = message
+	else:
+		status_label.text = message
 
 
 func _on_matchmaking_failed(reason: String) -> void:
+	if is_in_matchmaking_queue:
+		_show_matchmaking()
 	status_label.text = "Error: %s" % reason
 	cancel_match_button.visible = false
 	room_code_display.visible = false
@@ -312,10 +358,15 @@ func _on_session_closed() -> void:
 # ==========================================
 
 func _on_server_started() -> void:
+	if is_in_matchmaking_queue:
+		search_status_label.text = "Waiting for an opponent to join..."
+		return
 	_enter_staging()
 
 
 func _on_connected_to_server() -> void:
+	if is_in_matchmaking_queue:
+		search_status_label.text = "Match found! Entering staging..."
 	_enter_staging()
 	if "--auto-ready" in OS.get_cmdline_args() + OS.get_cmdline_user_args():
 		get_tree().create_timer(0.4).timeout.connect(func():
@@ -350,7 +401,12 @@ func _on_player_connected(peer_id: int) -> void:
 		"name": "Contender (Peer %d)" % peer_id
 	}
 	sync_lobby_state.rpc(lobby_state)
-	_update_staging_ui()
+
+	if is_in_matchmaking_queue:
+		search_status_label.text = "Opponent found! Entering staging..."
+		_enter_staging()
+	else:
+		_update_staging_ui()
 
 	if "--auto-ready" in OS.get_cmdline_args() + OS.get_cmdline_user_args():
 		get_tree().create_timer(0.4).timeout.connect(func():

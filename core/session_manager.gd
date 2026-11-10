@@ -106,7 +106,7 @@ func create_and_host_session(match_type: MatchType, custom_code: String = "") ->
 		room_code_created.emit(custom_code)
 		matchmaking_status_changed.emit("Private room created. Code: %s (copied to clipboard)" % custom_code)
 	else:
-		matchmaking_status_changed.emit("Quick Match session hosted. Waiting for opponent...")
+		matchmaking_status_changed.emit("Waiting for an opponent to join...")
 
 	return true
 
@@ -178,7 +178,7 @@ func start_quick_match() -> void:
 		return
 
 	# Still 0 results after jitter delay: become the host
-	matchmaking_status_changed.emit("Hosting new Quick Match session...")
+	matchmaking_status_changed.emit("Waiting for an opponent to join...")
 	is_searching = false
 	await create_and_host_session(MatchType.QUICK)
 
