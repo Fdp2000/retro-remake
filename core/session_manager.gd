@@ -18,6 +18,8 @@ var active_session_name: String = ""
 var is_hosting_session: bool = false
 var current_room_code: String = ""
 var is_searching: bool = false
+var failed_host_puids: Dictionary = {} # puid -> timestamp in ms
+var last_attempted_host_puid: String = ""
 
 
 func _notification(what: int) -> void:
@@ -111,9 +113,52 @@ func create_and_host_session(match_type: MatchType, custom_code: String = "") ->
 	return true
 
 
+func mark_host_as_failed(puid: String) -> void:
+	if not puid.is_empty():
+		failed_host_puids[puid] = Time.get_ticks_msec()
+		print("[SessionManager] Marked host %s as unreachable/failed." % puid)
+
+
+func _is_host_blacklisted(puid: String) -> bool:
+	if not failed_host_puids.has(puid):
+		return false
+	var elapsed_ms = Time.get_ticks_msec() - failed_host_puids[puid]
+	if elapsed_ms > 60000:
+		failed_host_puids.erase(puid)
+		return false
+	return true
+
+
+func set_session_matchmaking_open(is_open: bool) -> void:
+	if not is_hosting_session or active_session_name.is_empty():
+		return
+	_update_session_match_type("QUICK" if is_open else "CLOSED")
+
+
+func _update_session_match_type(match_type_str: String) -> void:
+	if active_session_name.is_empty():
+		return
+
+	var opts := EOS.Sessions.UpdateSessionModificationOptions.new()
+	opts.session_name = active_session_name
+
+	var mod_res: Dictionary = EOS.Sessions.SessionsInterface.update_session_modification(opts)
+	if not EOS.is_success(mod_res) or not mod_res.has("session_modification"):
+		return
+
+	var session_mod: EOSGSessionModification = mod_res.session_modification
+	session_mod.add_attribute(ATTR_MATCH_TYPE, match_type_str, EOS.Sessions.SessionAttributeAdvertisementType.Advertise)
+	session_mod.set_join_in_progress_allowed(match_type_str == "QUICK")
+
+	var update_opts := EOS.Sessions.UpdateSessionOptions.new()
+	update_opts.session_modification = session_mod
+	EOS.Sessions.SessionsInterface.update_session(update_opts)
+	print("[SessionManager] Session advertisement updated: MATCH_TYPE = %s" % match_type_str)
+
+
 func start_quick_match() -> void:
 	is_searching = true
-	matchmaking_status_changed.emit("Searching for available match...")
+	matchmaking_status_changed.emit("Finding match...")
 
 	if EOSManager.local_puid.is_empty():
 		is_searching = false
@@ -143,18 +188,20 @@ func start_quick_match() -> void:
 	if not is_searching:
 		return
 
-	var found_host_puid: String = _find_foreign_host_in_search(session_search)
-	if not found_host_puid.is_empty():
+	var candidates: Array[String] = _find_candidate_hosts_in_search(session_search)
+	if not candidates.is_empty():
+		var chosen_host_puid: String = candidates.pick_random()
 		matchmaking_status_changed.emit("Found host. Connecting...")
 		active_session_name = SESSION_NAME
 		is_hosting_session = false
 		is_searching = false
+		last_attempted_host_puid = chosen_host_puid
 		NetworkManager.current_mode = NetworkManager.NetworkMode.EOS_P2P
-		NetworkManager.start_join(found_host_puid)
+		NetworkManager.start_join(chosen_host_puid)
 		return
 
 	# Anti-Race Jitter Window (If 0 results or only own host found)
-	matchmaking_status_changed.emit("No active game found. Checking for concurrent hosts...")
+	matchmaking_status_changed.emit("Finding match...")
 	var jitter_delay: float = randf_range(0.5, 1.5)
 	await get_tree().create_timer(jitter_delay).timeout
 
@@ -167,19 +214,22 @@ func start_quick_match() -> void:
 	if not is_searching:
 		return
 
-	found_host_puid = _find_foreign_host_in_search(session_search)
-	if not found_host_puid.is_empty():
+	candidates = _find_candidate_hosts_in_search(session_search)
+	if not candidates.is_empty():
+		var chosen_host_puid: String = candidates.pick_random()
 		matchmaking_status_changed.emit("Found host. Connecting...")
 		active_session_name = SESSION_NAME
 		is_hosting_session = false
 		is_searching = false
+		last_attempted_host_puid = chosen_host_puid
 		NetworkManager.current_mode = NetworkManager.NetworkMode.EOS_P2P
-		NetworkManager.start_join(found_host_puid)
+		NetworkManager.start_join(chosen_host_puid)
 		return
 
 	# Still 0 results after jitter delay: become the host
-	matchmaking_status_changed.emit("Waiting for an opponent to join...")
+	matchmaking_status_changed.emit("Finding match...")
 	is_searching = false
+	last_attempted_host_puid = ""
 	await create_and_host_session(MatchType.QUICK)
 
 
@@ -266,13 +316,17 @@ func _create_session_search() -> EOSGSessionSearch:
 	return ret.session_search
 
 
-func _find_foreign_host_in_search(session_search: EOSGSessionSearch) -> String:
+func _find_candidate_hosts_in_search(session_search: EOSGSessionSearch) -> Array[String]:
+	var candidates: Array[String] = []
 	var count: int = session_search.get_search_result_count()
 	for i in range(count):
 		var puid: String = _extract_host_puid(session_search, i)
 		if not puid.is_empty() and puid != EOSManager.local_puid:
-			return puid
-	return ""
+			if _is_host_blacklisted(puid):
+				print("[SessionManager] Skipping blacklisted/unreachable host: ", puid)
+			else:
+				candidates.append(puid)
+	return candidates
 
 
 func _extract_host_puid(session_search: EOSGSessionSearch, index: int) -> String:

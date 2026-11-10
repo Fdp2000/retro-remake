@@ -1,8 +1,8 @@
 [gd_scene format=3 uid="uid://c8d2k8vjxk7yq"]
 
-[ext_resource type="Script" uid="uid://bk65nupk4ym1n" path="res://scenes/lobby.gd" id="1_lobby"]
+[ext_resource type="Script" uid="uid://netvd6p344t5" path="res://scenes/lobby.gd" id="1_lobby"]
 
-[node name="Lobby" type="Control"]
+[node name="Lobby" type="Control" unique_id=1498503600]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
@@ -11,7 +11,7 @@ grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_lobby")
 
-[node name="Background" type="ColorRect" parent="."]
+[node name="Background" type="ColorRect" parent="." unique_id=1468226185]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -20,7 +20,7 @@ grow_horizontal = 2
 grow_vertical = 2
 color = Color(0.08, 0.09, 0.11, 1)
 
-[node name="MarginContainer" type="MarginContainer" parent="."]
+[node name="MarginContainer" type="MarginContainer" parent="." unique_id=976286355]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -32,51 +32,51 @@ theme_override_constants/margin_top = 40
 theme_override_constants/margin_right = 40
 theme_override_constants/margin_bottom = 40
 
-[node name="MatchmakingContainer" type="PanelContainer" parent="MarginContainer"]
+[node name="MatchmakingContainer" type="PanelContainer" parent="MarginContainer" unique_id=2024361493]
 custom_minimum_size = Vector2(420, 0)
 layout_mode = 2
 size_flags_horizontal = 4
 size_flags_vertical = 4
 
-[node name="MatchmakingPanel" type="VBoxContainer" parent="MarginContainer/MatchmakingContainer"]
+[node name="MatchmakingPanel" type="VBoxContainer" parent="MarginContainer/MatchmakingContainer" unique_id=317893438]
 layout_mode = 2
 theme_override_constants/separation = 12
 
-[node name="TitleLabel" type="Label" parent="MarginContainer/MatchmakingContainer/MatchmakingPanel"]
+[node name="TitleLabel" type="Label" parent="MarginContainer/MatchmakingContainer/MatchmakingPanel" unique_id=117329815]
 layout_mode = 2
 theme_override_font_sizes/font_size = 20
 text = "SPY VS SPY — MATCHMAKING"
 horizontal_alignment = 1
 
-[node name="HSeparator" type="HSeparator" parent="MarginContainer/MatchmakingContainer/MatchmakingPanel"]
+[node name="HSeparator" type="HSeparator" parent="MarginContainer/MatchmakingContainer/MatchmakingPanel" unique_id=1324713429]
 layout_mode = 2
 
-[node name="ModeOptionButton" type="OptionButton" parent="MarginContainer/MatchmakingContainer/MatchmakingPanel"]
+[node name="ModeOptionButton" type="OptionButton" parent="MarginContainer/MatchmakingContainer/MatchmakingPanel" unique_id=910048544]
 layout_mode = 2
 
-[node name="ENetControls" type="VBoxContainer" parent="MarginContainer/MatchmakingContainer/MatchmakingPanel"]
+[node name="ENetControls" type="VBoxContainer" parent="MarginContainer/MatchmakingContainer/MatchmakingPanel" unique_id=1571632289]
 layout_mode = 2
 theme_override_constants/separation = 8
 
-[node name="ENetAddressInput" type="LineEdit" parent="MarginContainer/MatchmakingContainer/MatchmakingPanel/ENetControls"]
+[node name="ENetAddressInput" type="LineEdit" parent="MarginContainer/MatchmakingContainer/MatchmakingPanel/ENetControls" unique_id=58353174]
 layout_mode = 2
 text = "127.0.0.1"
 placeholder_text = "Host Address"
 
-[node name="ENetHostButton" type="Button" parent="MarginContainer/MatchmakingContainer/MatchmakingPanel/ENetControls"]
+[node name="ENetHostButton" type="Button" parent="MarginContainer/MatchmakingContainer/MatchmakingPanel/ENetControls" unique_id=1574326723]
 layout_mode = 2
 text = "Host (ENet)"
 
-[node name="ENetJoinButton" type="Button" parent="MarginContainer/MatchmakingContainer/MatchmakingPanel/ENetControls"]
+[node name="ENetJoinButton" type="Button" parent="MarginContainer/MatchmakingContainer/MatchmakingPanel/ENetControls" unique_id=1185989517]
 layout_mode = 2
 text = "Join (ENet)"
 
-[node name="EOSControls" type="VBoxContainer" parent="MarginContainer/MatchmakingContainer/MatchmakingPanel"]
+[node name="EOSControls" type="VBoxContainer" parent="MarginContainer/MatchmakingContainer/MatchmakingPanel" unique_id=1521956622]
 visible = false
 layout_mode = 2
 theme_override_constants/separation = 8
 
-[node name="LocalPUIDLabel" type="RichTextLabel" parent="MarginContainer/MatchmakingContainer/MatchmakingPanel/EOSControls"]
+[node name="LocalPUIDLabel" type="RichTextLabel" parent="MarginContainer/MatchmakingContainer/MatchmakingPanel/EOSControls" unique_id=1676923206]
 layout_mode = 2
 focus_mode = 2
 bbcode_enabled = true
@@ -84,190 +84,189 @@ text = "[center]Local PUID: (Initializing EOS...)[/center]"
 fit_content = true
 selection_enabled = true
 
-[node name="QuickMatchButton" type="Button" parent="MarginContainer/MatchmakingContainer/MatchmakingPanel/EOSControls"]
+[node name="QuickMatchButton" type="Button" parent="MarginContainer/MatchmakingContainer/MatchmakingPanel/EOSControls" unique_id=354405199]
 layout_mode = 2
 text = "Find Match"
 
-[node name="HostPrivateButton" type="Button" parent="MarginContainer/MatchmakingContainer/MatchmakingPanel/EOSControls"]
+[node name="HostPrivateButton" type="Button" parent="MarginContainer/MatchmakingContainer/MatchmakingPanel/EOSControls" unique_id=869890424]
 layout_mode = 2
 text = "Host Private Room"
 
-[node name="PrivateJoinContainer" type="HBoxContainer" parent="MarginContainer/MatchmakingContainer/MatchmakingPanel/EOSControls"]
+[node name="PrivateJoinContainer" type="HBoxContainer" parent="MarginContainer/MatchmakingContainer/MatchmakingPanel/EOSControls" unique_id=393491087]
 layout_mode = 2
 theme_override_constants/separation = 8
 
-[node name="RoomCodeInput" type="LineEdit" parent="MarginContainer/MatchmakingContainer/MatchmakingPanel/EOSControls/PrivateJoinContainer"]
+[node name="RoomCodeInput" type="LineEdit" parent="MarginContainer/MatchmakingContainer/MatchmakingPanel/EOSControls/PrivateJoinContainer" unique_id=572197211]
 layout_mode = 2
 size_flags_horizontal = 3
 placeholder_text = "CODE"
 max_length = 4
 
-[node name="JoinPrivateButton" type="Button" parent="MarginContainer/MatchmakingContainer/MatchmakingPanel/EOSControls/PrivateJoinContainer"]
+[node name="JoinPrivateButton" type="Button" parent="MarginContainer/MatchmakingContainer/MatchmakingPanel/EOSControls/PrivateJoinContainer" unique_id=939160757]
 layout_mode = 2
 text = "Join Room"
 
-[node name="RoomCodeDisplay" type="Label" parent="MarginContainer/MatchmakingContainer/MatchmakingPanel/EOSControls"]
+[node name="RoomCodeDisplay" type="Label" parent="MarginContainer/MatchmakingContainer/MatchmakingPanel/EOSControls" unique_id=362329685]
 visible = false
 layout_mode = 2
 text = "Your Room Code: ABCD"
 horizontal_alignment = 1
 
-[node name="CancelMatchButton" type="Button" parent="MarginContainer/MatchmakingContainer/MatchmakingPanel/EOSControls"]
+[node name="CancelMatchButton" type="Button" parent="MarginContainer/MatchmakingContainer/MatchmakingPanel/EOSControls" unique_id=1917648097]
 visible = false
 layout_mode = 2
 text = "Cancel / Leave Session"
 
-[node name="HSeparator2" type="HSeparator" parent="MarginContainer/MatchmakingContainer/MatchmakingPanel"]
+[node name="HSeparator2" type="HSeparator" parent="MarginContainer/MatchmakingContainer/MatchmakingPanel" unique_id=1368635150]
 layout_mode = 2
 
-[node name="StatusLabel" type="Label" parent="MarginContainer/MatchmakingContainer/MatchmakingPanel"]
+[node name="StatusLabel" type="Label" parent="MarginContainer/MatchmakingContainer/MatchmakingPanel" unique_id=65219435]
 layout_mode = 2
 text = "Idle"
 horizontal_alignment = 1
 
-[node name="SearchingContainer" type="PanelContainer" parent="MarginContainer"]
+[node name="SearchingContainer" type="PanelContainer" parent="MarginContainer" unique_id=901140976]
 visible = false
 custom_minimum_size = Vector2(420, 240)
 layout_mode = 2
 size_flags_horizontal = 4
 size_flags_vertical = 4
 
-[node name="SearchingPanel" type="VBoxContainer" parent="MarginContainer/SearchingContainer"]
+[node name="SearchingPanel" type="VBoxContainer" parent="MarginContainer/SearchingContainer" unique_id=419640327]
 layout_mode = 2
 theme_override_constants/separation = 16
 alignment = 1
 
-[node name="SearchingTitle" type="Label" parent="MarginContainer/SearchingContainer/SearchingPanel"]
+[node name="SearchingTitle" type="Label" parent="MarginContainer/SearchingContainer/SearchingPanel" unique_id=547664915]
 layout_mode = 2
 theme_override_font_sizes/font_size = 20
-text = "MATCHMAKING QUEUE"
+text = "FINDING MATCH"
 horizontal_alignment = 1
 
-[node name="HSeparator" type="HSeparator" parent="MarginContainer/SearchingContainer/SearchingPanel"]
+[node name="HSeparator" type="HSeparator" parent="MarginContainer/SearchingContainer/SearchingPanel" unique_id=100790516]
 layout_mode = 2
 
-[node name="SearchTimerLabel" type="Label" parent="MarginContainer/SearchingContainer/SearchingPanel"]
+[node name="SearchTimerLabel" type="Label" parent="MarginContainer/SearchingContainer/SearchingPanel" unique_id=1302887188]
 layout_mode = 2
 theme_override_font_sizes/font_size = 32
 text = "00:00"
 horizontal_alignment = 1
 
-[node name="SearchStatusLabel" type="Label" parent="MarginContainer/SearchingContainer/SearchingPanel"]
+[node name="SearchStatusLabel" type="Label" parent="MarginContainer/SearchingContainer/SearchingPanel" unique_id=1001780516]
 layout_mode = 2
-text = "Searching for an available match..."
+text = "Finding match..."
 horizontal_alignment = 1
 autowrap_mode = 2
 
-[node name="CancelSearchButton" type="Button" parent="MarginContainer/SearchingContainer/SearchingPanel"]
+[node name="CancelSearchButton" type="Button" parent="MarginContainer/SearchingContainer/SearchingPanel" unique_id=207048142]
 custom_minimum_size = Vector2(160, 40)
 layout_mode = 2
 size_flags_horizontal = 4
 text = "Cancel Search"
 
-[node name="StagingContainer" type="VBoxContainer" parent="MarginContainer"]
+[node name="StagingContainer" type="VBoxContainer" parent="MarginContainer" unique_id=1948910958]
 visible = false
 layout_mode = 2
 size_flags_horizontal = 4
 size_flags_vertical = 4
 theme_override_constants/separation = 24
 
-[node name="HeaderLabel" type="Label" parent="MarginContainer/StagingContainer"]
+[node name="HeaderLabel" type="Label" parent="MarginContainer/StagingContainer" unique_id=462529134]
 layout_mode = 2
 theme_override_font_sizes/font_size = 22
 text = "[ LOCAL ENET ] — Port: 8910"
 horizontal_alignment = 1
 
-[node name="CardsContainer" type="HBoxContainer" parent="MarginContainer/StagingContainer"]
+[node name="CardsContainer" type="HBoxContainer" parent="MarginContainer/StagingContainer" unique_id=1787518463]
 layout_mode = 2
 theme_override_constants/separation = 32
 alignment = 1
 
-[node name="Player1Card" type="PanelContainer" parent="MarginContainer/StagingContainer/CardsContainer"]
+[node name="Player1Card" type="PanelContainer" parent="MarginContainer/StagingContainer/CardsContainer" unique_id=755639743]
 custom_minimum_size = Vector2(260, 240)
 layout_mode = 2
 
-[node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer/StagingContainer/CardsContainer/Player1Card"]
+[node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer/StagingContainer/CardsContainer/Player1Card" unique_id=447693156]
 layout_mode = 2
 theme_override_constants/separation = 12
 alignment = 1
 
-[node name="P1Title" type="Label" parent="MarginContainer/StagingContainer/CardsContainer/Player1Card/VBoxContainer"]
+[node name="P1Title" type="Label" parent="MarginContainer/StagingContainer/CardsContainer/Player1Card/VBoxContainer" unique_id=2011171313]
 layout_mode = 2
 theme_override_font_sizes/font_size = 16
 text = "SPY WHITE (HOST)"
 horizontal_alignment = 1
 
-[node name="CenterContainer" type="CenterContainer" parent="MarginContainer/StagingContainer/CardsContainer/Player1Card/VBoxContainer"]
+[node name="CenterContainer" type="CenterContainer" parent="MarginContainer/StagingContainer/CardsContainer/Player1Card/VBoxContainer" unique_id=977069057]
 layout_mode = 2
 
-[node name="P1Swatch" type="ColorRect" parent="MarginContainer/StagingContainer/CardsContainer/Player1Card/VBoxContainer/CenterContainer"]
+[node name="P1Swatch" type="ColorRect" parent="MarginContainer/StagingContainer/CardsContainer/Player1Card/VBoxContainer/CenterContainer" unique_id=577929113]
 custom_minimum_size = Vector2(160, 80)
 layout_mode = 2
 color = Color(0.92, 0.92, 0.92, 1)
 
-[node name="P1NameLabel" type="Label" parent="MarginContainer/StagingContainer/CardsContainer/Player1Card/VBoxContainer"]
+[node name="P1NameLabel" type="Label" parent="MarginContainer/StagingContainer/CardsContainer/Player1Card/VBoxContainer" unique_id=738591903]
 layout_mode = 2
 text = "Host (Peer 1)"
 horizontal_alignment = 1
 
-[node name="P1StatusLabel" type="Label" parent="MarginContainer/StagingContainer/CardsContainer/Player1Card/VBoxContainer"]
+[node name="P1StatusLabel" type="Label" parent="MarginContainer/StagingContainer/CardsContainer/Player1Card/VBoxContainer" unique_id=81071331]
 layout_mode = 2
 theme_override_font_sizes/font_size = 18
 text = "NOT READY"
 horizontal_alignment = 1
 
-[node name="Player2Card" type="PanelContainer" parent="MarginContainer/StagingContainer/CardsContainer"]
+[node name="Player2Card" type="PanelContainer" parent="MarginContainer/StagingContainer/CardsContainer" unique_id=1567954740]
 custom_minimum_size = Vector2(260, 240)
 layout_mode = 2
 
-[node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer/StagingContainer/CardsContainer/Player2Card"]
+[node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer/StagingContainer/CardsContainer/Player2Card" unique_id=667475846]
 layout_mode = 2
 theme_override_constants/separation = 12
 alignment = 1
 
-[node name="P2Title" type="Label" parent="MarginContainer/StagingContainer/CardsContainer/Player2Card/VBoxContainer"]
+[node name="P2Title" type="Label" parent="MarginContainer/StagingContainer/CardsContainer/Player2Card/VBoxContainer" unique_id=419006415]
 layout_mode = 2
 theme_override_font_sizes/font_size = 16
 text = "SPY BLACK (CONTENDER)"
 horizontal_alignment = 1
 
-[node name="CenterContainer" type="CenterContainer" parent="MarginContainer/StagingContainer/CardsContainer/Player2Card/VBoxContainer"]
+[node name="CenterContainer" type="CenterContainer" parent="MarginContainer/StagingContainer/CardsContainer/Player2Card/VBoxContainer" unique_id=701227157]
 layout_mode = 2
 
-[node name="P2Swatch" type="ColorRect" parent="MarginContainer/StagingContainer/CardsContainer/Player2Card/VBoxContainer/CenterContainer"]
+[node name="P2Swatch" type="ColorRect" parent="MarginContainer/StagingContainer/CardsContainer/Player2Card/VBoxContainer/CenterContainer" unique_id=64199357]
 custom_minimum_size = Vector2(160, 80)
 layout_mode = 2
 color = Color(0.12, 0.12, 0.12, 1)
 
-[node name="P2NameLabel" type="Label" parent="MarginContainer/StagingContainer/CardsContainer/Player2Card/VBoxContainer"]
+[node name="P2NameLabel" type="Label" parent="MarginContainer/StagingContainer/CardsContainer/Player2Card/VBoxContainer" unique_id=927578684]
 layout_mode = 2
 text = "Waiting for opponent..."
 horizontal_alignment = 1
 
-[node name="P2StatusLabel" type="Label" parent="MarginContainer/StagingContainer/CardsContainer/Player2Card/VBoxContainer"]
+[node name="P2StatusLabel" type="Label" parent="MarginContainer/StagingContainer/CardsContainer/Player2Card/VBoxContainer" unique_id=1001713912]
 layout_mode = 2
 theme_override_font_sizes/font_size = 18
 text = "NOT READY"
 horizontal_alignment = 1
 
-[node name="ActionsContainer" type="HBoxContainer" parent="MarginContainer/StagingContainer"]
+[node name="ActionsContainer" type="HBoxContainer" parent="MarginContainer/StagingContainer" unique_id=1627053596]
 layout_mode = 2
 theme_override_constants/separation = 20
 alignment = 1
 
-[node name="ReadyButton" type="Button" parent="MarginContainer/StagingContainer/ActionsContainer"]
+[node name="ReadyButton" type="Button" parent="MarginContainer/StagingContainer/ActionsContainer" unique_id=1508647533]
 custom_minimum_size = Vector2(150, 42)
 layout_mode = 2
 text = "READY UP"
 
-[node name="StartButton" type="Button" parent="MarginContainer/StagingContainer/ActionsContainer"]
+[node name="StartButton" type="Button" parent="MarginContainer/StagingContainer/ActionsContainer" unique_id=36131042]
 custom_minimum_size = Vector2(160, 42)
 layout_mode = 2
 disabled = true
 text = "LAUNCH MATCH"
 
-[node name="DisconnectButton" type="Button" parent="MarginContainer/StagingContainer/ActionsContainer"]
+[node name="DisconnectButton" type="Button" parent="MarginContainer/StagingContainer/ActionsContainer" unique_id=602894875]
 custom_minimum_size = Vector2(150, 42)
 layout_mode = 2
 text = "LEAVE LOBBY"
-

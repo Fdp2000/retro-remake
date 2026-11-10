@@ -253,6 +253,9 @@ func _on_connected_to_server() -> void:
 
 func _on_connection_failed() -> void:
 	push_error("NetworkManager: Connection to server failed.")
+	if not SessionManager.last_attempted_host_puid.is_empty():
+		SessionManager.mark_host_as_failed(SessionManager.last_attempted_host_puid)
+		SessionManager.last_attempted_host_puid = ""
 	_cleanup_peer(true)
 	connection_failed.emit()
 

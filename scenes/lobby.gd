@@ -125,6 +125,9 @@ func _process(delta: float) -> void:
 		var seconds: int = int(matchmaking_search_elapsed) % 60
 		search_timer_label.text = "%02d:%02d" % [minutes, seconds]
 
+		var dot_count: int = (int(matchmaking_search_elapsed * 2.0) % 3) + 1
+		search_status_label.text = "Finding match" + ".".repeat(dot_count)
+
 
 # ==========================================
 # UI Mode / View Visibility
@@ -271,7 +274,7 @@ func _on_find_match_pressed() -> void:
 	is_in_matchmaking_queue = true
 	matchmaking_search_elapsed = 0.0
 	search_timer_label.text = "00:00"
-	search_status_label.text = "Searching for an available match..."
+	search_status_label.text = "Finding match..."
 	_show_searching_view()
 	SessionManager.start_quick_match()
 
@@ -329,7 +332,8 @@ func _on_eos_login_failed(err: String) -> void:
 
 func _on_matchmaking_status_changed(message: String) -> void:
 	if is_in_matchmaking_queue:
-		search_status_label.text = message
+		if "found" in message.to_lower():
+			search_status_label.text = "Match found!"
 	else:
 		status_label.text = message
 
@@ -359,14 +363,13 @@ func _on_session_closed() -> void:
 
 func _on_server_started() -> void:
 	if is_in_matchmaking_queue:
-		search_status_label.text = "Waiting for an opponent to join..."
 		return
 	_enter_staging()
 
 
 func _on_connected_to_server() -> void:
 	if is_in_matchmaking_queue:
-		search_status_label.text = "Match found! Entering staging..."
+		search_status_label.text = "Match found!"
 	_enter_staging()
 	if "--auto-ready" in OS.get_cmdline_args() + OS.get_cmdline_user_args():
 		get_tree().create_timer(0.4).timeout.connect(func():
@@ -376,6 +379,12 @@ func _on_connected_to_server() -> void:
 
 
 func _on_connection_failed() -> void:
+	if is_in_matchmaking_queue:
+		print("Lobby: Connection failed while in matchmaking queue. Retrying search...")
+		search_status_label.text = "Finding match..."
+		SessionManager.start_quick_match()
+		return
+
 	_show_matchmaking()
 	cancel_match_button.visible = false
 	room_code_display.visible = false
@@ -402,8 +411,12 @@ func _on_player_connected(peer_id: int) -> void:
 	}
 	sync_lobby_state.rpc(lobby_state)
 
+	# Session is full (2/2) — unadvertise from Epic quick match searches
+	if NetworkManager.current_mode == NetworkManager.NetworkMode.EOS_P2P:
+		SessionManager.set_session_matchmaking_open(false)
+
 	if is_in_matchmaking_queue:
-		search_status_label.text = "Opponent found! Entering staging..."
+		search_status_label.text = "Match found!"
 		_enter_staging()
 	else:
 		_update_staging_ui()
@@ -428,6 +441,15 @@ func _on_player_disconnected(peer_id: int) -> void:
 			"name": "Waiting for opponent..."
 		}
 		# Reset host readiness to avoid accidental start
+		_local_ready = false
+		ready_button.text = "READY UP"
+		lobby_state[1]["ready"] = false
+		sync_lobby_state.rpc(lobby_state)
+		_update_staging_ui()
+
+		# Contender left — re-open session to quick match searches
+		if NetworkManager.current_mode == NetworkManager.NetworkMode.EOS_P2P:
+			SessionManager.set_session_matchmaking_open(true)
 		_local_ready = false
 		ready_button.text = "READY UP"
 		lobby_state[1]["ready"] = false
