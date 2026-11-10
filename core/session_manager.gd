@@ -109,8 +109,52 @@ func create_and_host_session(match_type: MatchType, custom_code: String = "") ->
 		matchmaking_status_changed.emit("Private room created. Code: %s (copied to clipboard)" % custom_code)
 	else:
 		matchmaking_status_changed.emit("Waiting for an opponent to join...")
+		_start_host_reconciliation_poll()
 
 	return true
+
+
+func _start_host_reconciliation_poll() -> void:
+	while is_hosting_session and current_room_code.is_empty():
+		await get_tree().create_timer(randf_range(3.0, 4.5)).timeout
+
+		if not is_hosting_session or (multiplayer.has_multiplayer_peer() and multiplayer.get_peers().size() > 0):
+			break
+		if not is_hosting_session or not current_room_code.is_empty():
+			break
+
+		var session_search := _create_session_search()
+		if not session_search:
+			continue
+
+		session_search.set_parameter(EOS.Sessions.SEARCH_BUCKET_ID, BUCKET_ID, EOS.ComparisonOp.Equal)
+		session_search.set_parameter(ATTR_MATCH_TYPE, "QUICK", EOS.ComparisonOp.Equal)
+		session_search.set_parameter(EOS.Sessions.SEARCH_MINSLOTSAVAILABLE, 1, EOS.ComparisonOp.GreaterThanOrEqual)
+
+		session_search.find(EOSManager.local_puid)
+		await IEOS.session_search_find_callback
+
+		if not is_hosting_session or (multiplayer.has_multiplayer_peer() and multiplayer.get_peers().size() > 0):
+			break
+
+		var candidates: Array[String] = _find_candidate_hosts_in_search(session_search)
+		if candidates.is_empty():
+			continue
+
+		candidates.sort()
+		var lowest_puid: String = candidates[0]
+
+		# Deterministic tie-breaker:
+		# If our PUID is greater than the competing host, we yield and join them
+		if EOSManager.local_puid > lowest_puid:
+			print("[SessionManager] Dual-host collision resolved: Our PUID (%s) > Competitor (%s). Yielding host to join them..." % [EOSManager.local_puid, lowest_puid])
+			await destroy_active_session()
+			last_attempted_host_puid = lowest_puid
+			NetworkManager.current_mode = NetworkManager.NetworkMode.EOS_P2P
+			NetworkManager.start_join(lowest_puid)
+			break
+		else:
+			print("[SessionManager] Dual-host collision: Our PUID is lower (%s <= %s). Maintaining host role." % [EOSManager.local_puid, lowest_puid])
 
 
 func mark_host_as_failed(puid: String) -> void:
