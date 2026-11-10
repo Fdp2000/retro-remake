@@ -1,6 +1,6 @@
-[gd_scene format=3]
+[gd_scene format=3 uid="uid://k8uxk1uvy3gt"]
 
-[ext_resource type="Script" path="res://entities/player/player.gd" id="1_symyc"]
+[ext_resource type="Script" uid="uid://cgaldtw48igda" path="res://entities/player/player.gd" id="1_symyc"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_abrql"]
 radius = 0.4
@@ -25,6 +25,7 @@ properties/3/spawn = true
 properties/3/replication_mode = 0
 
 [node name="Player" type="CharacterBody3D" unique_id=342218980]
+floor_snap_length = 0.2
 script = ExtResource("1_symyc")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=1080515802]

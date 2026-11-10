@@ -2,6 +2,7 @@
 
 [ext_resource type="Script" uid="uid://c7afp22l8kcvd" path="res://scenes/test_gym.gd" id="1_cppg0"]
 [ext_resource type="PackedScene" path="res://entities/interactable_box.tscn" id="2_v7oap"]
+[ext_resource type="PackedScene" uid="uid://dyjgmweb42cw" path="res://Assets/Models/Import/Interiors_A/Scenes/TestDemo/demo_grp.tscn" id="3_cppg0"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_8qy8g"]
 
@@ -36,7 +37,7 @@ material = SubResource("StandardMaterial3D_onsmx")
 [node name="Players" type="Node3D" parent="." unique_id=69997764]
 
 [node name="MultiplayerSpawner" type="MultiplayerSpawner" parent="." unique_id=863613403]
-_spawnable_scenes = PackedStringArray("res://entities/player/player.tscn")
+_spawnable_scenes = PackedStringArray("uid://k8uxk1uvy3gt")
 spawn_path = NodePath("../Players")
 
 [node name="InteractableBox1" parent="." unique_id=1101952191 instance=ExtResource("2_v7oap")]
@@ -49,7 +50,7 @@ prop_id = 2
 
 [node name="UI" type="CanvasLayer" parent="." unique_id=171618583]
 
-[node name="HUD" type="Control" parent="UI"]
+[node name="HUD" type="Control" parent="UI" unique_id=1095194171]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
@@ -58,7 +59,7 @@ grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
 
-[node name="RoleBadge" type="PanelContainer" parent="UI/HUD"]
+[node name="RoleBadge" type="PanelContainer" parent="UI/HUD" unique_id=1576512122]
 layout_mode = 1
 anchors_preset = 5
 anchor_left = 0.5
@@ -70,14 +71,14 @@ offset_bottom = 56.0
 grow_horizontal = 2
 mouse_filter = 2
 
-[node name="RoleLabel" type="Label" parent="UI/HUD/RoleBadge"]
+[node name="RoleLabel" type="Label" parent="UI/HUD/RoleBadge" unique_id=979780219]
 layout_mode = 2
 theme_override_font_sizes/font_size = 16
 text = "ROLE: SPY WHITE"
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="EscMenu" type="PanelContainer" parent="UI"]
+[node name="EscMenu" type="PanelContainer" parent="UI" unique_id=257886096]
 visible = false
 custom_minimum_size = Vector2(280, 180)
 anchors_preset = 8
@@ -92,21 +93,24 @@ offset_bottom = 90.0
 grow_horizontal = 2
 grow_vertical = 2
 
-[node name="VBoxContainer" type="VBoxContainer" parent="UI/EscMenu"]
+[node name="VBoxContainer" type="VBoxContainer" parent="UI/EscMenu" unique_id=912575960]
 layout_mode = 2
 theme_override_constants/separation = 16
 alignment = 1
 
-[node name="MenuTitle" type="Label" parent="UI/EscMenu/VBoxContainer"]
+[node name="MenuTitle" type="Label" parent="UI/EscMenu/VBoxContainer" unique_id=596266256]
 layout_mode = 2
 theme_override_font_sizes/font_size = 18
 text = "MATCH MENU"
 horizontal_alignment = 1
 
-[node name="ResumeButton" type="Button" parent="UI/EscMenu/VBoxContainer"]
+[node name="ResumeButton" type="Button" parent="UI/EscMenu/VBoxContainer" unique_id=478467697]
 layout_mode = 2
 text = "Resume"
 
-[node name="LeaveButton" type="Button" parent="UI/EscMenu/VBoxContainer"]
+[node name="LeaveButton" type="Button" parent="UI/EscMenu/VBoxContainer" unique_id=1809511471]
 layout_mode = 2
 text = "Leave to Lobby"
+
+[node name="Demo_Grp" parent="." unique_id=1335972792 instance=ExtResource("3_cppg0")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.5316571, 0.012065113, -2.7047896)
