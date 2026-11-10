@@ -1,0 +1,29 @@
+[remap]
+
+importer="2d_array_texture"
+type="CompressedTexture2DArray"
+uid="uid://cq58b2qsdp4pt"
+path.bptc="res://.godot/imported/demo_Test.exr-1e4bb54805d1d67a3d96ad69f51215a5.bptc.ctexarray"
+metadata={
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
+}
+
+[deps]
+
+source_file="res://Assets/Models/Import/Interiors_A/LightMap/demo_Test.exr"
+dest_files=["res://.godot/imported/demo_Test.exr-1e4bb54805d1d67a3d96ad69f51215a5.bptc.ctexarray"]
+
+[params]
+
+compress/mode=2
+compress/high_quality=false
+compress/lossy_quality=0.7
+compress/uastc_level=0
+compress/rdo_quality_loss=0.0
+compress/hdr_compression=1
+compress/channel_pack=1
+mipmaps/generate=false
+mipmaps/limit=-1
+slices/horizontal=1
+slices/vertical=1

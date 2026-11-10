@@ -1,0 +1,39 @@
+[gd_scene load_steps=4 format=4 uid="uid://vmoa8fjghnlm"]
+
+[ext_resource type="Material" uid="uid://cjg55dhp2epy1" path="res://Assets/LoafbrrAssets/Interiors_A/Materials/Misc_Trim_Mat.tres" id="1_8vv1j"]
+
+[sub_resource type="ArrayMesh" id="ArrayMesh_45rwm"]
+_surfaces = [{
+"aabb": AABB(-0.3525, 0.2, -0.3525, 0.705, 0.0250005, 0.705),
+"format": 34359742465,
+"index_count": 78,
+"index_data": PackedByteArray("AAABAAIAAAADAAEAAgABAAQABQABAAMABQAEAAEAAgAEAAYABgAEAAUABwAFAAMABwADAAAABgAFAAcAAgAIAAAABwAAAAgABgAJAAIAAgAJAAgABgAHAAoABwAIAAoABgALAAkABgAKAAsACQAMAAgACAAMAA0ACAANAAoACQAOAAwACwAOAAkACgANAA8ACwAPAA4ACgAPAAsA"),
+"name": "MiscTrim",
+"primitive": 3,
+"uv_scale": Vector4(0, 0, 0, 0),
+"vertex_count": 16,
+"vertex_data": PackedByteArray("YF+OPmVmZj5iX44+YF+OPu/PXD5cX46+YF+OPn5mZj5cX46+YF+OPtfPXD5iX44+YF+Ovu/PXD5cX46+YF+OvtfPXD5iX44+YF+Ovn5mZj5cX46+YF+OvmVmZj5iX44+4nq0PmJmZj7kerQ+4nq0PoFmZj7derS+4Xq0vmRmZj7kerQ+4Xq0voFmZj7derS+4nq0PsjMTD7jerQ+4Xq0vsjMTD7jerQ+4nq0PubMTD7eerS+4Xq0vubMTD7eerS+")
+}]
+blend_shape_mode = 0
+
+[sub_resource type="ArrayMesh" id="ArrayMesh_t6faw"]
+resource_name = "Interiors_A_Decal_Ceiling_B_Light"
+_surfaces = [{
+"aabb": AABB(-0.3525, 0.2, -0.3525, 0.705, 0.0250005, 0.705),
+"attribute_data": PackedByteArray("lbo3P5C6Nz+Vujc/cEUIP5W6Nz9wRQg/lbo3P5C6Nz+A6wE/exQ+PwAAAD8AAAA/gOsBP4brAT8AAAA/AABAP4AUPj97FD4/AAAAPwAAQD+A6wE/exQ+PwAAQD8AAEA/gOsBP4brAT8AAEA/AAAAP4AUPj+G6wE/AAAAPwAAAD+AFD4/husBPwAAQD8AAEA/gBQ+P3sUPj8AAEA/AAAAP5W6Nz9wRQg/gBQ+P3sUPj+Vujc/kLo3P3VFCD+Qujc/gBQ+P4brAT+A6wE/exQ+P3VFCD9wRQg/gOsBP4brAT91RQg/kLo3P5W6Nz9wRQg/lbo3P5C6Nz91RQg/cEUIP3VFCD+Qujc/lbo3P5C6Nz+Vujc/kLo3P3VFCD+Qujc/lbo3P3BFCD91RQg/cEUIP3VFCD9wRQg/lbo3P3BFCD91RQg/cEUIP3VFCD+Qujc/dUUIP5C6Nz91RQg/cEUIPw=="),
+"format": 34359742487,
+"index_count": 78,
+"index_data": PackedByteArray("AAABAAIAAAADAAEABAAFAAYABAAHAAUACAAJAAoACAALAAkADAANAA4ADAAPAA0AEAARABIAEAATABEAFAAVABYAFwAWABUAFAAYABUAFwAVABkAGgAYABQAGgAXABkAGgAbABgAGgAZABsAHAAdAB4AHAAfAB0AIAAhACIAIAAjACEAJAAlACYAJAAnACUAKAApACoAKAArACkA"),
+"material": ExtResource("1_8vv1j"),
+"name": "MiscTrim",
+"primitive": 3,
+"uv_scale": Vector4(0, 0, 0, 0),
+"vertex_count": 44,
+"vertex_data": PackedByteArray("YF+OPmVmZj5iX44+YF+OPu/PXD5cX46+YF+OPn5mZj5cX46+YF+OPtfPXD5iX44+4Xq0vmRmZj7kerQ+4Xq0vubMTD7eerS+4Xq0voFmZj7derS+4Xq0vsjMTD7jerQ+4nq0PmJmZj7kerQ+4Xq0vsjMTD7jerQ+4Xq0vmRmZj7kerQ+4nq0PsjMTD7jerQ+4Xq0voFmZj7derS+4nq0PubMTD7eerS+4nq0PoFmZj7derS+4Xq0vubMTD7eerS+4nq0PoFmZj7derS+4nq0PsjMTD7jerQ+4nq0PmJmZj7kerQ+4nq0PubMTD7eerS+YF+OPn5mZj5cX46+4nq0PmJmZj7kerQ+YF+OPmVmZj5iX44+YF+OvmVmZj5iX44+4nq0PoFmZj7derS+4Xq0vmRmZj7kerQ+YF+Ovn5mZj5cX46+4Xq0voFmZj7derS+YF+OvtfPXD5iX44+YF+OPu/PXD5cX46+YF+OPtfPXD5iX44+YF+Ovu/PXD5cX46+YF+OvmVmZj5iX44+YF+OPtfPXD5iX44+YF+OPmVmZj5iX44+YF+OvtfPXD5iX44+YF+OPn5mZj5cX46+YF+Ovu/PXD5cX46+YF+Ovn5mZj5cX46+YF+OPu/PXD5cX46+YF+Ovn5mZj5cX46+YF+OvtfPXD5iX44+YF+OvmVmZj5iX44+YF+Ovu/PXD5cX46+AAD/f////78AAP9/////vwAA/3////+/AAD/f////78AAP9//39m4wAA/38pu///AAD/f6C8//8AAP9//3+q4v9//3////+//3//f////7//f/9/////v/9//3////+//////////7//////////v/////////+//////////7////9//3+XnP///38puwCA////f6C8AID///9//39Tnf9///////+//3///////7//f///////v/9///////+//3///////7//f////v//v/9////+//+//3////7//7//f///////v/9///////+//3///////7//f///////v/////////+//////////7//////////v/////////+//3//f////z//f/9/////P/9//3////8//3//f////z////9/////v////3////+/////f////7////9/////vw==")
+}]
+blend_shape_mode = 0
+shadow_mesh = SubResource("ArrayMesh_45rwm")
+
+[node name="Decal_Ceiling_B_Light" type="MeshInstance3D"]
+mesh = SubResource("ArrayMesh_t6faw")
+skeleton = NodePath("")
