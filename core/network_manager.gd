@@ -5,12 +5,21 @@ enum NetworkMode {
 	EOS_P2P
 }
 
+enum RelayControlMode {
+	ALLOW_RELAYS,  # EOS.P2P.RelayControl.AllowRelays (Default: STUN Direct with TURN fallback)
+	FORCE_RELAYS,  # EOS.P2P.RelayControl.ForceRelays (Force TURN Relay)
+	NO_RELAYS      # EOS.P2P.RelayControl.NoRelays (Direct STUN hole-punch only)
+}
+
 signal player_connected(peer_id: int)
 signal player_disconnected(peer_id: int)
 signal server_started()
 signal connection_failed()
 signal connected_to_server()
 signal server_disconnected()
+signal peer_connection_established(info: Dictionary)
+signal relay_mode_changed(mode: RelayControlMode)
+signal p2p_diagnostic_logged(network_type_str: String, is_relay: bool)
 
 const PORT: int = 8910
 const SOCKET_NAME: String = "SpyVsSpySocket"
@@ -18,7 +27,9 @@ const MAX_PLAYERS: int = 2
 const DEFAULT_ENET_HOST: String = "127.0.0.1"
 
 var current_mode: NetworkMode = NetworkMode.EOS_P2P
+var current_relay_mode: RelayControlMode = RelayControlMode.ALLOW_RELAYS
 var peer: MultiplayerPeer = null
+var last_p2p_network_type: String = "NONE"
 
 
 func _ready() -> void:
@@ -46,12 +57,44 @@ func _check_cmdline_args() -> void:
 		current_mode = NetworkMode.EOS_P2P
 		print("NetworkManager: Selected EOS_P2P mode via CLI.")
 
+	if "--force-relay" in args:
+		current_relay_mode = RelayControlMode.FORCE_RELAYS
+		print("NetworkManager: Selected FORCE_RELAYS via CLI.")
+	elif "--allow-relay" in args:
+		current_relay_mode = RelayControlMode.ALLOW_RELAYS
+		print("NetworkManager: Selected ALLOW_RELAYS via CLI.")
+	elif "--no-relay" in args:
+		current_relay_mode = RelayControlMode.NO_RELAYS
+		print("NetworkManager: Selected NO_RELAYS via CLI.")
+
 	if "--host" in args:
 		print("NetworkManager: Found --host flag in command-line arguments.")
 		start_host()
 	elif "--join" in args:
 		print("NetworkManager: Found --join flag in command-line arguments.")
 		start_join()
+
+
+func apply_relay_control(mode: RelayControlMode = current_relay_mode) -> Error:
+	current_relay_mode = mode
+	var eos_relay: int = EOS.P2P.RelayControl.AllowRelays
+	match current_relay_mode:
+		RelayControlMode.ALLOW_RELAYS:
+			eos_relay = EOS.P2P.RelayControl.AllowRelays
+		RelayControlMode.FORCE_RELAYS:
+			eos_relay = EOS.P2P.RelayControl.ForceRelays
+		RelayControlMode.NO_RELAYS:
+			eos_relay = EOS.P2P.RelayControl.NoRelays
+
+	var res = EOS.P2P.P2PInterface.set_relay_control(eos_relay)
+	if not EOS.is_success(res):
+		push_error("NetworkManager: Failed to set EOS P2P relay control: %s (%s)" % [EOS.result_str(res), str(res)])
+		return FAILED
+
+	var relay_str: String = "AllowRelays" if eos_relay == EOS.P2P.RelayControl.AllowRelays else ("ForceRelays" if eos_relay == EOS.P2P.RelayControl.ForceRelays else "NoRelays")
+	print("NetworkManager: Applied EOS P2P relay control -> %s (%s)" % [RelayControlMode.keys()[current_relay_mode], relay_str])
+	relay_mode_changed.emit(current_relay_mode)
+	return OK
 
 
 func start_host() -> Error:
@@ -68,14 +111,19 @@ func start_host() -> Error:
 		print("NetworkManager: ENet server started on port %d" % PORT)
 
 	elif current_mode == NetworkMode.EOS_P2P:
+		# Apply relay control setting before instantiating or initializing peer
+		apply_relay_control()
+
 		var eos_peer := EOSGMultiplayerPeer.new()
+		_connect_eos_peer_diagnostics(eos_peer)
+
 		var err = eos_peer.create_server(SOCKET_NAME)
 		if err != OK:
 			push_error("NetworkManager: Failed to create EOS P2P server on socket %s: %s" % [SOCKET_NAME, error_string(err)])
 			return err as Error
 		peer = eos_peer
 		multiplayer.multiplayer_peer = peer
-		print("NetworkManager: EOS P2P server started on socket '%s'" % SOCKET_NAME)
+		print("NetworkManager: EOS P2P server started on socket '%s' (Relay: %s)" % [SOCKET_NAME, RelayControlMode.keys()[current_relay_mode]])
 
 	else:
 		return ERR_UNCONFIGURED
@@ -107,19 +155,82 @@ func start_join(target_address_or_puid: String = "") -> Error:
 		if target_puid.is_empty():
 			push_error("NetworkManager: Failed to join EOS P2P: target PUID is empty.")
 			return ERR_INVALID_PARAMETER
+
+		# Apply relay control setting before instantiating or initializing peer
+		apply_relay_control()
+
 		var eos_peer := EOSGMultiplayerPeer.new()
+		_connect_eos_peer_diagnostics(eos_peer)
+
 		var err = eos_peer.create_client(SOCKET_NAME, target_puid)
 		if err != OK:
 			push_error("NetworkManager: Failed to create EOS P2P client to socket '%s' for PUID '%s': %s" % [SOCKET_NAME, target_puid, error_string(err)])
 			return err as Error
 		peer = eos_peer
 		multiplayer.multiplayer_peer = peer
-		print("NetworkManager: Connecting via EOS P2P to host PUID: %s..." % target_puid)
+		print("NetworkManager: Connecting via EOS P2P to host PUID: %s (Relay: %s)..." % [target_puid, RelayControlMode.keys()[current_relay_mode]])
 
 	else:
 		return ERR_UNCONFIGURED
 
 	return OK
+
+
+func _connect_eos_peer_diagnostics(eos_peer: EOSGMultiplayerPeer) -> void:
+	eos_peer.peer_connection_established.connect(_on_eos_peer_connection_established)
+	eos_peer.peer_connection_interrupted.connect(_on_eos_peer_connection_interrupted)
+	eos_peer.peer_connection_closed.connect(_on_eos_peer_connection_closed)
+	eos_peer.incoming_connection_request.connect(_on_eos_incoming_connection_request)
+
+
+func _on_eos_peer_connection_established(data: Dictionary) -> void:
+	var socket_id: String = str(data.get("socket_id", SOCKET_NAME))
+	var remote_user_id: String = str(data.get("remote_user_id", ""))
+	var net_type: int = int(data.get("network_type", -1))
+	var type_str: String = "UNKNOWN"
+	var is_relay: bool = false
+
+	match net_type:
+		EOS.P2P.NetworkType.DirectConnection: # 1
+			type_str = "DIRECT (STUN)"
+			is_relay = false
+		EOS.P2P.NetworkType.RelayedConnection: # 2
+			type_str = "RELAY (TURN)"
+			is_relay = true
+		EOS.P2P.NetworkType.NoConnection: # 0
+			type_str = "NO CONNECTION"
+			is_relay = false
+		_:
+			type_str = "UNKNOWN (%d)" % net_type
+			is_relay = false
+
+	last_p2p_network_type = type_str
+	print("================================================================")
+	print("[EOS P2P DIAGNOSTIC] Peer connection established!")
+	print("  Remote PUID:  %s" % remote_user_id)
+	print("  Socket:       %s" % socket_id)
+	print("  Network Type: %s" % type_str)
+	print("================================================================")
+	peer_connection_established.emit(data)
+	p2p_diagnostic_logged.emit(type_str, is_relay)
+
+
+func _on_eos_peer_connection_interrupted(data: Dictionary) -> void:
+	print("[EOS P2P DIAGNOSTIC] Connection interrupted with peer: %s" % str(data.get("remote_user_id", "")))
+
+
+func _on_eos_peer_connection_closed(data: Dictionary) -> void:
+	print("[EOS P2P DIAGNOSTIC] Connection closed with peer: %s (reason: %s)" % [
+		str(data.get("remote_user_id", "")),
+		str(data.get("reason", ""))
+	])
+
+
+func _on_eos_incoming_connection_request(data: Dictionary) -> void:
+	print("[EOS P2P DIAGNOSTIC] Incoming connection request from: %s on socket %s" % [
+		str(data.get("remote_user_id", "")),
+		str(data.get("socket_id", ""))
+	])
 
 
 func _cleanup_peer() -> void:

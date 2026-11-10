@@ -12,6 +12,8 @@ const SPAWN_POINTS: Dictionary = {
 @onready var status_label: Label = $UI/Panel/VBoxContainer/StatusLabel
 @onready var local_puid_label: RichTextLabel = $UI/Panel/VBoxContainer/LocalPUIDLabel
 @onready var mode_option_button: OptionButton = $UI/Panel/VBoxContainer/ModeOptionButton
+@onready var relay_option_button: OptionButton = $UI/Panel/VBoxContainer/RelayOptionButton
+@onready var relay_status_label: Label = $UI/Panel/VBoxContainer/RelayStatusLabel
 @onready var target_puid_input: LineEdit = $UI/Panel/VBoxContainer/TargetPUIDInput
 @onready var host_button: Button = $UI/Panel/VBoxContainer/HostButton
 @onready var join_button: Button = $UI/Panel/VBoxContainer/JoinButton
@@ -22,7 +24,7 @@ func _is_peer_active() -> bool:
 
 
 func _ready() -> void:
-	# Network mode setup
+	# Network mode setup (EOS P2P vs Local ENet)
 	mode_option_button.clear()
 	mode_option_button.add_item("Online (EOS P2P)", NetworkManager.NetworkMode.EOS_P2P)
 	mode_option_button.add_item("Local (ENet)", NetworkManager.NetworkMode.ENET_LOCAL)
@@ -31,6 +33,18 @@ func _ready() -> void:
 	if default_idx != -1:
 		mode_option_button.select(default_idx)
 	mode_option_button.item_selected.connect(_on_mode_selected)
+
+	# Relay toggle setup (STUN Direct vs Force TURN Relay)
+	relay_option_button.clear()
+	relay_option_button.add_item("STUN Direct (Allow Relays)", NetworkManager.RelayControlMode.ALLOW_RELAYS)
+	relay_option_button.add_item("Force TURN Relay", NetworkManager.RelayControlMode.FORCE_RELAYS)
+
+	var default_relay_idx: int = relay_option_button.get_item_index(NetworkManager.current_relay_mode)
+	if default_relay_idx != -1:
+		relay_option_button.select(default_relay_idx)
+	relay_option_button.item_selected.connect(_on_relay_selected)
+
+	_update_relay_status_label(NetworkManager.current_relay_mode)
 	_update_mode_ui(NetworkManager.current_mode)
 
 	EOSManager.login_success.connect(_on_eos_login_success)
@@ -43,6 +57,8 @@ func _ready() -> void:
 	NetworkManager.connected_to_server.connect(_on_network_active)
 	NetworkManager.connection_failed.connect(_on_connection_failed)
 	NetworkManager.server_disconnected.connect(_on_server_disconnected)
+	NetworkManager.relay_mode_changed.connect(_update_relay_status_label)
+	NetworkManager.p2p_diagnostic_logged.connect(_on_p2p_diagnostic_logged)
 
 	host_button.pressed.connect(_on_host_pressed)
 	join_button.pressed.connect(_on_join_pressed)
@@ -91,12 +107,37 @@ func _on_mode_selected(index: int) -> void:
 	_update_mode_ui(NetworkManager.current_mode)
 
 
+func _on_relay_selected(index: int) -> void:
+	var relay_mode: int = relay_option_button.get_item_id(index)
+	NetworkManager.current_relay_mode = relay_mode as NetworkManager.RelayControlMode
+	NetworkManager.apply_relay_control(NetworkManager.current_relay_mode)
+	_update_relay_status_label(NetworkManager.current_relay_mode)
+
+
+func _update_relay_status_label(mode: NetworkManager.RelayControlMode) -> void:
+	match mode:
+		NetworkManager.RelayControlMode.FORCE_RELAYS:
+			relay_status_label.text = "Active Mode: Forced TURN Relay"
+		NetworkManager.RelayControlMode.ALLOW_RELAYS:
+			relay_status_label.text = "Active Mode: Direct STUN"
+		NetworkManager.RelayControlMode.NO_RELAYS:
+			relay_status_label.text = "Active Mode: Direct STUN (No Relays)"
+
+
 func _update_mode_ui(mode: NetworkManager.NetworkMode) -> void:
-	if mode == NetworkManager.NetworkMode.EOS_P2P:
-		target_puid_input.visible = true
+	var is_eos: bool = (mode == NetworkManager.NetworkMode.EOS_P2P)
+	target_puid_input.visible = is_eos
+	relay_option_button.visible = is_eos
+	relay_status_label.visible = is_eos
+	if is_eos:
 		target_puid_input.placeholder_text = "Target Host PUID"
-	else:
-		target_puid_input.visible = false
+
+
+func _on_p2p_diagnostic_logged(network_type_str: String, is_relay: bool) -> void:
+	relay_status_label.text = "Active Mode: %s (%s)" % [
+		"Forced TURN Relay" if is_relay else "Direct STUN",
+		network_type_str
+	]
 
 
 func _on_host_pressed() -> void:
@@ -128,7 +169,7 @@ func _on_join_pressed() -> void:
 
 
 func _on_eos_login_success(puid: String) -> void:
-	local_puid_label.text = "Local PUID: %s" % puid
+	local_puid_label.text = "[center]Local PUID: [b]%s[/b][/center]" % puid
 	status_label.text = "EOS Connected"
 
 
