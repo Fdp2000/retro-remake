@@ -39,92 +39,6 @@ material = SubResource("StandardMaterial3D_onsmx")
 _spawnable_scenes = PackedStringArray("res://entities/player/player.tscn")
 spawn_path = NodePath("../Players")
 
-[node name="UI" type="CanvasLayer" parent="." unique_id=171618583]
-
-[node name="Panel" type="PanelContainer" parent="UI" unique_id=1635851458]
-anchors_preset = 8
-anchor_left = 0.5
-anchor_top = 0.5
-anchor_right = 0.5
-anchor_bottom = 0.5
-offset_left = -180.0
-offset_top = -140.0
-offset_right = 180.0
-offset_bottom = 140.0
-grow_horizontal = 2
-grow_vertical = 2
-
-[node name="MatchmakingPanel" type="VBoxContainer" parent="UI/Panel" unique_id=547957675]
-layout_mode = 2
-
-[node name="ModeOptionButton" type="OptionButton" parent="UI/Panel/MatchmakingPanel" unique_id=1930491823]
-layout_mode = 2
-
-[node name="ENetControls" type="VBoxContainer" parent="UI/Panel/MatchmakingPanel" unique_id=1849182042]
-visible = false
-layout_mode = 2
-
-[node name="ENetAddressInput" type="LineEdit" parent="UI/Panel/MatchmakingPanel/ENetControls" unique_id=1492049183]
-layout_mode = 2
-text = "127.0.0.1"
-placeholder_text = "Host Address"
-
-[node name="ENetHostButton" type="Button" parent="UI/Panel/MatchmakingPanel/ENetControls" unique_id=1319976576]
-layout_mode = 2
-text = "Host (ENet)"
-
-[node name="ENetJoinButton" type="Button" parent="UI/Panel/MatchmakingPanel/ENetControls" unique_id=1579685734]
-layout_mode = 2
-text = "Join (ENet)"
-
-[node name="EOSControls" type="VBoxContainer" parent="UI/Panel/MatchmakingPanel" unique_id=1849182043]
-layout_mode = 2
-
-[node name="LocalPUIDLabel" type="RichTextLabel" parent="UI/Panel/MatchmakingPanel/EOSControls" unique_id=1849182041]
-layout_mode = 2
-focus_mode = 2
-bbcode_enabled = true
-text = "Local PUID: (Initializing EOS...)"
-fit_content = true
-selection_enabled = true
-
-[node name="QuickMatchButton" type="Button" parent="UI/Panel/MatchmakingPanel/EOSControls" unique_id=1319976577]
-layout_mode = 2
-text = "Quick Match (1-Click)"
-
-[node name="HostPrivateButton" type="Button" parent="UI/Panel/MatchmakingPanel/EOSControls" unique_id=1319976578]
-layout_mode = 2
-text = "Host Private Match"
-
-[node name="PrivateJoinContainer" type="HBoxContainer" parent="UI/Panel/MatchmakingPanel/EOSControls" unique_id=1849182044]
-layout_mode = 2
-
-[node name="RoomCodeInput" type="LineEdit" parent="UI/Panel/MatchmakingPanel/EOSControls/PrivateJoinContainer" unique_id=1492049184]
-layout_mode = 2
-size_flags_horizontal = 3
-placeholder_text = "CODE"
-max_length = 4
-
-[node name="JoinPrivateButton" type="Button" parent="UI/Panel/MatchmakingPanel/EOSControls/PrivateJoinContainer" unique_id=1579685735]
-layout_mode = 2
-text = "Join Room"
-
-[node name="RoomCodeDisplay" type="Label" parent="UI/Panel/MatchmakingPanel/EOSControls" unique_id=1137688521]
-visible = false
-layout_mode = 2
-text = "Your Room Code: ABCD"
-horizontal_alignment = 1
-
-[node name="CancelMatchButton" type="Button" parent="UI/Panel/MatchmakingPanel/EOSControls" unique_id=1319976579]
-visible = false
-layout_mode = 2
-text = "Cancel / Leave Session"
-
-[node name="StatusLabel" type="Label" parent="UI/Panel/MatchmakingPanel" unique_id=1137688520]
-layout_mode = 2
-text = "Idle"
-horizontal_alignment = 1
-
 [node name="InteractableBox1" parent="." unique_id=1101952191 instance=ExtResource("2_v7oap")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1, 0.5, 0)
 prop_id = 1
@@ -132,3 +46,67 @@ prop_id = 1
 [node name="InteractableBox2" parent="." unique_id=1591125465 instance=ExtResource("2_v7oap")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0.5, 0)
 prop_id = 2
+
+[node name="UI" type="CanvasLayer" parent="." unique_id=171618583]
+
+[node name="HUD" type="Control" parent="UI"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="RoleBadge" type="PanelContainer" parent="UI/HUD"]
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -140.0
+offset_top = 16.0
+offset_right = 140.0
+offset_bottom = 56.0
+grow_horizontal = 2
+mouse_filter = 2
+
+[node name="RoleLabel" type="Label" parent="UI/HUD/RoleBadge"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 16
+text = "ROLE: SPY WHITE"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="EscMenu" type="PanelContainer" parent="UI"]
+visible = false
+custom_minimum_size = Vector2(280, 180)
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -140.0
+offset_top = -90.0
+offset_right = 140.0
+offset_bottom = 90.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="VBoxContainer" type="VBoxContainer" parent="UI/EscMenu"]
+layout_mode = 2
+theme_override_constants/separation = 16
+alignment = 1
+
+[node name="MenuTitle" type="Label" parent="UI/EscMenu/VBoxContainer"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
+text = "MATCH MENU"
+horizontal_alignment = 1
+
+[node name="ResumeButton" type="Button" parent="UI/EscMenu/VBoxContainer"]
+layout_mode = 2
+text = "Resume"
+
+[node name="LeaveButton" type="Button" parent="UI/EscMenu/VBoxContainer"]
+layout_mode = 2
+text = "Leave to Lobby"

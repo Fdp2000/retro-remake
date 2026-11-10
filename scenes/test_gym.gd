@@ -1,6 +1,7 @@
 extends Node3D
 
 const PLAYER_SCENE: PackedScene = preload("res://entities/player/player.tscn")
+const LOBBY_SCENE_PATH: String = "res://scenes/lobby.tscn"
 
 const SPAWN_POINTS: Dictionary = {
 	1: Vector3(-3.0, 1.0, 0.0),
@@ -9,86 +10,39 @@ const SPAWN_POINTS: Dictionary = {
 
 @onready var players_container: Node3D = $Players
 @onready var ui_layer: CanvasLayer = $UI
-@onready var mode_option_button: OptionButton = $UI/Panel/MatchmakingPanel/ModeOptionButton
+@onready var role_label: Label = $UI/HUD/RoleBadge/RoleLabel
+@onready var esc_menu: PanelContainer = $UI/EscMenu
+@onready var resume_button: Button = $UI/EscMenu/VBoxContainer/ResumeButton
+@onready var leave_button: Button = $UI/EscMenu/VBoxContainer/LeaveButton
 
-# ENet Controls
-@onready var enet_controls: VBoxContainer = $UI/Panel/MatchmakingPanel/ENetControls
-@onready var enet_address_input: LineEdit = $UI/Panel/MatchmakingPanel/ENetControls/ENetAddressInput
-@onready var enet_host_button: Button = $UI/Panel/MatchmakingPanel/ENetControls/ENetHostButton
-@onready var enet_join_button: Button = $UI/Panel/MatchmakingPanel/ENetControls/ENetJoinButton
-
-# EOS Controls
-@onready var eos_controls: VBoxContainer = $UI/Panel/MatchmakingPanel/EOSControls
-@onready var local_puid_label: RichTextLabel = $UI/Panel/MatchmakingPanel/EOSControls/LocalPUIDLabel
-@onready var quick_match_button: Button = $UI/Panel/MatchmakingPanel/EOSControls/QuickMatchButton
-@onready var host_private_button: Button = $UI/Panel/MatchmakingPanel/EOSControls/HostPrivateButton
-@onready var room_code_input: LineEdit = $UI/Panel/MatchmakingPanel/EOSControls/PrivateJoinContainer/RoomCodeInput
-@onready var join_private_button: Button = $UI/Panel/MatchmakingPanel/EOSControls/PrivateJoinContainer/JoinPrivateButton
-@onready var room_code_display: Label = $UI/Panel/MatchmakingPanel/EOSControls/RoomCodeDisplay
-@onready var cancel_match_button: Button = $UI/Panel/MatchmakingPanel/EOSControls/CancelMatchButton
-
-# Status
-@onready var status_label: Label = $UI/Panel/MatchmakingPanel/StatusLabel
-
-
-func _is_peer_active() -> bool:
-	return multiplayer.has_multiplayer_peer() and multiplayer.multiplayer_peer.get_connection_status() == MultiplayerPeer.CONNECTION_CONNECTED
+var peers_in_arena: Dictionary = {} # peer_id -> bool
+var client_peer_id: int = 0
+var has_spawned_all: bool = false
+var is_terminating: bool = false
 
 
 func _ready() -> void:
-	# Network mode setup (EOS P2P vs Local ENet)
-	mode_option_button.clear()
-	mode_option_button.add_item("Online (EOS P2P)", NetworkManager.NetworkMode.EOS_P2P)
-	mode_option_button.add_item("Local (ENet)", NetworkManager.NetworkMode.ENET_LOCAL)
+	# Configure local role badge
+	var my_id: int = multiplayer.get_unique_id() if (multiplayer.has_multiplayer_peer() and NetworkManager.is_online()) else 1
+	if my_id == 1:
+		role_label.text = "ROLE: SPY WHITE (HOST)"
+		role_label.modulate = Color(0.95, 0.95, 0.95)
+	else:
+		role_label.text = "ROLE: SPY BLACK (CONTENDER)"
+		role_label.modulate = Color(0.7, 0.85, 1.0)
 
-	var default_idx: int = mode_option_button.get_item_index(NetworkManager.current_mode)
-	if default_idx != -1:
-		mode_option_button.select(default_idx)
-	mode_option_button.item_selected.connect(_on_mode_selected)
-	_update_mode_ui(NetworkManager.current_mode)
+	# ESC Menu buttons
+	resume_button.pressed.connect(_on_resume_pressed)
+	leave_button.pressed.connect(_on_leave_button_pressed)
 
-	# EOS Manager bindings
-	EOSManager.login_success.connect(_on_eos_login_success)
-	EOSManager.login_failed.connect(func(err: String):
-		status_label.text = "EOS Login Failed: %s" % err
-	)
-	if not EOSManager.local_puid.is_empty():
-		_on_eos_login_success(EOSManager.local_puid)
-
-	# Session Manager bindings
-	SessionManager.matchmaking_status_changed.connect(_on_matchmaking_status_changed)
-	SessionManager.matchmaking_failed.connect(_on_matchmaking_failed)
-	SessionManager.room_code_created.connect(_on_room_code_created)
-	SessionManager.session_closed.connect(_on_session_closed)
-
-	# Network Manager bindings
-	NetworkManager.player_connected.connect(_on_player_connected)
+	# Network lifecycle bindings
 	NetworkManager.player_disconnected.connect(_on_player_disconnected)
-	NetworkManager.server_started.connect(_on_network_active)
-	NetworkManager.connected_to_server.connect(_on_network_active)
-	NetworkManager.connection_failed.connect(_on_connection_failed)
 	NetworkManager.server_disconnected.connect(_on_server_disconnected)
 
-	# ENet button bindings
-	enet_host_button.pressed.connect(_on_enet_host_pressed)
-	enet_join_button.pressed.connect(_on_enet_join_pressed)
-
-	# EOS button bindings
-	quick_match_button.pressed.connect(_on_quick_match_pressed)
-	host_private_button.pressed.connect(_on_host_private_pressed)
-	join_private_button.pressed.connect(_on_join_private_pressed)
-	cancel_match_button.pressed.connect(_on_cancel_match_pressed)
-
-	room_code_input.text_changed.connect(func(new_text: String):
-		var upper_text: String = new_text.to_upper()
-		if room_code_input.text != upper_text:
-			room_code_input.text = upper_text
-			room_code_input.caret_column = upper_text.length()
-	)
-
+	# Spawning debug / diagnostic logs
 	players_container.child_entered_tree.connect(func(node: Node):
-		var is_srv: bool = multiplayer.is_server() if _is_peer_active() else false
-		var is_auth: bool = node.is_multiplayer_authority() if _is_peer_active() else false
+		var is_srv: bool = multiplayer.is_server() if NetworkManager.is_online() else false
+		var is_auth: bool = node.is_multiplayer_authority() if NetworkManager.is_online() else false
 		print("TestGym [%s]: Child entered Players: %s (auth: %d, is_auth: %s)" % [
 			"Server" if is_srv else "Client",
 			node.name,
@@ -98,170 +52,125 @@ func _ready() -> void:
 	)
 
 	players_container.child_exiting_tree.connect(func(node: Node):
-		var is_srv: bool = multiplayer.is_server() if _is_peer_active() else false
+		var is_srv: bool = multiplayer.is_server() if NetworkManager.is_online() else false
 		print("TestGym [%s]: Child exited Players: %s" % [
 			"Server" if is_srv else "Client",
 			node.name
 		])
 	)
 
-	if NetworkManager.is_online():
-		_on_network_active()
-		if NetworkManager.is_host():
-			if not players_container.has_node(str(multiplayer.get_unique_id())):
-				_spawn_player(multiplayer.get_unique_id())
-
-
-func _on_mode_selected(index: int) -> void:
-	var mode: int = mode_option_button.get_item_id(index)
-	NetworkManager.current_mode = mode as NetworkManager.NetworkMode
-	_update_mode_ui(NetworkManager.current_mode)
-
-
-func _update_mode_ui(mode: NetworkManager.NetworkMode) -> void:
-	if mode == NetworkManager.NetworkMode.EOS_P2P:
-		eos_controls.visible = true
-		enet_controls.visible = false
+	# Arena loading handshake
+	if multiplayer.is_server():
+		_on_peer_arena_loaded(1)
 	else:
-		eos_controls.visible = false
-		enet_controls.visible = true
+		notify_arena_ready.rpc_id(1)
+
+	if "--auto-ready" in OS.get_cmdline_args() + OS.get_cmdline_user_args():
+		get_tree().create_timer(2.0).timeout.connect(func():
+			print("TestGym [--auto-ready]: Automated ENet integration verified! Players in tree: %d" % players_container.get_child_count())
+			get_tree().quit(0)
+		)
 
 
-func _on_eos_login_success(puid: String) -> void:
-	local_puid_label.text = "[center]Local PUID: [b]%s[/b][/center]" % puid
-	status_label.text = "EOS Connected"
+func _unhandled_input(event: InputEvent) -> void:
+	if event.is_action_pressed("ui_cancel") or (event is InputEventKey and event.pressed and not event.is_echo() and event.keycode == KEY_ESCAPE):
+		toggle_esc_menu()
+		get_viewport().set_input_as_handled()
 
 
-# ENet Actions
-func _on_enet_host_pressed() -> void:
-	NetworkManager.current_mode = NetworkManager.NetworkMode.ENET_LOCAL
-	var err: Error = NetworkManager.start_host()
-	if err == OK:
-		_on_network_active()
+func toggle_esc_menu() -> void:
+	esc_menu.visible = not esc_menu.visible
+	if esc_menu.visible:
+		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	else:
-		status_label.text = "Failed to start ENet host: %s" % error_string(err)
+		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 
-func _on_enet_join_pressed() -> void:
-	NetworkManager.current_mode = NetworkManager.NetworkMode.ENET_LOCAL
-	var target_addr: String = enet_address_input.text.strip_edges()
-	if target_addr.is_empty():
-		target_addr = "127.0.0.1"
-	var err: Error = NetworkManager.start_join(target_addr)
-	if err == OK:
-		status_label.text = "Connecting via ENet to %s:%d..." % [target_addr, NetworkManager.PORT]
-	else:
-		status_label.text = "Failed to connect: %s" % error_string(err)
+func _on_resume_pressed() -> void:
+	esc_menu.visible = false
+	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 
-# EOS Actions
-func _on_quick_match_pressed() -> void:
-	cancel_match_button.visible = true
-	room_code_display.visible = false
-	SessionManager.start_quick_match()
+func _on_leave_button_pressed() -> void:
+	_terminate_match("Local player selected Leave to Lobby")
 
 
-func _on_host_private_pressed() -> void:
-	var code: String = SessionManager.generate_room_code()
-	DisplayServer.clipboard_set(code)
-	room_code_display.text = "Your Room Code: %s (Copied)" % code
-	room_code_display.visible = true
-	cancel_match_button.visible = true
-	SessionManager.create_and_host_session(SessionManager.MatchType.PRIVATE, code)
+# ==========================================
+# Arena Loading Handshake (Host Authority)
+# ==========================================
+
+@rpc("any_peer", "call_local", "reliable")
+func notify_arena_ready() -> void:
+	var sender_id: int = multiplayer.get_remote_sender_id()
+	_on_peer_arena_loaded(sender_id)
 
 
-func _on_join_private_pressed() -> void:
-	var code: String = room_code_input.text.strip_edges().to_upper()
-	if code.length() != 4:
-		status_label.text = "Room code must be exactly 4 characters."
+func _on_peer_arena_loaded(peer_id: int) -> void:
+	if not multiplayer.is_server():
 		return
-	cancel_match_button.visible = true
-	room_code_display.visible = false
-	SessionManager.join_private_room(code)
+
+	peers_in_arena[peer_id] = true
+	print("TestGym: Peer %d confirmed loaded in arena." % peer_id)
+
+	if peer_id != 1:
+		client_peer_id = peer_id
+		peers_in_arena[2] = true
+
+	# Once both Peer 1 (Host) and Peer 2 (Client) are loaded:
+	if peers_in_arena.has(1) and peers_in_arena.has(2):
+		_spawn_all_players()
 
 
-func _on_cancel_match_pressed() -> void:
-	cancel_match_button.visible = false
-	room_code_display.visible = false
-	SessionManager.destroy_active_session()
-	NetworkManager._cleanup_peer(false)
-	status_label.text = "Matchmaking cancelled / Session left."
+func _spawn_all_players() -> void:
+	if has_spawned_all:
+		return
+	has_spawned_all = true
+
+	print("TestGym: Both peers confirmed arena loaded. Instantiating 1v1 Spies...")
+
+	# 1. Host (Peer 1 - Spy White)
+	var host_player: CharacterBody3D = PLAYER_SCENE.instantiate()
+	host_player.name = "1"
+	host_player.spy_role = 1
+	host_player.position = SPAWN_POINTS[1]
+	players_container.add_child(host_player)
+
+	# 2. Client (Contender - Spy Black)
+	var c_id: int = client_peer_id if client_peer_id != 0 else 2
+	var client_player: CharacterBody3D = PLAYER_SCENE.instantiate()
+	client_player.name = str(c_id)
+	client_player.spy_role = 2
+	client_player.position = SPAWN_POINTS[2]
+	players_container.add_child(client_player)
 
 
-# Session Signals
-func _on_matchmaking_status_changed(message: String) -> void:
-	status_label.text = message
+# ==========================================
+# Teardown & Return to Lobby
+# ==========================================
 
-
-func _on_matchmaking_failed(reason: String) -> void:
-	status_label.text = "Error: %s" % reason
-	cancel_match_button.visible = false
-	room_code_display.visible = false
-
-
-func _on_room_code_created(code: String) -> void:
-	DisplayServer.clipboard_set(code)
-	room_code_display.text = "Your Room Code: %s (Copied)" % code
-	room_code_display.visible = true
-
-
-func _on_session_closed() -> void:
-	cancel_match_button.visible = false
-	room_code_display.visible = false
-
-
-# Network Status Signals
-func _on_network_active() -> void:
-	ui_layer.visible = false
-
-
-func _on_connection_failed() -> void:
-	ui_layer.visible = true
-	cancel_match_button.visible = false
-	room_code_display.visible = false
-	status_label.text = "Connection failed."
-	for child in players_container.get_children():
-		child.queue_free()
+func _on_player_disconnected(peer_id: int) -> void:
+	print("TestGym: Peer %d disconnected during active match." % peer_id)
+	_terminate_match("Opponent disconnected.")
 
 
 func _on_server_disconnected() -> void:
-	print("TestGym: Server disconnected.")
-	ui_layer.visible = true
-	cancel_match_button.visible = false
-	room_code_display.visible = false
-	status_label.text = "Server disconnected."
+	print("TestGym: Host disconnected.")
+	_terminate_match("Host disconnected.")
+
+
+func _terminate_match(reason: String = "") -> void:
+	if is_terminating:
+		return
+	is_terminating = true
+
+	print("TestGym: Terminating match (%s) -> Returning to lobby." % reason)
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+
+	# Cleanup network peer and EOS session
+	NetworkManager.disconnect_session()
+
+	# Clear local players
 	for child in players_container.get_children():
 		child.queue_free()
 
-
-func _on_player_connected(peer_id: int) -> void:
-	# Only the server instantiates players in the multiplayer tree
-	if not NetworkManager.is_host():
-		return
-	_spawn_player(peer_id)
-
-
-func _on_player_disconnected(peer_id: int) -> void:
-	# Only Peer 1 (Host/Server) handles despawning in the multiplayer tree
-	if multiplayer.get_unique_id() != 1:
-		return
-	var player_node: Node = players_container.get_node_or_null(str(peer_id))
-	if player_node:
-		print("TestGym: Despawning player for peer %d" % peer_id)
-		player_node.queue_free()
-
-
-func _spawn_player(peer_id: int) -> void:
-	if players_container.has_node(str(peer_id)):
-		print("TestGym: Player %d already exists, skipping spawn." % peer_id)
-		return
-
-	print("TestGym: Spawning player for peer %d" % peer_id)
-	var player_instance: CharacterBody3D = PLAYER_SCENE.instantiate()
-	player_instance.name = str(peer_id)
-
-	# Place Peer 1 at (-3, 1, 0) and Peer 2 (client) at (3, 1, 0)
-	var spawn_pos: Vector3 = Vector3(-3.0, 1.0, 0.0) if peer_id == 1 else Vector3(3.0, 1.0, 0.0)
-	player_instance.position = spawn_pos
-
-	players_container.add_child(player_instance)
+	get_tree().change_scene_to_file(LOBBY_SCENE_PATH)

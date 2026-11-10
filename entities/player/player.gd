@@ -1,5 +1,18 @@
 extends CharacterBody3D
 
+enum SpyRole {
+	SPY_WHITE = 1,
+	SPY_BLACK = 2
+}
+
+const COLOR_SPY_WHITE: Color = Color(0.92, 0.92, 0.92)
+const COLOR_SPY_BLACK: Color = Color(0.12, 0.12, 0.12)
+
+@export var spy_role: int = 1:
+	set(value):
+		spy_role = value
+		_update_mesh_color()
+
 @export var head_pitch: float = 0.0
 
 @export var speed: float = 5.0
@@ -28,6 +41,7 @@ func _enter_tree() -> void:
 	_target_yaw = rotation.y
 
 func _ready() -> void:
+	_update_mesh_color()
 	if is_multiplayer_authority():
 		camera.current = true
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
@@ -39,6 +53,13 @@ func _ready() -> void:
 		set_process_unhandled_input(false)
 		set_process(false)
 		hud.visible = false
+
+func _update_mesh_color() -> void:
+	if not is_inside_tree() or not mesh_instance:
+		return
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = COLOR_SPY_BLACK if spy_role == SpyRole.SPY_BLACK else COLOR_SPY_WHITE
+	mesh_instance.material_override = mat
 
 func _set(property: StringName, value: Variant) -> bool:
 	if not is_inside_tree():

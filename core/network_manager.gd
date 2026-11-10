@@ -215,6 +215,10 @@ func _on_eos_peer_connection_closed(data: Dictionary) -> void:
 	])
 
 
+func disconnect_session() -> void:
+	_cleanup_peer(true)
+
+
 func _cleanup_peer(clean_session: bool = true) -> void:
 	if peer != null:
 		peer.close()
@@ -240,8 +244,6 @@ func _on_peer_connected(id: int) -> void:
 func _on_peer_disconnected(id: int) -> void:
 	print("NetworkManager: Peer disconnected: %d" % id)
 	player_disconnected.emit(id)
-	if current_mode == NetworkMode.EOS_P2P:
-		_cleanup_peer(true)
 
 
 func _on_connected_to_server() -> void:
