@@ -9,12 +9,26 @@ const SPAWN_POINTS: Dictionary = {
 
 @onready var players_container: Node3D = $Players
 @onready var ui_layer: CanvasLayer = $UI
-@onready var status_label: Label = $UI/Panel/VBoxContainer/StatusLabel
-@onready var local_puid_label: RichTextLabel = $UI/Panel/VBoxContainer/LocalPUIDLabel
-@onready var mode_option_button: OptionButton = $UI/Panel/VBoxContainer/ModeOptionButton
-@onready var target_puid_input: LineEdit = $UI/Panel/VBoxContainer/TargetPUIDInput
-@onready var host_button: Button = $UI/Panel/VBoxContainer/HostButton
-@onready var join_button: Button = $UI/Panel/VBoxContainer/JoinButton
+@onready var mode_option_button: OptionButton = $UI/Panel/MatchmakingPanel/ModeOptionButton
+
+# ENet Controls
+@onready var enet_controls: VBoxContainer = $UI/Panel/MatchmakingPanel/ENetControls
+@onready var enet_address_input: LineEdit = $UI/Panel/MatchmakingPanel/ENetControls/ENetAddressInput
+@onready var enet_host_button: Button = $UI/Panel/MatchmakingPanel/ENetControls/ENetHostButton
+@onready var enet_join_button: Button = $UI/Panel/MatchmakingPanel/ENetControls/ENetJoinButton
+
+# EOS Controls
+@onready var eos_controls: VBoxContainer = $UI/Panel/MatchmakingPanel/EOSControls
+@onready var local_puid_label: RichTextLabel = $UI/Panel/MatchmakingPanel/EOSControls/LocalPUIDLabel
+@onready var quick_match_button: Button = $UI/Panel/MatchmakingPanel/EOSControls/QuickMatchButton
+@onready var host_private_button: Button = $UI/Panel/MatchmakingPanel/EOSControls/HostPrivateButton
+@onready var room_code_input: LineEdit = $UI/Panel/MatchmakingPanel/EOSControls/PrivateJoinContainer/RoomCodeInput
+@onready var join_private_button: Button = $UI/Panel/MatchmakingPanel/EOSControls/PrivateJoinContainer/JoinPrivateButton
+@onready var room_code_display: Label = $UI/Panel/MatchmakingPanel/EOSControls/RoomCodeDisplay
+@onready var cancel_match_button: Button = $UI/Panel/MatchmakingPanel/EOSControls/CancelMatchButton
+
+# Status
+@onready var status_label: Label = $UI/Panel/MatchmakingPanel/StatusLabel
 
 
 func _is_peer_active() -> bool:
@@ -33,10 +47,21 @@ func _ready() -> void:
 	mode_option_button.item_selected.connect(_on_mode_selected)
 	_update_mode_ui(NetworkManager.current_mode)
 
+	# EOS Manager bindings
 	EOSManager.login_success.connect(_on_eos_login_success)
-	if EOSManager.local_puid != "":
+	EOSManager.login_failed.connect(func(err: String):
+		status_label.text = "EOS Login Failed: %s" % err
+	)
+	if not EOSManager.local_puid.is_empty():
 		_on_eos_login_success(EOSManager.local_puid)
 
+	# Session Manager bindings
+	SessionManager.matchmaking_status_changed.connect(_on_matchmaking_status_changed)
+	SessionManager.matchmaking_failed.connect(_on_matchmaking_failed)
+	SessionManager.room_code_created.connect(_on_room_code_created)
+	SessionManager.session_closed.connect(_on_session_closed)
+
+	# Network Manager bindings
 	NetworkManager.player_connected.connect(_on_player_connected)
 	NetworkManager.player_disconnected.connect(_on_player_disconnected)
 	NetworkManager.server_started.connect(_on_network_active)
@@ -44,8 +69,22 @@ func _ready() -> void:
 	NetworkManager.connection_failed.connect(_on_connection_failed)
 	NetworkManager.server_disconnected.connect(_on_server_disconnected)
 
-	host_button.pressed.connect(_on_host_pressed)
-	join_button.pressed.connect(_on_join_pressed)
+	# ENet button bindings
+	enet_host_button.pressed.connect(_on_enet_host_pressed)
+	enet_join_button.pressed.connect(_on_enet_join_pressed)
+
+	# EOS button bindings
+	quick_match_button.pressed.connect(_on_quick_match_pressed)
+	host_private_button.pressed.connect(_on_host_private_pressed)
+	join_private_button.pressed.connect(_on_join_private_pressed)
+	cancel_match_button.pressed.connect(_on_cancel_match_pressed)
+
+	room_code_input.text_changed.connect(func(new_text: String):
+		var upper_text: String = new_text.to_upper()
+		if room_code_input.text != upper_text:
+			room_code_input.text = upper_text
+			room_code_input.caret_column = upper_text.length()
+	)
 
 	players_container.child_entered_tree.connect(func(node: Node):
 		var is_srv: bool = multiplayer.is_server() if _is_peer_active() else false
@@ -73,18 +112,6 @@ func _ready() -> void:
 				_spawn_player(multiplayer.get_unique_id())
 
 
-func _unhandled_input(event: InputEvent) -> void:
-	if ui_layer.visible and not NetworkManager.is_online():
-		# Do not trigger shortcuts when user is focused on LineEdit
-		if get_viewport().gui_get_focus_owner() is LineEdit:
-			return
-		if event is InputEventKey and event.pressed:
-			if event.keycode == KEY_H:
-				_on_host_pressed()
-			elif event.keycode == KEY_J:
-				_on_join_pressed()
-
-
 func _on_mode_selected(index: int) -> void:
 	var mode: int = mode_option_button.get_item_id(index)
 	NetworkManager.current_mode = mode as NetworkManager.NetworkMode
@@ -93,38 +120,11 @@ func _on_mode_selected(index: int) -> void:
 
 func _update_mode_ui(mode: NetworkManager.NetworkMode) -> void:
 	if mode == NetworkManager.NetworkMode.EOS_P2P:
-		target_puid_input.visible = true
-		target_puid_input.placeholder_text = "Target Host PUID"
+		eos_controls.visible = true
+		enet_controls.visible = false
 	else:
-		target_puid_input.visible = false
-
-
-func _on_host_pressed() -> void:
-	var err: Error = NetworkManager.start_host()
-	if err == OK:
-		_on_network_active()
-	else:
-		status_label.text = "Failed to start host: %s" % error_string(err)
-
-
-func _on_join_pressed() -> void:
-	if NetworkManager.current_mode == NetworkManager.NetworkMode.EOS_P2P:
-		var target_puid: String = target_puid_input.text.strip_edges()
-		if target_puid.is_empty():
-			status_label.text = "Error: Enter Target Host PUID."
-			return
-		var err: Error = NetworkManager.start_join(target_puid)
-		if err == OK:
-			status_label.text = "Connecting via EOS to %s..." % target_puid
-		else:
-			status_label.text = "Failed to join: %s" % error_string(err)
-	else:
-		var target_addr: String = target_puid_input.text.strip_edges() if target_puid_input.text.strip_edges() != "" else "127.0.0.1"
-		var err: Error = NetworkManager.start_join(target_addr)
-		if err == OK:
-			status_label.text = "Connecting via ENet to %s:%d..." % [target_addr, NetworkManager.PORT]
-		else:
-			status_label.text = "Failed to connect: %s" % error_string(err)
+		eos_controls.visible = false
+		enet_controls.visible = true
 
 
 func _on_eos_login_success(puid: String) -> void:
@@ -132,18 +132,103 @@ func _on_eos_login_success(puid: String) -> void:
 	status_label.text = "EOS Connected"
 
 
+# ENet Actions
+func _on_enet_host_pressed() -> void:
+	NetworkManager.current_mode = NetworkManager.NetworkMode.ENET_LOCAL
+	var err: Error = NetworkManager.start_host()
+	if err == OK:
+		_on_network_active()
+	else:
+		status_label.text = "Failed to start ENet host: %s" % error_string(err)
+
+
+func _on_enet_join_pressed() -> void:
+	NetworkManager.current_mode = NetworkManager.NetworkMode.ENET_LOCAL
+	var target_addr: String = enet_address_input.text.strip_edges()
+	if target_addr.is_empty():
+		target_addr = "127.0.0.1"
+	var err: Error = NetworkManager.start_join(target_addr)
+	if err == OK:
+		status_label.text = "Connecting via ENet to %s:%d..." % [target_addr, NetworkManager.PORT]
+	else:
+		status_label.text = "Failed to connect: %s" % error_string(err)
+
+
+# EOS Actions
+func _on_quick_match_pressed() -> void:
+	cancel_match_button.visible = true
+	room_code_display.visible = false
+	SessionManager.start_quick_match()
+
+
+func _on_host_private_pressed() -> void:
+	var code: String = SessionManager.generate_room_code()
+	DisplayServer.clipboard_set(code)
+	room_code_display.text = "Your Room Code: %s (Copied)" % code
+	room_code_display.visible = true
+	cancel_match_button.visible = true
+	SessionManager.create_and_host_session(SessionManager.MatchType.PRIVATE, code)
+
+
+func _on_join_private_pressed() -> void:
+	var code: String = room_code_input.text.strip_edges().to_upper()
+	if code.length() != 4:
+		status_label.text = "Room code must be exactly 4 characters."
+		return
+	cancel_match_button.visible = true
+	room_code_display.visible = false
+	SessionManager.join_private_room(code)
+
+
+func _on_cancel_match_pressed() -> void:
+	cancel_match_button.visible = false
+	room_code_display.visible = false
+	SessionManager.destroy_active_session()
+	NetworkManager._cleanup_peer(false)
+	status_label.text = "Matchmaking cancelled / Session left."
+
+
+# Session Signals
+func _on_matchmaking_status_changed(message: String) -> void:
+	status_label.text = message
+
+
+func _on_matchmaking_failed(reason: String) -> void:
+	status_label.text = "Error: %s" % reason
+	cancel_match_button.visible = false
+	room_code_display.visible = false
+
+
+func _on_room_code_created(code: String) -> void:
+	DisplayServer.clipboard_set(code)
+	room_code_display.text = "Your Room Code: %s (Copied)" % code
+	room_code_display.visible = true
+
+
+func _on_session_closed() -> void:
+	cancel_match_button.visible = false
+	room_code_display.visible = false
+
+
+# Network Status Signals
 func _on_network_active() -> void:
 	ui_layer.visible = false
 
 
 func _on_connection_failed() -> void:
 	ui_layer.visible = true
+	cancel_match_button.visible = false
+	room_code_display.visible = false
 	status_label.text = "Connection failed."
+	for child in players_container.get_children():
+		child.queue_free()
 
 
 func _on_server_disconnected() -> void:
 	print("TestGym: Server disconnected.")
 	ui_layer.visible = true
+	cancel_match_button.visible = false
+	room_code_display.visible = false
 	status_label.text = "Server disconnected."
 	for child in players_container.get_children():
 		child.queue_free()

@@ -30,6 +30,7 @@ HLobbies="*uid://6iqvm33q0tb1"
 HP2P="*uid://u6ae5fpm6l8q"
 HSessions="*uid://bieh2rxxahuu2"
 EOSManager="*res://core/eos_manager.gd"
+SessionManager="*res://core/session_manager.gd"
 
 [display]
 

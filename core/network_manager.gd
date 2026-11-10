@@ -46,6 +46,9 @@ func _notification(what: int) -> void:
 	if what == NOTIFICATION_WM_CLOSE_REQUEST:
 		if peer:
 			peer.close()
+			peer = null
+		if current_mode == NetworkMode.EOS_P2P:
+			SessionManager.destroy_active_session()
 
 
 func _check_cmdline_args() -> void:
@@ -91,7 +94,7 @@ func apply_relay_control(mode: RelayControlMode = current_relay_mode) -> Error:
 
 
 func start_host() -> Error:
-	_cleanup_peer()
+	_cleanup_peer(false)
 
 	if current_mode == NetworkMode.ENET_LOCAL:
 		var enet_peer := ENetMultiplayerPeer.new()
@@ -128,7 +131,7 @@ func start_host() -> Error:
 
 
 func start_join(target_address_or_puid: String = "") -> Error:
-	_cleanup_peer()
+	_cleanup_peer(false)
 
 	if current_mode == NetworkMode.ENET_LOCAL:
 		var address: String = target_address_or_puid.strip_edges()
@@ -212,11 +215,13 @@ func _on_eos_peer_connection_closed(data: Dictionary) -> void:
 	])
 
 
-func _cleanup_peer() -> void:
+func _cleanup_peer(clean_session: bool = true) -> void:
 	if peer != null:
 		peer.close()
 		peer = null
 	multiplayer.multiplayer_peer = null
+	if clean_session and current_mode == NetworkMode.EOS_P2P:
+		SessionManager.destroy_active_session()
 
 
 func is_online() -> bool:
@@ -235,6 +240,8 @@ func _on_peer_connected(id: int) -> void:
 func _on_peer_disconnected(id: int) -> void:
 	print("NetworkManager: Peer disconnected: %d" % id)
 	player_disconnected.emit(id)
+	if current_mode == NetworkMode.EOS_P2P:
+		_cleanup_peer(true)
 
 
 func _on_connected_to_server() -> void:
@@ -244,11 +251,11 @@ func _on_connected_to_server() -> void:
 
 func _on_connection_failed() -> void:
 	push_error("NetworkManager: Connection to server failed.")
-	_cleanup_peer()
+	_cleanup_peer(true)
 	connection_failed.emit()
 
 
 func _on_server_disconnected() -> void:
 	print("NetworkManager: Server disconnected.")
-	_cleanup_peer()
+	_cleanup_peer(true)
 	server_disconnected.emit()

@@ -1,8 +1,7 @@
-[gd_scene format=3]
+[gd_scene format=3 uid="uid://b8yg4h85h6g3s"]
 
-[ext_resource type="Script" path="res://scenes/test_gym.gd" id="1_cppg0"]
+[ext_resource type="Script" uid="uid://c7afp22l8kcvd" path="res://scenes/test_gym.gd" id="1_cppg0"]
 [ext_resource type="PackedScene" path="res://entities/interactable_box.tscn" id="2_v7oap"]
-[ext_resource type="Script" path="res://entities/interactable_box.gd" id="3_3dxdl"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_8qy8g"]
 
@@ -49,50 +48,87 @@ anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
 offset_left = -180.0
-offset_top = -100.0
+offset_top = -140.0
 offset_right = 180.0
-offset_bottom = 100.0
+offset_bottom = 140.0
 grow_horizontal = 2
 grow_vertical = 2
 
-[node name="VBoxContainer" type="VBoxContainer" parent="UI/Panel" unique_id=547957675]
+[node name="MatchmakingPanel" type="VBoxContainer" parent="UI/Panel" unique_id=547957675]
 layout_mode = 2
 
-[node name="StatusLabel" type="Label" parent="UI/Panel/VBoxContainer" unique_id=1137688520]
+[node name="ModeOptionButton" type="OptionButton" parent="UI/Panel/MatchmakingPanel" unique_id=1930491823]
 layout_mode = 2
-text = "Multiplayer Test Gym"
-horizontal_alignment = 1
 
-[node name="LocalPUIDLabel" type="RichTextLabel" parent="UI/Panel/VBoxContainer" unique_id=1849182041]
+[node name="ENetControls" type="VBoxContainer" parent="UI/Panel/MatchmakingPanel" unique_id=1849182042]
+visible = false
 layout_mode = 2
+
+[node name="ENetAddressInput" type="LineEdit" parent="UI/Panel/MatchmakingPanel/ENetControls" unique_id=1492049183]
+layout_mode = 2
+text = "127.0.0.1"
+placeholder_text = "Host Address"
+
+[node name="ENetHostButton" type="Button" parent="UI/Panel/MatchmakingPanel/ENetControls" unique_id=1319976576]
+layout_mode = 2
+text = "Host (ENet)"
+
+[node name="ENetJoinButton" type="Button" parent="UI/Panel/MatchmakingPanel/ENetControls" unique_id=1579685734]
+layout_mode = 2
+text = "Join (ENet)"
+
+[node name="EOSControls" type="VBoxContainer" parent="UI/Panel/MatchmakingPanel" unique_id=1849182043]
+layout_mode = 2
+
+[node name="LocalPUIDLabel" type="RichTextLabel" parent="UI/Panel/MatchmakingPanel/EOSControls" unique_id=1849182041]
+layout_mode = 2
+focus_mode = 2
 bbcode_enabled = true
+text = "Local PUID: (Initializing EOS...)"
 fit_content = true
 selection_enabled = true
-text = "Local PUID: (Initializing EOS...)"
 
-[node name="ModeOptionButton" type="OptionButton" parent="UI/Panel/VBoxContainer" unique_id=1930491823]
+[node name="QuickMatchButton" type="Button" parent="UI/Panel/MatchmakingPanel/EOSControls" unique_id=1319976577]
+layout_mode = 2
+text = "Quick Match (1-Click)"
+
+[node name="HostPrivateButton" type="Button" parent="UI/Panel/MatchmakingPanel/EOSControls" unique_id=1319976578]
+layout_mode = 2
+text = "Host Private Match"
+
+[node name="PrivateJoinContainer" type="HBoxContainer" parent="UI/Panel/MatchmakingPanel/EOSControls" unique_id=1849182044]
 layout_mode = 2
 
-[node name="TargetPUIDInput" type="LineEdit" parent="UI/Panel/VBoxContainer" unique_id=1492049182]
+[node name="RoomCodeInput" type="LineEdit" parent="UI/Panel/MatchmakingPanel/EOSControls/PrivateJoinContainer" unique_id=1492049184]
 layout_mode = 2
-placeholder_text = "Target Host PUID"
+size_flags_horizontal = 3
+placeholder_text = "CODE"
+max_length = 4
 
-[node name="HostButton" type="Button" parent="UI/Panel/VBoxContainer" unique_id=1319976575]
+[node name="JoinPrivateButton" type="Button" parent="UI/Panel/MatchmakingPanel/EOSControls/PrivateJoinContainer" unique_id=1579685735]
 layout_mode = 2
-text = "Host (H)"
+text = "Join Room"
 
-[node name="JoinButton" type="Button" parent="UI/Panel/VBoxContainer" unique_id=1579685733]
+[node name="RoomCodeDisplay" type="Label" parent="UI/Panel/MatchmakingPanel/EOSControls" unique_id=1137688521]
+visible = false
 layout_mode = 2
-text = "Join (J)"
+text = "Your Room Code: ABCD"
+horizontal_alignment = 1
 
-[node name="InteractableBox1" type="StaticBody3D" parent="." unique_id=1101952191 instance=ExtResource("2_v7oap")]
+[node name="CancelMatchButton" type="Button" parent="UI/Panel/MatchmakingPanel/EOSControls" unique_id=1319976579]
+visible = false
+layout_mode = 2
+text = "Cancel / Leave Session"
+
+[node name="StatusLabel" type="Label" parent="UI/Panel/MatchmakingPanel" unique_id=1137688520]
+layout_mode = 2
+text = "Idle"
+horizontal_alignment = 1
+
+[node name="InteractableBox1" parent="." unique_id=1101952191 instance=ExtResource("2_v7oap")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1, 0.5, 0)
-collision_layer = 3
-script = ExtResource("3_3dxdl")
 prop_id = 1
 
-[node name="InteractableBox2" type="StaticBody3D" parent="." unique_id=1591125465 instance=ExtResource("2_v7oap")]
+[node name="InteractableBox2" parent="." unique_id=1591125465 instance=ExtResource("2_v7oap")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0.5, 0)
-collision_layer = 3
-script = ExtResource("3_3dxdl")
 prop_id = 2
