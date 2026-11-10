@@ -16,3 +16,9 @@ export_credentials.cfg
 .mono/
 data_*/
 mono_crash.*.json
+
+# EOS Local Secrets
+res://config/eos_credentials.cfg
+config/eos_credentials.cfg
+*.secret.cfg
+

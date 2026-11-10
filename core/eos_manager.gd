@@ -1,12 +1,13 @@
 extends Node
 
-# Verified Epic Online Services Credentials
-const PRODUCT_ID: String = "8c979b42d80145ad9e33467f76ace505"
-const SANDBOX_ID: String = "38c410063a044b098d867c81a307d33f"
-const DEPLOYMENT_ID: String = "23270bde2c04422e81e1fc56988f6b7a"
-const ENCRYPTION_KEY: String = "a3f89b12c4e570891d2f4a6b8e0c13579b2d4f6a8e0c246813579bdf02468ace"
-const CLIENT_ID: String = "xyza7891OVRH19W3V9ACwWFPF388OUt2"
-const CLIENT_SECRET: String = "vfOedXEr6U11v+b8TRD5iv0fu+JTbNdTtdr9ohoeETs"
+const CREDENTIALS_PATH: String = "res://config/eos_credentials.cfg"
+
+var product_id: String = ""
+var sandbox_id: String = ""
+var deployment_id: String = ""
+var client_id: String = ""
+var client_secret: String = ""
+var encryption_key: String = ""
 
 # Signals
 signal eos_initialized()
@@ -18,6 +19,29 @@ var local_puid: String = ""
 var is_initialized: bool = false
 
 
+func _load_credentials() -> bool:
+	var config := ConfigFile.new()
+	var err := config.load(CREDENTIALS_PATH)
+	if err != OK:
+		printerr("[EOSManager] CRITICAL: Missing credentials file at: ", CREDENTIALS_PATH)
+		printerr("[EOSManager] Copy 'res://config/eos_credentials.template.cfg' to 'eos_credentials.cfg' and add valid keys.")
+		return false
+
+	product_id = config.get_value("eos", "product_id", "")
+	sandbox_id = config.get_value("eos", "sandbox_id", "")
+	deployment_id = config.get_value("eos", "deployment_id", "")
+	client_id = config.get_value("eos", "client_id", "")
+	client_secret = config.get_value("eos", "client_secret", "")
+	encryption_key = config.get_value("eos", "encryption_key", "")
+
+	if product_id.is_empty() or client_id.is_empty() or client_secret.is_empty():
+		printerr("[EOSManager] CRITICAL: Required credentials missing in: ", CREDENTIALS_PATH)
+		return false
+
+	print("[EOSManager] Credentials successfully loaded from config.")
+	return true
+
+
 func _ready() -> void:
 	# 1. Check if IEOS singleton is registered
 	if not Engine.has_singleton("IEOS"):
@@ -26,14 +50,18 @@ func _ready() -> void:
 		login_failed.emit(err_msg)
 		return
 
+	if not _load_credentials():
+		printerr("[EOSManager] Aborting initialization due to missing credentials.")
+		return
+
 	# 2. Configure platform creation options with verified credentials & tick budget
 	var create_opts := EOS.Platform.CreateOptions.new()
-	create_opts.product_id = PRODUCT_ID
-	create_opts.sandbox_id = SANDBOX_ID
-	create_opts.deployment_id = DEPLOYMENT_ID
-	create_opts.client_id = CLIENT_ID
-	create_opts.client_secret = CLIENT_SECRET
-	create_opts.encryption_key = ENCRYPTION_KEY
+	create_opts.product_id = product_id
+	create_opts.sandbox_id = sandbox_id
+	create_opts.deployment_id = deployment_id
+	create_opts.client_id = client_id
+	create_opts.client_secret = client_secret
+	create_opts.encryption_key = encryption_key
 	
 	# Configure tick budget based on target frame rate (at least 2ms, target ~10ms for 60fps)
 	var max_fps: float = max(Engine.get_max_fps() * 1.0, 60.0)
