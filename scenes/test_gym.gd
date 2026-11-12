@@ -22,6 +22,7 @@ var is_terminating: bool = false
 
 
 func _ready() -> void:
+	_setup_interactive_doors()
 	# Configure local role badge
 	var my_id: int = multiplayer.get_unique_id() if (multiplayer.has_multiplayer_peer() and NetworkManager.is_online()) else 1
 	if my_id == 1:
@@ -174,3 +175,12 @@ func _terminate_match(reason: String = "") -> void:
 		child.queue_free()
 
 	get_tree().change_scene_to_file(LOBBY_SCENE_PATH)
+
+
+func _setup_interactive_doors() -> void:
+	var door_script: Script = preload("res://scenes/BuildingComplex/interactive_door.gd")
+	for door in find_children("*", "MeshInstance3D", true, false):
+		if String(door.name).begins_with("Door_") and String(door.name).ends_with("_Door") and door.get_script() == null:
+			door.set_script(door_script)
+			# Children are already ready when the gym attaches the script.
+			door._ready()

@@ -2,7 +2,7 @@
 
 [ext_resource type="Script" uid="uid://c7afp22l8kcvd" path="res://scenes/test_gym.gd" id="1_cppg0"]
 [ext_resource type="PackedScene" path="res://entities/interactable_box.tscn" id="2_v7oap"]
-[ext_resource type="PackedScene" uid="uid://dyjgmweb42cw" path="res://Assets/Models/Import/Interiors_A/Scenes/TestDemo/demo_grp.tscn" id="3_cppg0"]
+[ext_resource type="PackedScene" uid="uid://cc1qt6nhn84t0" path="res://scenes/BuildingComplex/BuildingComplex.tscn" id="3_cppg0"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_8qy8g"]
 
@@ -15,9 +15,6 @@ sky = SubResource("Sky_unxgw")
 ambient_light_source = 3
 reflected_light_source = 2
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_onsmx"]
-albedo_color = Color(0.35, 0.38, 0.42, 1)
-
 [node name="TestGym" type="Node3D" unique_id=93966209]
 script = ExtResource("1_cppg0")
 
@@ -27,12 +24,6 @@ environment = SubResource("Environment_63yqs")
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=1645396586]
 transform = Transform3D(0.866, 0, 0.5, 0.25, 0.866, -0.433, -0.433, 0.5, 0.75, 0, 10, 0)
 shadow_enabled = true
-
-[node name="Floor" type="CSGBox3D" parent="." unique_id=1077159762]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.5, 0)
-use_collision = true
-size = Vector3(25, 1, 25)
-material = SubResource("StandardMaterial3D_onsmx")
 
 [node name="Players" type="Node3D" parent="." unique_id=69997764]
 
@@ -112,5 +103,4 @@ text = "Resume"
 layout_mode = 2
 text = "Leave to Lobby"
 
-[node name="Demo_Grp" parent="." unique_id=1335972792 instance=ExtResource("3_cppg0")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.5316571, 0.012065113, -2.7047896)
+[node name="BuildingComplex" parent="." unique_id=1313143426 instance=ExtResource("3_cppg0")]

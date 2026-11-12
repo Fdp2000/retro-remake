@@ -41,6 +41,7 @@ func _enter_tree() -> void:
 	_target_yaw = rotation.y
 
 func _ready() -> void:
+	raycast.add_exception(self)
 	_update_mesh_color()
 	if is_multiplayer_authority():
 		camera.current = true
@@ -97,11 +98,15 @@ func _process(_delta: float) -> void:
 
 	if raycast.is_colliding():
 		var collider: Object = raycast.get_collider()
+		while collider is Node and not collider.has_method("request_interaction"):
+			collider = collider.get_parent()
 		if collider and collider.has_method("request_interaction"):
 			is_interactable = true
 			target_collider = collider
 
 	prompt_label.visible = is_interactable
+	if is_interactable:
+		prompt_label.text = target_collider.get_interaction_prompt() if target_collider.has_method("get_interaction_prompt") else "[E] Interact"
 
 	var interact_pressed: bool = (
 		Input.is_action_just_pressed("interact")
