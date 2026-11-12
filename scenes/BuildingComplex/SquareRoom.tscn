@@ -1,0 +1,183 @@
+[gd_scene format=3 uid="uid://dhitgmdtlr20u"]
+
+[ext_resource type="PackedScene" uid="uid://boetd4hlg2efi" path="res://Assets/Models/Import/Interiors_A/Scenes/Doors/door_b_grp.tscn" id="door"]
+[ext_resource type="PackedScene" uid="uid://gs15fxigum5x" path="res://Assets/Models/Import/Interiors_A/Scenes/Walls/wall_3m_door_a.tscn" id="doorwall"]
+[ext_resource type="PackedScene" uid="uid://b5qju4mcr53wp" path="res://Assets/Models/Import/Interiors_A/Scenes/Floor/floor_3x_3.tscn" id="floor"]
+[ext_resource type="PackedScene" uid="uid://1081g1d8f2ni" path="res://Assets/Models/Import/Interiors_A/Scenes/Walls/wall_3m.tscn" id="wall"]
+[ext_resource type="PackedScene" uid="uid://610f6wi1wnh5" path="res://Assets/Models/Import/Interiors_A/Scenes/Walls/wall_3m_window_a.tscn" id="window"]
+
+[sub_resource type="Environment" id="Environment_room"]
+background_mode = 1
+background_color = Color(0.16, 0.21, 0.28, 1)
+ambient_light_source = 3
+ambient_light_color = Color(0.82, 0.89, 1, 1)
+ambient_light_energy = 0.7
+
+[node name="SquareRoom" type="Node3D" unique_id=1877632656]
+
+[node name="Floor" type="Node3D" parent="." unique_id=361213157]
+
+[node name="Tile_0_0" parent="Floor" unique_id=96126677 instance=ExtResource("floor")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0, -3)
+
+[node name="Tile_0_3" parent="Floor" unique_id=217437930 instance=ExtResource("floor")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0, 0)
+
+[node name="Tile_0_6" parent="Floor" unique_id=228532109 instance=ExtResource("floor")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0, 3)
+
+[node name="Tile_3_0" parent="Floor" unique_id=1302684868 instance=ExtResource("floor")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -3)
+
+[node name="Tile_3_3" parent="Floor" unique_id=415074825 instance=ExtResource("floor")]
+
+[node name="Tile_3_6" parent="Floor" unique_id=104188740 instance=ExtResource("floor")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 3)
+
+[node name="Tile_6_0" parent="Floor" unique_id=1628411324 instance=ExtResource("floor")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 0, -3)
+
+[node name="Tile_6_3" parent="Floor" unique_id=1240460357 instance=ExtResource("floor")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 0, 0)
+
+[node name="Tile_6_6" parent="Floor" unique_id=407115855 instance=ExtResource("floor")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 0, 3)
+
+[node name="Walls" type="Node3D" parent="." unique_id=40887677]
+
+[node name="North_Left" parent="Walls" unique_id=2090256771 instance=ExtResource("window")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0, -4.5)
+
+[node name="North_Doorway" parent="Walls" unique_id=1375126087 instance=ExtResource("doorwall")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -4.5)
+
+[node name="North_Right" parent="Walls" unique_id=1894208491 instance=ExtResource("window")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 0, -4.5)
+
+[node name="South_Left" parent="Walls" unique_id=1907748607 instance=ExtResource("wall")]
+transform = Transform3D(-1, 0, -8.742278e-08, 0, 1, 0, 8.742278e-08, 0, -1, -3, 0, 4.5)
+
+[node name="South_Doorway" parent="Walls" unique_id=626672547 instance=ExtResource("doorwall")]
+transform = Transform3D(-1, 0, -8.742278e-08, 0, 1, 0, 8.742278e-08, 0, -1, 0, 0, 4.5)
+
+[node name="South_Right" parent="Walls" unique_id=1229706211 instance=ExtResource("wall")]
+transform = Transform3D(-1, 0, -8.742278e-08, 0, 1, 0, 8.742278e-08, 0, -1, 3, 0, 4.5)
+
+[node name="East_Left" parent="Walls" unique_id=891595337 instance=ExtResource("wall")]
+transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, 4.5, 0, -3)
+
+[node name="East_Doorway" parent="Walls" unique_id=1288569504 instance=ExtResource("doorwall")]
+transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, 4.5, 0, 0)
+
+[node name="East_Right" parent="Walls" unique_id=131452356 instance=ExtResource("wall")]
+transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, 4.5, 0, 3)
+
+[node name="West_Left" parent="Walls" unique_id=1382973982 instance=ExtResource("wall")]
+transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, -4.5, 0, -3)
+
+[node name="West_Doorway" parent="Walls" unique_id=563617933 instance=ExtResource("doorwall")]
+transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, -4.5, 0, 0)
+
+[node name="West_Right" parent="Walls" unique_id=2020668797 instance=ExtResource("wall")]
+transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, -4.5, 0, 3)
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=1220721736]
+environment = SubResource("Environment_room")
+
+[node name="RoomFill" type="OmniLight3D" parent="." unique_id=1654801690]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.6, 0)
+omni_range = 10.0
+
+[node name="Doors" type="Node3D" parent="." unique_id=1506142025]
+
+[node name="North_Door" parent="Doors" unique_id=51292174 instance=ExtResource("door")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -4.5)
+
+[node name="South_Door" parent="Doors" unique_id=1233062668 instance=ExtResource("door")]
+transform = Transform3D(-1, 0, -8.742278e-08, 0, 1, 0, 8.742278e-08, 0, -1, 0, 0, 4.5)
+
+[node name="East_Door" parent="Doors" unique_id=2002910483 instance=ExtResource("door")]
+transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, 4.5, 0, 0)
+
+[node name="West_Door" parent="Doors" unique_id=1836780245 instance=ExtResource("door")]
+transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, -4.5, 0, 0)
+
+[node name="Roof" type="Node3D" parent="." unique_id=1130318488]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.23963583, 0)
+
+[node name="RoofTile_0_0" parent="Roof" unique_id=876691970 instance=ExtResource("floor")]
+transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, -3, 3, -3)
+
+[node name="RoofTile_0_3" parent="Roof" unique_id=1392067934 instance=ExtResource("floor")]
+transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, -3, 3, 0)
+
+[node name="RoofTile_0_6" parent="Roof" unique_id=451732840 instance=ExtResource("floor")]
+transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, -3, 3, 3)
+
+[node name="RoofTile_3_0" parent="Roof" unique_id=94230798 instance=ExtResource("floor")]
+transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, 0, 3, -3)
+
+[node name="RoofTile_3_3" parent="Roof" unique_id=546070817 instance=ExtResource("floor")]
+transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, 0, 3, 0)
+
+[node name="RoofTile_3_6" parent="Roof" unique_id=1320541024 instance=ExtResource("floor")]
+transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, 0, 3, 3)
+
+[node name="RoofTile_6_0" parent="Roof" unique_id=1218652524 instance=ExtResource("floor")]
+transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, 3, 3, -3)
+
+[node name="RoofTile_6_3" parent="Roof" unique_id=1090215093 instance=ExtResource("floor")]
+transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, 3, 3, 0)
+
+[node name="RoofTile_6_6" parent="Roof" unique_id=512708531 instance=ExtResource("floor")]
+transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, 3, 3, 3)
+
+[node name="FurnitureSpawnPoints" type="Node3D" parent="." unique_id=1564987788]
+
+[node name="NorthWest" type="Marker3D" parent="FurnitureSpawnPoints" unique_id=1546962640 groups=["furniture_spawn_points"]]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0, -3.5)
+gizmo_extents = 0.5
+metadata/spawn_id = "NorthWest"
+metadata/placement = "floor"
+
+[node name="NorthEast" type="Marker3D" parent="FurnitureSpawnPoints" unique_id=1622742368 groups=["furniture_spawn_points"]]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 0, -3.5)
+gizmo_extents = 0.5
+metadata/spawn_id = "NorthEast"
+metadata/placement = "floor"
+
+[node name="SouthWest" type="Marker3D" parent="FurnitureSpawnPoints" unique_id=1092932181 groups=["furniture_spawn_points"]]
+transform = Transform3D(-1, 0, -8.742278e-08, 0, 1, 0, 8.742278e-08, 0, -1, -3, 0, 3.5)
+gizmo_extents = 0.5
+metadata/spawn_id = "SouthWest"
+metadata/placement = "floor"
+
+[node name="SouthEast" type="Marker3D" parent="FurnitureSpawnPoints" unique_id=1608242444 groups=["furniture_spawn_points"]]
+transform = Transform3D(-1, 0, -8.742278e-08, 0, 1, 0, 8.742278e-08, 0, -1, 3, 0, 3.5)
+gizmo_extents = 0.5
+metadata/spawn_id = "SouthEast"
+metadata/placement = "floor"
+
+[node name="WestNorth" type="Marker3D" parent="FurnitureSpawnPoints" unique_id=1164417867 groups=["furniture_spawn_points"]]
+transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, -3.5, 0, -2)
+gizmo_extents = 0.5
+metadata/spawn_id = "WestNorth"
+metadata/placement = "floor"
+
+[node name="WestSouth" type="Marker3D" parent="FurnitureSpawnPoints" unique_id=1426125654 groups=["furniture_spawn_points"]]
+transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, -3.5, 0, 2)
+gizmo_extents = 0.5
+metadata/spawn_id = "WestSouth"
+metadata/placement = "floor"
+
+[node name="EastNorth" type="Marker3D" parent="FurnitureSpawnPoints" unique_id=1125219511 groups=["furniture_spawn_points"]]
+transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 3.5, 0, -2)
+gizmo_extents = 0.5
+metadata/spawn_id = "EastNorth"
+metadata/placement = "floor"
+
+[node name="EastSouth" type="Marker3D" parent="FurnitureSpawnPoints" unique_id=2004417984 groups=["furniture_spawn_points"]]
+transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 3.5, 0, 2)
+gizmo_extents = 0.5
+metadata/spawn_id = "EastSouth"
+metadata/placement = "floor"
