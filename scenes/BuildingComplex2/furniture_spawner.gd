@@ -1,9 +1,8 @@
 @tool
 extends Node
 ## Populate only at runtime; fixed ordering gives both peers identical furniture.
-@export var furniture_source: PackedScene = preload("res://Assets/Models/Import/Wood Furnitures/GLTF/Furnitures.gltf")
+const CATALOG = preload("res://scenes/BuildingComplex2/household_furniture_catalog.gd")
 @export var layout_seed: int = 7321
-@export var wood_material: Material = preload("res://scenes/BuildingComplex2/furniture_wood.tres")
 var spawned_count: int = 0
 
 func _ready() -> void:
@@ -11,13 +10,18 @@ func _ready() -> void:
 		call_deferred("populate")
 
 func populate() -> void:
-	if spawned_count > 0 or furniture_source == null:
+	if spawned_count > 0:
 		return
-	var source := furniture_source.instantiate()
+	var source := Node3D.new()
 	var pieces: Array[Node3D] = []
-	for child in source.get_children():
-		if child is MeshInstance3D and String(child.name).begins_with("Furniture_"):
-			pieces.append(child)
+	for packed in CATALOG.SCENES:
+		var child := packed.instantiate() as Node3D
+		if child == null:
+			continue
+		child.name = packed.resource_path.get_file().get_basename().replace(" ", "_")
+		child.set_meta("source_asset", packed.resource_path)
+		source.add_child(child)
+		pieces.append(child)
 	pieces.sort_custom(func(a: Node3D, b: Node3D) -> bool: return String(a.name) < String(b.name))
 	if pieces.is_empty():
 		push_error("Furniture source has no furniture objects.")
@@ -51,9 +55,9 @@ func populate() -> void:
 				minf(1.4 / maxf(bounds.size.z, 0.001), 2.7 / maxf(bounds.size.y, 0.001))))
 			anchor.scale = Vector3.ONE * fit
 			piece.position -= Vector3(bounds.get_center().x, bounds.position.y, bounds.get_center().z)
-			_apply_wood_material(piece)
 			_add_collision(piece)
 			anchor.set_meta("source_piece", String(original.name))
+			anchor.set_meta("source_asset", original.get_meta("source_asset"))
 			marker.add_child(anchor)
 			spawned_count += 1
 	source.free()
@@ -73,14 +77,6 @@ func _bounds(node: Node3D, parent_transform: Transform3D) -> AABB:
 				result = result.merge(child_bounds) if found else child_bounds
 				found = true
 	return result
-
-func _apply_wood_material(node: Node3D) -> void:
-	if node is MeshInstance3D:
-		# A cleared Inspector override must not remove the wood textures.
-		node.material_override = wood_material if wood_material != null else preload("res://scenes/BuildingComplex2/furniture_wood.tres")
-	for child in node.get_children():
-		if child is Node3D:
-			_apply_wood_material(child)
 
 func _add_collision(node: Node3D) -> void:
 	var children := node.get_children()
