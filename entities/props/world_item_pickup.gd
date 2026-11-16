@@ -3,7 +3,7 @@ class_name WorldItemPickup
 extends StaticBody3D
 
 ## Server-authoritative floor pickup for Loose Objectives (KEY, MONEY, PASSPORT, PLANS),
-## the Compact Briefcase (BRIEFCASE), and Traps/Gadgets (BUCKET, TRIPWIRE, SPRING, BOMB, DART_GUN).
+## the Compact Briefcase (BRIEFCASE), and Traps/Gadgets (BUCKET, TRIPWIRE, SPRING, BOMB, LIVE_BOMB, DART_GUN).
 
 enum ItemSlotType {
 	LEFT_HAND_OBJECTIVE = 0,
@@ -24,6 +24,7 @@ const ITEM_COLORS: Dictionary = {
 	"TRIPWIRE": Color(0.85, 0.45, 0.15),  # Copper Coil
 	"SPRING": Color(0.85, 0.18, 0.18),    # Boxing Glove Red
 	"BOMB": Color(0.15, 0.15, 0.18),      # Cartoon Bomb Black
+	"LIVE_BOMB": Color(0.95, 0.32, 0.12), # Sparking Hot-Potato Orange-Red
 	"DART_GUN": Color(0.65, 0.20, 0.85)   # Retro DVD Purple
 }
 
@@ -37,6 +38,7 @@ const ITEM_DISPLAY_NAMES: Dictionary = {
 	"TRIPWIRE": "Tripwire Coil",
 	"SPRING": "Spring Trap",
 	"BOMB": "Time Bomb",
+	"LIVE_BOMB": "Lit Time Bomb!",
 	"DART_GUN": "DVD Dart Gun"
 }
 
@@ -121,7 +123,7 @@ static func build_item_mesh(id: String) -> MeshInstance3D:
 			cyl.bottom_radius = 0.12
 			cyl.height = 0.28
 			mi.mesh = cyl
-		"BOMB":
+		"BOMB", "LIVE_BOMB":
 			var sph := SphereMesh.new()
 			sph.radius = 0.14
 			sph.height = 0.28
@@ -146,7 +148,9 @@ func get_interaction_prompt() -> String:
 	var disp: String = get_display_name(item_id, packed_objectives)
 	if is_objective_item(item_id) or is_briefcase_item(item_id):
 		return "[E] Pick Up %s (Left Hand)" % disp
-	return "[E] Pick Up %s (Right Hand)" % disp
+	if item_id.to_upper() == "LIVE_BOMB":
+		return "[E] Grab %s (Active Hand!)" % disp
+	return "[E] Pick Up %s (Inner Jacket 1-3)" % disp
 
 
 func request_interaction(caller_peer_id: int) -> void:

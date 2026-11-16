@@ -17,6 +17,10 @@ func _instantiate_live_scene(scene_path: String, script_path: String) -> Node:
 	live_root.name = placeholder_root.name
 	for child in placeholder_root.get_children():
 		placeholder_root.remove_child(child)
+		for desc in child.find_children("*", "", true, false):
+			if desc.owner == placeholder_root:
+				desc.owner = null
+		child.owner = null
 		live_root.add_child(child)
 	placeholder_root.free()
 	return live_root

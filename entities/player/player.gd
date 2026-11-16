@@ -1,7 +1,7 @@
 extends CharacterBody3D
 
-## SpyCharacter Controller — Dual Movement, Stances & Two-Handed Physical Inventory (Doc 2 v1.2).
-## Client-authoritative FPS locomotion + Server-authoritative Two-Slot Hand Inventory & World Drops.
+## SpyCharacter Controller — Dual Movement, Stances & 3-Slot Inner Trenchcoat Jacket Inventory (Doc 2 v1.2)
+## Client-authoritative FPS locomotion + Server-authoritative Left-Hand & 3-Slot Jacket Inventory.
 
 enum SpyRole {
 	SPY_WHITE = 1,
@@ -14,7 +14,7 @@ const PICKUP_SCENE: PackedScene = preload("res://entities/props/world_item_picku
 const PICKUP_SCRIPT = preload("res://entities/props/world_item_pickup.gd")
 
 # ==========================================
-# Replicated Properties (MultiplayerSynchronizer)
+# Replicated Properties (MultiplayerSynchronizer — Client Locomotion/Stance Authority)
 # ==========================================
 @export var spy_role: int = 1:
 	set(value):
@@ -29,26 +29,72 @@ const PICKUP_SCRIPT = preload("res://entities/props/world_item_pickup.gd")
 		_apply_stance_collision_and_visuals()
 		_update_hud_status()
 
-@export var left_hand_item_id: String = "NONE":
+# ==========================================
+# Server-Authoritative Inventory Facade (Backed by SpyInventoryComponent)
+# ==========================================
+var left_hand_item_id: String:
+	get:
+		return _inv().left_hand_item_id
 	set(value):
-		left_hand_item_id = value.to_upper() if not value.is_empty() else "NONE"
+		_inv().left_hand_item_id = value.to_upper() if not value.is_empty() else "NONE"
 		_refresh_hand_and_back_sockets()
 		_update_hud_status()
 
-@export var right_hand_item_id: String = "NONE":
+var right_hand_item_id: String:
+	get:
+		return _inv().get_active_right_item_id()
 	set(value):
-		right_hand_item_id = value.to_upper() if not value.is_empty() else "NONE"
+		var id: String = value.to_upper() if not value.is_empty() else "NONE"
+		var inv: SpyInventoryComponent = _inv()
+		if id == "CLUB":
+			inv.right_hand_mode = SpyInventoryComponent.RightHandMode.CLUB
+		elif id == "LIVE_BOMB":
+			inv.right_hand_mode = SpyInventoryComponent.RightHandMode.LIVE_BOMB
+		else:
+			inv.right_hand_mode = SpyInventoryComponent.RightHandMode.JACKET_SLOT
+			var slot_idx: int = clampi(inv.active_jacket_slot, 0, SpyInventoryComponent.JACKET_SLOT_COUNT - 1)
+			inv.jacket_slots[slot_idx] = id
 		_refresh_hand_and_back_sockets()
 		_update_hud_status()
 
-@export var is_charging_club: bool = false:
+var briefcase_objectives: Array[String]:
+	get:
+		return _inv().briefcase_objectives
 	set(value):
-		is_charging_club = value
+		_inv().briefcase_objectives = value
+		_update_hud_status()
+
+var jacket_slots: Array[String]:
+	get:
+		return _inv().jacket_slots
+	set(value):
+		_inv().jacket_slots = value
 		_refresh_hand_and_back_sockets()
 		_update_hud_status()
 
-# Packed objectives stored inside the Compact Briefcase when held in Left Hand
-var briefcase_objectives: Array[String] = []
+var active_jacket_slot: int:
+	get:
+		return _inv().active_jacket_slot
+	set(value):
+		_inv().active_jacket_slot = clampi(value, 0, SpyInventoryComponent.JACKET_SLOT_COUNT - 1)
+		_refresh_hand_and_back_sockets()
+		_update_hud_status()
+
+var right_hand_mode: int:
+	get:
+		return _inv().right_hand_mode
+	set(value):
+		_inv().right_hand_mode = value
+		_refresh_hand_and_back_sockets()
+		_update_hud_status()
+
+var is_charging_club: bool:
+	get:
+		return _inv().is_charging_club
+	set(value):
+		_inv().is_charging_club = value
+		_refresh_hand_and_back_sockets()
+		_update_hud_status()
 
 @export var speed: float = 4.5
 @export var jump_velocity: float = 4.2
@@ -57,6 +103,7 @@ var briefcase_objectives: Array[String] = []
 # ==========================================
 # Node References
 # ==========================================
+@onready var inventory: SpyInventoryComponent = get_node_or_null("Inventory") as SpyInventoryComponent
 @onready var collision_shape: CollisionShape3D = $CollisionShape3D
 @onready var mesh_instance: MeshInstance3D = $MeshInstance3D
 @onready var door_bash_detector: Area3D = get_node_or_null("DoorBashDetector")
@@ -226,154 +273,86 @@ func _apply_stance_collision_and_visuals() -> void:
 
 
 # ==========================================
-# Two-Slot Physical Hand Inventory Rules (Doc 2 §4.B)
+# Left Hand & 3-Slot Inner Trenchcoat Jacket Inventory (Doc 2 §4.B)
 # ==========================================
 
+func _inv() -> SpyInventoryComponent:
+	if inventory == null:
+		inventory = get_node_or_null("Inventory") as SpyInventoryComponent
+	if inventory == null:
+		inventory = SpyInventoryComponent.new()
+		inventory.name = "Inventory"
+		add_child(inventory)
+	return inventory
+
+
 func pickup_item(new_item_id: String, extra_briefcase_items: Array = []) -> Dictionary:
-	var id: String = new_item_id.to_upper()
-	var result: Dictionary = {
-		"picked": false,
-		"dropped_item_id": "NONE",
-		"dropped_briefcase_items": [] as Array[String]
-	}
+	var res: Dictionary = _inv().pickup_item(new_item_id, extra_briefcase_items)
+	if bool(res["picked"]):
+		_refresh_hand_and_back_sockets()
+		_update_hud_status()
+	return res
 
-	if PICKUP_SCRIPT.is_objective_item(id):
-		if left_hand_item_id == "NONE":
-			left_hand_item_id = id
-			result["picked"] = true
-		elif left_hand_item_id == "BRIEFCASE":
-			if not (id in briefcase_objectives) and briefcase_objectives.size() < 4:
-				briefcase_objectives.append(id)
-			_update_hud_status()
-			result["picked"] = true
-		else:
-			result["dropped_item_id"] = left_hand_item_id
-			left_hand_item_id = id
-			result["picked"] = true
-		return result
 
-	if PICKUP_SCRIPT.is_briefcase_item(id):
-		var merged: Array[String] = []
-		for obj in extra_briefcase_items:
-			var obj_str: String = str(obj).to_upper()
-			if PICKUP_SCRIPT.is_objective_item(obj_str) and not (obj_str in merged):
-				merged.append(obj_str)
+func select_jacket_slot(slot_index: int) -> bool:
+	var ok: bool = _inv().select_jacket_slot(slot_index)
+	if ok:
+		_refresh_hand_and_back_sockets()
+		_update_hud_status()
+	return ok
 
-		if left_hand_item_id == "NONE":
-			briefcase_objectives = merged
-			left_hand_item_id = "BRIEFCASE"
-			result["picked"] = true
-		elif PICKUP_SCRIPT.is_objective_item(left_hand_item_id):
-			if not (left_hand_item_id in merged) and merged.size() < 4:
-				merged.append(left_hand_item_id)
-			briefcase_objectives = merged
-			left_hand_item_id = "BRIEFCASE"
-			result["picked"] = true
-		elif left_hand_item_id == "BRIEFCASE":
-			result["dropped_item_id"] = "BRIEFCASE"
-			result["dropped_briefcase_items"] = briefcase_objectives.duplicate()
-			briefcase_objectives = merged
-			left_hand_item_id = "BRIEFCASE"
-			result["picked"] = true
-		return result
 
-	if PICKUP_SCRIPT.is_gadget_item(id):
-		if is_charging_club:
-			is_charging_club = false
-		if right_hand_item_id == "NONE" or right_hand_item_id == "CLUB":
-			right_hand_item_id = id
-			result["picked"] = true
-		else:
-			result["dropped_item_id"] = right_hand_item_id
-			right_hand_item_id = id
-			result["picked"] = true
-		return result
-
-	return result
+func cycle_jacket_slot(step: int) -> bool:
+	var ok: bool = _inv().cycle_jacket_slot(step)
+	if ok:
+		_refresh_hand_and_back_sockets()
+		_update_hud_status()
+	return ok
 
 
 func drop_left_hand_item() -> Dictionary:
-	var result: Dictionary = {
-		"dropped_item_id": "NONE",
-		"dropped_briefcase_items": [] as Array[String]
-	}
-	if left_hand_item_id == "NONE":
-		return result
-
-	result["dropped_item_id"] = left_hand_item_id
-	if left_hand_item_id == "BRIEFCASE":
-		result["dropped_briefcase_items"] = briefcase_objectives.duplicate()
-		briefcase_objectives.clear()
-	left_hand_item_id = "NONE"
-	return result
+	var res: Dictionary = _inv().drop_left_hand_item()
+	if str(res["dropped_item_id"]) != "NONE":
+		_refresh_hand_and_back_sockets()
+		_update_hud_status()
+	return res
 
 
 func drop_right_hand_item() -> Dictionary:
-	var result: Dictionary = {
-		"dropped_item_id": "NONE",
-		"dropped_briefcase_items": [] as Array[String]
-	}
-	if right_hand_item_id == "NONE" or right_hand_item_id == "CLUB":
-		return result
-
-	result["dropped_item_id"] = right_hand_item_id
-	right_hand_item_id = "NONE"
-	return result
+	var res: Dictionary = _inv().drop_right_hand_item()
+	if str(res["dropped_item_id"]) != "NONE":
+		_refresh_hand_and_back_sockets()
+		_update_hud_status()
+	return res
 
 
 func toggle_personal_club() -> Dictionary:
-	var result: Dictionary = {
-		"dropped_item_id": "NONE",
-		"dropped_briefcase_items": [] as Array[String]
-	}
-	if right_hand_item_id == "CLUB":
-		is_charging_club = false
-		right_hand_item_id = "NONE"
-		return result
-
-	if right_hand_item_id != "NONE":
-		result["dropped_item_id"] = right_hand_item_id
-	right_hand_item_id = "CLUB"
-	return result
+	var res: Dictionary = _inv().toggle_personal_club()
+	_refresh_hand_and_back_sockets()
+	_update_hud_status()
+	return res
 
 
 func start_club_charge() -> Dictionary:
-	var result: Dictionary = {
-		"dropped_item_id": "NONE",
-		"dropped_briefcase_items": [] as Array[String]
-	}
-	if right_hand_item_id != "CLUB":
-		return result
-
-	is_charging_club = true
-	if stance_state == (GameConfig.Stance.SPRINT if GameConfig != null else 1):
+	var res: Dictionary = _inv().start_club_charge()
+	if _inv().is_charging_club and stance_state == (GameConfig.Stance.SPRINT if GameConfig != null else 1):
 		stance_state = GameConfig.Stance.WALK if GameConfig != null else 0
-
-	if left_hand_item_id == "BRIEFCASE":
-		result = drop_left_hand_item()
-	return result
+	_refresh_hand_and_back_sockets()
+	_update_hud_status()
+	return res
 
 
 func stop_club_charge() -> void:
-	if is_charging_club:
-		is_charging_club = false
+	if _inv().is_charging_club:
+		_inv().stop_club_charge()
+		_refresh_hand_and_back_sockets()
+		_update_hud_status()
 
 
 func force_drop_all_hands() -> Array[Dictionary]:
-	var drops: Array[Dictionary] = []
-	is_charging_club = false
-
-	var left_drop: Dictionary = drop_left_hand_item()
-	if left_drop["dropped_item_id"] != "NONE":
-		drops.append(left_drop)
-
-	var right_drop: Dictionary = drop_right_hand_item()
-	if right_drop["dropped_item_id"] != "NONE":
-		drops.append(right_drop)
-
-	if right_hand_item_id == "CLUB":
-		right_hand_item_id = "NONE"
-
+	var drops: Array[Dictionary] = _inv().force_drop_all_hands()
+	_refresh_hand_and_back_sockets()
+	_update_hud_status()
 	return drops
 
 
@@ -394,12 +373,19 @@ func server_pickup_world_item(item_id: String, extra_briefcase_items: Array, pic
 
 
 @rpc("any_peer", "call_local", "reliable")
-func server_request_hand_action(action_type: String) -> void:
+func server_request_hand_action(action_type: String, slot_arg: int = 0) -> void:
 	if _is_peer_connected() and not multiplayer.is_server():
 		return
+	var sender_id: int = multiplayer.get_remote_sender_id()
+	if sender_id != 0 and sender_id != name.to_int():
+		return
 
-	var res: Dictionary = {"dropped_item_id": "NONE", "dropped_briefcase_items": []}
+	var res: Dictionary = {"dropped_item_id": "NONE", "dropped_briefcase_items": [] as Array[String]}
 	match action_type:
+		"SELECT_SLOT":
+			select_jacket_slot(slot_arg)
+		"CYCLE_SLOT":
+			cycle_jacket_slot(slot_arg)
 		"DROP_LEFT":
 			res = drop_left_hand_item()
 		"DROP_RIGHT":
@@ -412,6 +398,16 @@ func server_request_hand_action(action_type: String) -> void:
 				AudioBridge.request_world_cue("door_bash", global_position, 8.0, name.to_int())
 		"STOP_CLUB_CHARGE":
 			stop_club_charge()
+		"KO_SCATTER":
+			var drops: Array[Dictionary] = force_drop_all_hands()
+			for i in range(drops.size()):
+				var entry: Dictionary = drops[i]
+				var dropped_id: String = str(entry.get("dropped_item_id", "NONE"))
+				if dropped_id == "NONE":
+					continue
+				var angle: float = (TAU * float(i)) / float(maxi(drops.size(), 1))
+				var offset := Vector3(cos(angle) * 0.65, 0.0, sin(angle) * 0.65)
+				_server_spawn_floor_drop(dropped_id, entry.get("dropped_briefcase_items", []), global_position + offset)
 
 	if str(res["dropped_item_id"]) != "NONE":
 		var drop_pos: Vector3 = global_position + (-global_transform.basis.z * 0.75)
@@ -422,17 +418,20 @@ func server_request_hand_action(action_type: String) -> void:
 
 func _sync_inventory_state_to_peers() -> void:
 	if _is_peer_connected():
-		_rpc_sync_inventory.rpc(left_hand_item_id, right_hand_item_id, briefcase_objectives, is_charging_club)
+		var inv: SpyInventoryComponent = _inv()
+		_rpc_sync_inventory.rpc(
+			inv.left_hand_item_id,
+			inv.briefcase_objectives,
+			inv.jacket_slots,
+			inv.active_jacket_slot,
+			inv.right_hand_mode,
+			inv.is_charging_club
+		)
 
 
 @rpc("authority", "call_local", "reliable")
-func _rpc_sync_inventory(l_item: String, r_item: String, b_objs: Array, charging: bool) -> void:
-	briefcase_objectives.clear()
-	for item in b_objs:
-		briefcase_objectives.append(str(item))
-	left_hand_item_id = l_item
-	right_hand_item_id = r_item
-	is_charging_club = charging
+func _rpc_sync_inventory(l_item: String, b_objs: Array, j_slots: Array, a_slot: int, r_mode: int, charging: bool) -> void:
+	_inv().apply_sync_state(l_item, b_objs, j_slots, a_slot, r_mode, charging)
 	_refresh_hand_and_back_sockets()
 	_update_hud_status()
 
@@ -534,12 +533,23 @@ func _update_hud_status() -> void:
 		l_lbl.text = "LEFT [Q]: %s" % PICKUP_SCRIPT.get_display_name(left_hand_item_id, briefcase_objectives)
 
 	if r_lbl != null:
-		if right_hand_item_id == "NONE":
-			r_lbl.text = "RIGHT [1]: Club (On Back)"
-		elif right_hand_item_id == "CLUB":
-			r_lbl.text = "RIGHT [1]: Club (CHARGE!)" if is_charging_club else "RIGHT [1]: Two-Handed Club"
+		var inv: SpyInventoryComponent = _inv()
+		var slot_parts: Array[String] = []
+		for i in range(SpyInventoryComponent.JACKET_SLOT_COUNT):
+			var item_str: String = inv.jacket_slots[i] if i < inv.jacket_slots.size() else "NONE"
+			var short_name: String = "--" if item_str == "NONE" else PICKUP_SCRIPT.get_display_name(item_str)
+			if inv.right_hand_mode == SpyInventoryComponent.RightHandMode.JACKET_SLOT and i == inv.active_jacket_slot:
+				slot_parts.append("[%d:%s]" % [i + 1, short_name])
+			else:
+				slot_parts.append("%d:%s" % [i + 1, short_name])
+		var coat_text: String = "COAT [1-3/G]: " + " | ".join(slot_parts)
+		if inv.right_hand_mode == SpyInventoryComponent.RightHandMode.LIVE_BOMB:
+			r_lbl.text = "ACTIVE: LIVE BOMB! (Throw LMB)  |  " + coat_text
+		elif inv.right_hand_mode == SpyInventoryComponent.RightHandMode.CLUB:
+			var club_state: String = "CHARGE!" if inv.is_charging_club else "Two-Handed Club"
+			r_lbl.text = "%s  |  CLUB [4/R]: %s" % [coat_text, club_state]
 		else:
-			r_lbl.text = "RIGHT [G]: %s" % PICKUP_SCRIPT.get_display_name(right_hand_item_id)
+			r_lbl.text = "%s  |  [4/R]: Club (Back)" % coat_text
 
 	if s_lbl != null:
 		var spd: float = get_current_move_speed()
@@ -725,6 +735,21 @@ func _unhandled_input(event: InputEvent) -> void:
 			_nudge_sensitivity(0.10)
 			return
 
+	if event.is_action_pressed("jacket_slot_1") and not event.is_echo():
+		_trigger_hand_action("SELECT_SLOT", 0)
+		return
+	if event.is_action_pressed("jacket_slot_2") and not event.is_echo():
+		_trigger_hand_action("SELECT_SLOT", 1)
+		return
+	if event.is_action_pressed("jacket_slot_3") and not event.is_echo():
+		_trigger_hand_action("SELECT_SLOT", 2)
+		return
+	if event.is_action_pressed("jacket_slot_prev"):
+		_trigger_hand_action("CYCLE_SLOT", -1)
+		return
+	if event.is_action_pressed("jacket_slot_next"):
+		_trigger_hand_action("CYCLE_SLOT", 1)
+		return
 	if event.is_action_pressed("drop_left_hand") and not event.is_echo():
 		_trigger_hand_action("DROP_LEFT")
 		return
@@ -736,13 +761,16 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 
 	if event.is_action_pressed("primary_action") and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
-		if right_hand_item_id == "CLUB" and not is_charging_club:
+		if right_hand_mode == SpyInventoryComponent.RightHandMode.CLUB and not is_charging_club:
 			_trigger_hand_action("START_CLUB_CHARGE")
 	elif event.is_action_released("primary_action"):
 		if is_charging_club:
 			_trigger_hand_action("STOP_CLUB_CHARGE")
 
-	if event.is_action_pressed("ui_cancel") or (event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE):
+	if event.is_action_pressed("ui_cancel") or (event is InputEventKey and event.pressed and not event.is_echo() and event.keycode == KEY_ESCAPE):
+		var scene: Node = get_tree().current_scene if get_tree() != null else null
+		if scene != null and scene.has_method("toggle_esc_menu"):
+			return
 		if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 			Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 		else:
@@ -751,8 +779,12 @@ func _unhandled_input(event: InputEvent) -> void:
 
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
 		if Input.mouse_mode == Input.MOUSE_MODE_VISIBLE:
-			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
-			return
+			var scene: Node = get_tree().current_scene if get_tree() != null else null
+			var esc_menu_node: Variant = scene.get("esc_menu") if scene != null else null
+			var esc_open: bool = esc_menu_node is CanvasItem and (esc_menu_node as CanvasItem).visible
+			if not esc_open:
+				Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+				return
 
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		var eff_sens: float = GameConfig.get_effective_mouse_sensitivity() if GameConfig != null else mouse_sensitivity
@@ -762,11 +794,11 @@ func _unhandled_input(event: InputEvent) -> void:
 		head_pitch = head.rotation.x
 
 
-func _trigger_hand_action(action_type: String) -> void:
+func _trigger_hand_action(action_type: String, slot_arg: int = 0) -> void:
 	if _is_peer_connected():
-		server_request_hand_action.rpc_id(1, action_type)
+		server_request_hand_action.rpc_id(1, action_type, slot_arg)
 	else:
-		server_request_hand_action(action_type)
+		server_request_hand_action(action_type, slot_arg)
 
 
 func _nudge_sensitivity(delta_mult: float) -> void:
