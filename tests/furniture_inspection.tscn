@@ -1,0 +1,7 @@
+[gd_scene format=3 uid="uid://bytwcagn22tvv"]
+
+[ext_resource type="PackedScene" uid="uid://dop2gv3isva3t" path="res://Assets/Models/Import/Wood Furnitures/GLTF/Furnitures.gltf" id="1_bcjeb"]
+
+[node name="FurnitureInspection" type="Node3D" unique_id=1971560533]
+
+[node name="Source" parent="." unique_id=516922426 instance=ExtResource("1_bcjeb")]
