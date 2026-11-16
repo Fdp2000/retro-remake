@@ -26,9 +26,13 @@ var is_terminating: bool = false
 
 
 func _ready() -> void:
+	_clear_playtest_room_furniture()
 	_setup_interactive_doors()
 	_spawn_test_pickups()
 	_spawn_test_props()
+
+	if MatchManager != null and not MatchManager.match_ended.is_connected(_on_match_ended):
+		MatchManager.match_ended.connect(_on_match_ended)
 
 	if MatchManager != null and not MatchManager.match_ended.is_connected(_on_match_ended):
 		MatchManager.match_ended.connect(_on_match_ended)
@@ -92,6 +96,16 @@ func _ready() -> void:
 		)
 
 
+func _clear_playtest_room_furniture() -> void:
+	var room_2_2: Node = get_node_or_null("BuildingComplex2/Rooms/Room_2_2")
+	if room_2_2 == null:
+		return
+	var spawn_pts: Node = room_2_2.get_node_or_null("FurnitureSpawnPoints")
+	if spawn_pts != null:
+		room_2_2.remove_child(spawn_pts)
+		spawn_pts.queue_free()
+
+
 func _spawn_test_pickups() -> void:
 	if get_node_or_null("TestPickups") != null:
 		return
@@ -100,13 +114,13 @@ func _spawn_test_pickups() -> void:
 	add_child(container)
 
 	var test_items: Array[Dictionary] = [
-		{"id": "BRIEFCASE", "pos": Vector3(-5.5, 0.0, -1.2)},
-		{"id": "KEY", "pos": Vector3(-4.7, 0.0, -1.2)},
-		{"id": "MONEY", "pos": Vector3(-3.9, 0.0, -1.2)},
-		{"id": "PASSPORT", "pos": Vector3(-3.1, 0.0, -1.2)},
-		{"id": "PLANS", "pos": Vector3(-2.3, 0.0, -1.2)},
-		{"id": "BUCKET", "pos": Vector3(-1.3, 0.0, -1.2)},
-		{"id": "TRIPWIRE", "pos": Vector3(-0.5, 0.0, -1.2)}
+		{"id": "BRIEFCASE", "pos": Vector3(-6.9, 0.0, -2.5)},
+		{"id": "KEY", "pos": Vector3(-6.1, 0.0, -2.5)},
+		{"id": "MONEY", "pos": Vector3(-5.3, 0.0, -2.5)},
+		{"id": "PASSPORT", "pos": Vector3(-4.5, 0.0, -2.5)},
+		{"id": "PLANS", "pos": Vector3(-3.7, 0.0, -2.5)},
+		{"id": "BUCKET", "pos": Vector3(-2.9, 0.0, -2.5)},
+		{"id": "TRIPWIRE", "pos": Vector3(-2.1, 0.0, -2.5)}
 	]
 	for i in range(test_items.size()):
 		var entry: Dictionary = test_items[i]
@@ -124,18 +138,13 @@ func _spawn_test_props() -> void:
 	props_root.name = "TestStep1Props"
 	add_child(props_root)
 
-	var door := EMBASSY_DOOR_SCENE.instantiate() as Node3D
-	door.name = "TestEmbassyDoor"
-	props_root.add_child(door)
-	door.position = Vector3(-1.2, 0.0, -2.8)
-
 	var loot_drawer := DRAWER_SCENE.instantiate() as StaticBody3D
 	loot_drawer.name = "TestDrawer_Loot"
 	loot_drawer.set("container_id", "Loot Desk")
 	var loot_items: Array[String] = ["KEY", "SPRING", "BOMB"]
 	loot_drawer.set("stored_items", loot_items)
 	props_root.add_child(loot_drawer)
-	loot_drawer.position = Vector3(-4.5, 0.0, -2.8)
+	loot_drawer.position = Vector3(-6.2, 0.0, -6.5)
 
 	var rigged_drawer := DRAWER_SCENE.instantiate() as StaticBody3D
 	rigged_drawer.name = "TestDrawer_Rigged"
@@ -144,12 +153,18 @@ func _spawn_test_props() -> void:
 	var rigged_items: Array[String] = ["PASSPORT"]
 	rigged_drawer.set("stored_items", rigged_items)
 	props_root.add_child(rigged_drawer)
-	rigged_drawer.position = Vector3(-2.8, 0.0, -2.8)
+	rigged_drawer.position = Vector3(-4.5, 0.0, -6.5)
+
+	var door := EMBASSY_DOOR_SCENE.instantiate() as Node3D
+	door.name = "TestEmbassyDoor"
+	props_root.add_child(door)
+	door.position = Vector3(-2.5, 0.0, -6.5)
 
 	var exit_door := AIRPORT_EXIT_SCENE.instantiate() as StaticBody3D
 	exit_door.name = "TestAirportExit"
 	props_root.add_child(exit_door)
-	exit_door.position = Vector3(-6.5, 0.0, -2.8)
+	exit_door.position = Vector3(-6.2, 0.0, -4.5)
+	exit_door.rotation.y = deg_to_rad(90.0)
 
 
 func _on_match_ended(_winner_peer_id: int, reason: String) -> void:

@@ -139,11 +139,13 @@ var _interact_hold_elapsed: float = 0.0
 var _interact_hold_triggered: bool = false
 var _interact_target: Object = null
 
-# Container View & Clock HUD
+# Container View, KO Recovery & Clock HUD
 var active_container: Node = null
 var _container_ui: TopDownContainerUI = null
 var _camera_tween: Tween = null
 var _bonus_toast_timer: float = 0.0
+var ko_remaining_seconds: float = 0.0
+var wakeup_immunity_remaining: float = 0.0
 
 # Footstep & airborne tracking
 var _footstep_timer: float = 0.0
@@ -191,6 +193,7 @@ func _ready() -> void:
 			camera.current = false
 		if hud != null:
 			hud.visible = false
+		set_process_input(false)
 		set_process_unhandled_input(false)
 		set_process(false)
 		set_physics_process(false)
@@ -199,6 +202,7 @@ func _ready() -> void:
 	if is_multiplayer_authority():
 		camera.current = true
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+		set_process_input(true)
 		set_process_unhandled_input(true)
 		set_process(true)
 		hud.visible = true
@@ -212,6 +216,7 @@ func _ready() -> void:
 			_on_match_clock_updated(name.to_int(), MatchManager.get_private_clock(name.to_int()), 0.0)
 	else:
 		camera.current = false
+		set_process_input(false)
 		set_process_unhandled_input(false)
 		set_process(false)
 		hud.visible = false
@@ -433,6 +438,10 @@ func exit_container_view() -> void:
 
 
 func apply_trap_ko(_reason: String, _attacker_peer_id: int = 0) -> Array[Dictionary]:
+	var ko_stance: int = GameConfig.Stance.KO if GameConfig != null else 4
+	if wakeup_immunity_remaining > 0.0 or stance_state == ko_stance:
+		return [] as Array[Dictionary]
+
 	if active_container != null and is_instance_valid(active_container) and active_container.has_method("close_container"):
 		active_container.close_container(name.to_int(), self)
 	elif stance_state == (GameConfig.Stance.DRAWER_LOCK if GameConfig != null else 3):
@@ -450,14 +459,86 @@ func apply_trap_ko(_reason: String, _attacker_peer_id: int = 0) -> Array[Diction
 			_server_spawn_floor_drop(
 				dropped_id,
 				entry.get("dropped_briefcase_items", []),
-				global_position + offset,
+				_compute_safe_drop_position(offset),
 				bool(entry.get("dropped_briefcase_armed_bomb", false)),
 				int(entry.get("dropped_briefcase_bomb_owner", 0))
 			)
 
-	stance_state = GameConfig.Stance.KO if GameConfig != null else 4
+	var ko_dur: float = GameConfig.ko_ragdoll_duration if GameConfig != null else 15.0
+	if _is_peer_connected():
+		_rpc_apply_ko_state.rpc(ko_dur, 0.0, true)
+	else:
+		_rpc_apply_ko_state(ko_dur, 0.0, true)
 	_sync_inventory_state_to_peers()
 	return drops
+
+
+func _is_authorized_state_rpc() -> bool:
+	if not is_inside_tree() or not _is_peer_connected():
+		return true
+	var sender_id: int = multiplayer.get_remote_sender_id()
+	return sender_id == 0 or sender_id == 1 or sender_id == name.to_int()
+
+
+@rpc("any_peer", "call_local", "reliable")
+func _rpc_apply_ko_state(ko_sec: float, imm_sec: float, enter_ko: bool) -> void:
+	if not _is_authorized_state_rpc():
+		return
+	if enter_ko:
+		ko_remaining_seconds = ko_sec
+		wakeup_immunity_remaining = 0.0
+		stance_state = GameConfig.Stance.KO if GameConfig != null else 4
+		collision_layer = GameConfig.LAYER_RAGDOLL_KO if GameConfig != null else 8
+		collision_mask = GameConfig.LAYER_ENVIRONMENT if GameConfig != null else 1
+		if head != null:
+			head.rotation.z = deg_to_rad(22.0)
+	else:
+		ko_remaining_seconds = 0.0
+		wakeup_immunity_remaining = imm_sec
+		stance_state = GameConfig.Stance.WALK if GameConfig != null else 0
+		collision_layer = GameConfig.LAYER_PLAYER if GameConfig != null else 4
+		collision_mask = (GameConfig.LAYER_ENVIRONMENT | GameConfig.LAYER_PLAYER) if GameConfig != null else 5
+		if head != null:
+			head.rotation.z = 0.0
+	_update_hud_status()
+
+
+func wake_up_from_ko() -> void:
+	var imm_dur: float = GameConfig.ko_wakeup_immunity_duration if GameConfig != null else 2.0
+	if _is_peer_connected() and multiplayer.is_server():
+		_rpc_apply_ko_state.rpc(0.0, imm_dur, false)
+	else:
+		_rpc_apply_ko_state(0.0, imm_dur, false)
+	if is_inside_tree() and is_multiplayer_authority() and prompt_label != null:
+		prompt_label.visible = false
+
+
+func tick_ko_and_immunity(delta: float) -> void:
+	var is_local_auth: bool = is_inside_tree() and is_multiplayer_authority()
+	var ko_stance: int = GameConfig.Stance.KO if GameConfig != null else 4
+	if stance_state == ko_stance:
+		ko_remaining_seconds -= delta
+		var clamped_ko: float = maxf(ko_remaining_seconds, 0.0)
+		if is_local_auth:
+			if stance_label != null:
+				stance_label.text = "KNOCKED OUT! (%.1fs)" % clamped_ko
+			if prompt_label != null:
+				prompt_label.text = "KNOCKED OUT — Waking up in %.1fs..." % clamped_ko
+				prompt_label.visible = true
+		if ko_remaining_seconds <= 0.0:
+			if not _is_peer_connected() or (is_inside_tree() and multiplayer.is_server()) or is_local_auth:
+				wake_up_from_ko()
+		return
+
+	if wakeup_immunity_remaining > 0.0:
+		wakeup_immunity_remaining = maxf(wakeup_immunity_remaining - delta, 0.0)
+		if mesh_instance != null:
+			mesh_instance.visible = true if wakeup_immunity_remaining <= 0.0 else (int(wakeup_immunity_remaining * 10.0) % 2 == 0)
+		if is_local_auth and stance_label != null:
+			if wakeup_immunity_remaining > 0.0:
+				stance_label.text = "IMMUNE! (%.1fs)" % wakeup_immunity_remaining
+			else:
+				_update_hud_status()
 
 
 func _on_match_clock_updated(peer_id: int, remaining_seconds: float, delta_bonus: float) -> void:
@@ -534,10 +615,17 @@ func server_request_hand_action(action_type: String, slot_arg: int = 0) -> void:
 					continue
 				var angle: float = (TAU * float(i)) / float(maxi(drops.size(), 1))
 				var offset := Vector3(cos(angle) * 0.65, 0.0, sin(angle) * 0.65)
-				_server_spawn_floor_drop(dropped_id, entry.get("dropped_briefcase_items", []), global_position + offset)
+				_server_spawn_floor_drop(
+					dropped_id,
+					entry.get("dropped_briefcase_items", []),
+					_compute_safe_drop_position(offset),
+					bool(entry.get("dropped_briefcase_armed_bomb", false)),
+					int(entry.get("dropped_briefcase_bomb_owner", 0))
+				)
 
 	if str(res["dropped_item_id"]) != "NONE":
-		var drop_pos: Vector3 = global_position + (-global_transform.basis.z * 0.75)
+		var forward_offset: Vector3 = (-global_transform.basis.z * 0.75) if is_inside_tree() else Vector3(0.0, 0.0, -0.75)
+		var drop_pos: Vector3 = _compute_safe_drop_position(forward_offset)
 		_server_spawn_floor_drop(
 			str(res["dropped_item_id"]),
 			res["dropped_briefcase_items"],
@@ -547,6 +635,37 @@ func server_request_hand_action(action_type: String, slot_arg: int = 0) -> void:
 		)
 
 	_sync_inventory_state_to_peers()
+
+
+func _compute_safe_drop_position(desired_offset: Vector3) -> Vector3:
+	var origin_base: Vector3 = global_position if is_inside_tree() else position
+	if not is_inside_tree() or get_world_3d() == null:
+		return origin_base + desired_offset
+	var space: PhysicsDirectSpaceState3D = get_world_3d().direct_space_state
+	if space == null:
+		return origin_base + desired_offset
+
+	var horiz_offset := Vector3(desired_offset.x, 0.0, desired_offset.z)
+	var ray_start: Vector3 = origin_base + Vector3(0.0, 0.6, 0.0)
+	var safe_xz: Vector3 = origin_base + horiz_offset
+	if horiz_offset.length_squared() > 0.0001:
+		var horiz_mask: int = (GameConfig.LAYER_ENVIRONMENT | GameConfig.LAYER_INTERACTABLE) if GameConfig != null else 3
+		var h_query := PhysicsRayQueryParameters3D.create(ray_start, ray_start + horiz_offset, horiz_mask, [get_rid()])
+		var h_hit: Dictionary = space.intersect_ray(h_query)
+		if not h_hit.is_empty():
+			var hit_pos: Vector3 = h_hit["position"]
+			var hit_dist: float = Vector2(hit_pos.x - origin_base.x, hit_pos.z - origin_base.z).length()
+			var clamped_dist: float = maxf(hit_dist - 0.30, 0.12)
+			safe_xz = origin_base + horiz_offset.normalized() * clamped_dist
+
+	var floor_mask: int = GameConfig.LAYER_ENVIRONMENT if GameConfig != null else 1
+	var down_start: Vector3 = safe_xz + Vector3(0.0, 0.8, 0.0)
+	var down_end: Vector3 = safe_xz + Vector3(0.0, -2.0, 0.0)
+	var d_query := PhysicsRayQueryParameters3D.create(down_start, down_end, floor_mask, [get_rid()])
+	var d_hit: Dictionary = space.intersect_ray(d_query)
+	if not d_hit.is_empty():
+		return Vector3(safe_xz.x, float((d_hit["position"] as Vector3).y), safe_xz.z)
+	return Vector3(safe_xz.x, maxf(origin_base.y, 0.0), safe_xz.z)
 
 
 func _sync_inventory_state_to_peers() -> void:
@@ -564,8 +683,10 @@ func _sync_inventory_state_to_peers() -> void:
 		_container_ui.refresh_view()
 
 
-@rpc("authority", "call_local", "reliable")
+@rpc("any_peer", "call_local", "reliable")
 func _rpc_sync_inventory(l_item: String, b_objs: Array, j_slots: Array, a_slot: int, r_mode: int, charging: bool) -> void:
+	if not _is_authorized_state_rpc():
+		return
 	_inv().apply_sync_state(l_item, b_objs, j_slots, a_slot, r_mode, charging)
 	_refresh_hand_and_back_sockets()
 	_update_hud_status()
@@ -582,8 +703,10 @@ func _server_spawn_floor_drop(dropped_id: String, b_objs: Array, world_pos: Vect
 		_rpc_spawn_dropped_pickup(dropped_id, b_objs, world_pos, drop_name, b_armed_bomb, b_bomb_owner)
 
 
-@rpc("authority", "call_local", "reliable")
+@rpc("any_peer", "call_local", "reliable")
 func _rpc_spawn_dropped_pickup(dropped_id: String, b_objs: Array, world_pos: Vector3, drop_name: String, b_armed_bomb: bool = false, b_bomb_owner: int = 0) -> void:
+	if not _is_authorized_state_rpc():
+		return
 	var target_root: Node = get_tree().current_scene if get_tree() != null else null
 	if target_root == null:
 		target_root = get_parent()
@@ -794,8 +917,11 @@ func _process(delta: float) -> void:
 
 	var lock_stance: int = GameConfig.Stance.DRAWER_LOCK if GameConfig != null else 3
 	var ko_stance: int = GameConfig.Stance.KO if GameConfig != null else 4
-	if stance_state == lock_stance or stance_state == ko_stance:
+	if stance_state == lock_stance:
 		prompt_label.visible = false
+		_reset_interact_hold()
+		return
+	if stance_state == ko_stance:
 		_reset_interact_hold()
 		return
 
@@ -879,7 +1005,7 @@ func _reset_interact_hold() -> void:
 		hold_progress_bar.visible = false
 
 
-func _unhandled_input(event: InputEvent) -> void:
+func _input(event: InputEvent) -> void:
 	if Engine.is_editor_hint() or not is_multiplayer_authority():
 		return
 
@@ -899,6 +1025,15 @@ func _unhandled_input(event: InputEvent) -> void:
 			else:
 				exit_container_view()
 			get_viewport().set_input_as_handled()
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if Engine.is_editor_hint() or not is_multiplayer_authority():
+		return
+
+	var lock_stance: int = GameConfig.Stance.DRAWER_LOCK if GameConfig != null else 3
+	var ko_stance: int = GameConfig.Stance.KO if GameConfig != null else 4
+	if stance_state == lock_stance or stance_state == ko_stance:
 		return
 
 	if event is InputEventKey and event.pressed and not event.is_echo():
@@ -991,11 +1126,14 @@ func _physics_process(delta: float) -> void:
 	if Engine.is_editor_hint():
 		return
 
-	var target_neck_y: float = (
-		(GameConfig.crouched_neck_y if GameConfig != null else 0.85)
-		if stance_state == (GameConfig.Stance.CROUCH if GameConfig != null else 2)
-		else (GameConfig.standing_neck_y if GameConfig != null else 1.6)
-	)
+	tick_ko_and_immunity(delta)
+
+	var target_neck_y: float = GameConfig.standing_neck_y if GameConfig != null else 1.6
+	if stance_state == (GameConfig.Stance.KO if GameConfig != null else 4):
+		target_neck_y = 0.35
+	elif stance_state == (GameConfig.Stance.CROUCH if GameConfig != null else 2):
+		target_neck_y = GameConfig.crouched_neck_y if GameConfig != null else 0.85
+
 	if head != null:
 		var lerp_spd: float = GameConfig.stance_transition_speed if GameConfig != null else 12.0
 		head.position.y = lerpf(head.position.y, target_neck_y, clampf(lerp_spd * delta, 0.0, 1.0))

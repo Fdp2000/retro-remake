@@ -236,6 +236,8 @@ func _resolve_bucket_drop(opener_peer_id: int, opener_pos: Vector3, owner_id: in
 func _rpc_sync_door(opened: bool, target_angle_rad: float, duration: float, bucket_rigged: bool) -> void:
 	_ensure_nodes()
 	is_open = opened
+	if _door_body != null:
+		_door_body.collision_layer = (GameConfig.LAYER_INTERACTABLE if GameConfig != null else 2) if is_open else ((GameConfig.LAYER_ENVIRONMENT | GameConfig.LAYER_INTERACTABLE) if GameConfig != null else 3)
 	current_target_angle_rad = target_angle_rad
 	has_rigged_bucket = bucket_rigged
 	if _bucket_visual != null:

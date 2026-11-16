@@ -156,12 +156,23 @@ func test_drawer_spring_trap_asymmetric_gamble_unlatch_and_steal() -> void:
 	assert_false(bool(slam_res["opened"]), "Fast slam on armed Spring does not open Top-Down View")
 	assert_true(bool(slam_res["triggered_spring"]), "Fast slam triggered armed Spring")
 	assert_eq(p1.stance_state, GameConfig.Stance.KO, "Victim entered KO stance")
+	assert_true(is_equal_approx(p1.ko_remaining_seconds, 15.0), "KO sets 15.0s recovery timer")
+	assert_eq(p1.collision_layer, GameConfig.LAYER_RAGDOLL_KO, "KO switches player to Layer 4 Ragdoll_KO")
 	assert_eq(p1.left_hand_item_id, "NONE", "KO scattered Left Hand KEY")
 	assert_eq(p1.jacket_slots[0], "NONE", "KO scattered Inner Jacket BUCKET")
 	assert_false(drawer.armed_spring, "Spring consumed after trigger")
 
+	# Verify KO wakes up cleanly after 15.0s with 2.0s wake-up immunity
+	p1.tick_ko_and_immunity(15.1)
+	assert_eq(p1.stance_state, GameConfig.Stance.WALK, "Player wakes up cleanly after 15s KO")
+	assert_eq(p1.collision_layer, GameConfig.LAYER_PLAYER, "Player restores Layer 3 Player collision on wake-up")
+	assert_true(is_equal_approx(p1.wakeup_immunity_remaining, 2.0), "Player receives 2.0s wake-up immunity")
+	assert_eq(p1.apply_trap_ko("SPRING", 2).size(), 0, "Trap KO ignored during 2.0s wake-up immunity")
+	assert_eq(p1.stance_state, GameConfig.Stance.WALK, "Player stays awake during immunity")
+	p1.tick_ko_and_immunity(2.1)
+	assert_true(is_equal_approx(p1.wakeup_immunity_remaining, 0.0), "Wake-up immunity expires cleanly")
+
 	# 2. Re-arm Spring & test Slow Peek (Hold E) -> Safe bypass -> Unlatch -> Steal to Jacket -> Re-plant
-	p1.stance_state = GameConfig.Stance.WALK
 	drawer.set("armed_spring", true)
 	drawer.set("spring_owner_peer_id", 2)
 

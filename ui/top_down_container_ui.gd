@@ -27,6 +27,7 @@ var _container: Node = null
 var _local_peer_id: int = 1
 
 var _title_label: Label = null
+var _push_clutter_btn: Button = null
 var _left_item_label: Label = null
 var _lip_bar: HBoxContainer = null
 var _items_layer: Control = null
@@ -89,6 +90,9 @@ func refresh_view() -> void:
 	var is_briefcase: bool = bool(_container.get("is_briefcase_container"))
 	var c_id: String = str(_container.get("container_id"))
 	_title_label.text = "%s  —  [Press A / S / D or ESC to Close]" % ("COMPACT BRIEFCASE" if is_briefcase else c_id.to_upper())
+	if _push_clutter_btn != null:
+		var clutter_arr: Array = _container.get("clutter_positions") as Array
+		_push_clutter_btn.visible = (not is_briefcase) and clutter_arr != null and not clutter_arr.is_empty()
 
 	_refresh_left_hand_panel()
 	_refresh_lip_bar(is_briefcase)
@@ -130,7 +134,28 @@ func _build_layout() -> void:
 	_title_label.text = "DRAWER  —  [Press A / S / D or ESC to Close]"
 	header_row.add_child(_title_label)
 
+	_push_clutter_btn = Button.new()
+	_push_clutter_btn.focus_mode = Control.FOCUS_NONE
+	_push_clutter_btn.text = "Push All Clutter Aside"
+	_push_clutter_btn.pressed.connect(func():
+		if _container == null or not is_instance_valid(_container):
+			return
+		var pos_arr: Array = _container.get("clutter_positions") as Array
+		if pos_arr == null:
+			return
+		var corners: Array[Vector2] = [
+			Vector2(0.08, 0.12),
+			Vector2(0.92, 0.12),
+			Vector2(0.08, 0.88),
+			Vector2(0.92, 0.88)
+		]
+		for i in range(pos_arr.size()):
+			_container.request_move_clutter(_local_peer_id, i, corners[i % corners.size()])
+	)
+	header_row.add_child(_push_clutter_btn)
+
 	var close_btn := Button.new()
+	close_btn.focus_mode = Control.FOCUS_NONE
 	close_btn.text = "Close [S]"
 	close_btn.pressed.connect(func():
 		if _container != null and is_instance_valid(_container) and _container.has_method("request_close_container"):
@@ -237,6 +262,7 @@ func _refresh_lip_bar(is_briefcase: bool) -> void:
 
 	if armed_spring:
 		var btn := Button.new()
+		btn.focus_mode = Control.FOCUS_NONE
 		btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		btn.modulate = Color(1.0, 0.35, 0.30)
 		btn.text = "SPRING TRAP ARMED ON LIP! — Click to Unlatch"
@@ -250,6 +276,7 @@ func _refresh_lip_bar(is_briefcase: bool) -> void:
 		_lip_bar.add_child(lbl)
 
 		var steal_btn := Button.new()
+		steal_btn.focus_mode = Control.FOCUS_NONE
 		steal_btn.text = "Steal to Coat [1-3]"
 		steal_btn.pressed.connect(func():
 			_container.request_steal_spring(_local_peer_id, -1)
@@ -257,6 +284,7 @@ func _refresh_lip_bar(is_briefcase: bool) -> void:
 		_lip_bar.add_child(steal_btn)
 
 		var rearm_btn := Button.new()
+		rearm_btn.focus_mode = Control.FOCUS_NONE
 		rearm_btn.text = "Re-Arm on Lip"
 		rearm_btn.pressed.connect(func():
 			_container.request_rearm_spring(_local_peer_id)
@@ -287,6 +315,7 @@ func _refresh_tray_items() -> void:
 
 	if live_lit:
 		_live_bomb_btn = Button.new()
+		_live_bomb_btn.focus_mode = Control.FOCUS_NONE
 		_live_bomb_btn.position = Vector2(30.0, 12.0)
 		_live_bomb_btn.size = Vector2(TRAY_SIZE.x - 60.0, 56.0)
 		_live_bomb_btn.modulate = Color(1.0, 0.30, 0.15)
@@ -309,6 +338,7 @@ func _refresh_tray_items() -> void:
 	for i in range(items.size()):
 		var item_id: String = str(items[i])
 		var btn := Button.new()
+		btn.focus_mode = Control.FOCUS_NONE
 		var norm: Vector2 = ITEM_TRAY_POSITIONS[i % ITEM_TRAY_POSITIONS.size()]
 		var btn_size := Vector2(148.0, 44.0)
 		btn.position = Vector2(
@@ -422,6 +452,7 @@ func _refresh_jacket_panel(is_briefcase: bool) -> void:
 		var slot_idx: int = i
 		if spring_unlatched and slot_item == "NONE":
 			var stow_btn := Button.new()
+			stow_btn.focus_mode = Control.FOCUS_NONE
 			stow_btn.text = "Stow Unlatched Spring Here"
 			stow_btn.pressed.connect(func():
 				_container.request_steal_spring(_local_peer_id, slot_idx)
@@ -429,6 +460,7 @@ func _refresh_jacket_panel(is_briefcase: bool) -> void:
 			row.add_child(stow_btn)
 		elif slot_item == "SPRING" and can_arm_spring:
 			var plant_btn := Button.new()
+			plant_btn.focus_mode = Control.FOCUS_NONE
 			plant_btn.text = "Plant Spring on Lip"
 			plant_btn.pressed.connect(func():
 				_container.request_plant_trap(_local_peer_id, slot_idx, "LIP")
@@ -436,6 +468,7 @@ func _refresh_jacket_panel(is_briefcase: bool) -> void:
 			row.add_child(plant_btn)
 		elif slot_item == "BOMB" and can_arm_bomb:
 			var bomb_btn := Button.new()
+			bomb_btn.focus_mode = Control.FOCUS_NONE
 			bomb_btn.text = "Plant Bomb in %s" % ("Briefcase" if is_briefcase else "Drawer")
 			bomb_btn.pressed.connect(func():
 				_container.request_plant_trap(_local_peer_id, slot_idx, "TRAY")

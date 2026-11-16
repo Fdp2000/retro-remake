@@ -86,12 +86,12 @@ func server_interact(is_slow_peek: bool = false, is_sprint_bash: bool = false) -
 	var dur: float = swing_duration
 	var target_y: float = _closed_rotation
 	if next_open:
-		# Preserve -90 deg when approached from +Z front side for door_interaction_check.gd compatibility,
-		# and swing opposite (+90 deg) when approached from the -Z rear side.
+		# +X door leaf rotated by +90 deg (-open_angle) swings into -Z (away from +Z opener);
+		# -90 deg (open_angle) swings into +Z (away from -Z opener).
 		var to_player: Vector3 = player.global_position - global_position
 		to_player.y = 0.0
 		var z_dot: float = global_basis.z.dot(to_player)
-		var angle_deg: float = open_angle if z_dot >= 0.0 else -open_angle
+		var angle_deg: float = -open_angle if z_dot >= 0.0 else open_angle
 		target_y = _closed_rotation + deg_to_rad(angle_deg)
 		if is_sprint_bash:
 			dur = GameConfig.door_sprint_bash_duration if GameConfig != null else 0.12
@@ -117,6 +117,8 @@ func server_interact(is_slow_peek: bool = false, is_sprint_bash: bool = false) -
 @rpc("authority", "call_local", "reliable")
 func sync_state(opened: bool, target_y: float = 9999.0, dur: float = -1.0) -> void:
 	is_open = opened
+	for body in find_children("*", "StaticBody3D", true, false):
+		body.collision_layer = 2 if is_open else 3
 	if _swing != null and _swing.is_valid():
 		_swing.kill()
 	_busy = true
