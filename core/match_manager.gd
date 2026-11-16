@@ -113,7 +113,7 @@ func award_first_search_bonus(peer_id: int) -> void:
 	var bonus: float = GameConfig.drawer_first_search_bonus_seconds
 	peer_clocks[peer_id] = float(peer_clocks[peer_id]) + bonus
 
-	if _is_network_connected():
+	if _is_network_connected() and (peer_id == 1 or peer_id in multiplayer.get_peers()):
 		_rpc_update_private_clock.rpc_id(peer_id, peer_id, peer_clocks[peer_id], bonus)
 	else:
 		clock_updated.emit(peer_id, peer_clocks[peer_id], bonus)
@@ -171,7 +171,11 @@ func _finish_match(winner_id: int, reason: String) -> void:
 
 
 func _is_network_connected() -> bool:
-	return multiplayer != null and multiplayer.has_multiplayer_peer() and multiplayer.multiplayer_peer.get_connection_status() == MultiplayerPeer.CONNECTION_CONNECTED
+	if Engine.is_editor_hint() or multiplayer == null or not multiplayer.has_multiplayer_peer():
+		return false
+	if multiplayer.multiplayer_peer is OfflineMultiplayerPeer:
+		return false
+	return multiplayer.multiplayer_peer.get_connection_status() == MultiplayerPeer.CONNECTION_CONNECTED
 
 
 @rpc("authority", "call_local", "reliable")

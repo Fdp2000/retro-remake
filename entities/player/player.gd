@@ -1,6 +1,6 @@
 extends CharacterBody3D
 
-## SpyCharacter Controller — Dual Movement, Stances & 3-Slot Inner Trenchcoat Jacket Inventory (Doc 2 v1.2)
+## SpyCharacter Controller — Dual Movement, Stances & 3-Slot Inner Trenchcoat Jacket Inventory (Doc 2 v1.2).
 ## Client-authoritative FPS locomotion + Server-authoritative Left-Hand & 3-Slot Jacket Inventory.
 
 enum SpyRole {
@@ -12,6 +12,7 @@ const COLOR_SPY_WHITE: Color = Color(0.92, 0.92, 0.92)
 const COLOR_SPY_BLACK: Color = Color(0.12, 0.12, 0.12)
 const PICKUP_SCENE: PackedScene = preload("res://entities/props/world_item_pickup.tscn")
 const PICKUP_SCRIPT = preload("res://entities/props/world_item_pickup.gd")
+const TOP_DOWN_UI_SCRIPT = preload("res://ui/top_down_container_ui.gd")
 
 # ==========================================
 # Replicated Properties (MultiplayerSynchronizer — Client Locomotion/Stance Authority)
@@ -121,6 +122,8 @@ var is_charging_club: bool:
 @onready var left_hand_label: Label = get_node_or_null("HUD/StatusBar/HBox/LeftHandLabel")
 @onready var stance_label: Label = get_node_or_null("HUD/StatusBar/HBox/StanceLabel")
 @onready var right_hand_label: Label = get_node_or_null("HUD/StatusBar/HBox/RightHandLabel")
+@onready var clock_label: Label = get_node_or_null("HUD/ClockPanel/ClockLabel") as Label
+@onready var bonus_toast_label: Label = get_node_or_null("HUD/BonusToastLabel") as Label
 
 var gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity", 9.8)
 
@@ -136,6 +139,12 @@ var _interact_hold_elapsed: float = 0.0
 var _interact_hold_triggered: bool = false
 var _interact_target: Object = null
 
+# Container View & Clock HUD
+var active_container: Node = null
+var _container_ui: TopDownContainerUI = null
+var _camera_tween: Tween = null
+var _bonus_toast_timer: float = 0.0
+
 # Footstep & airborne tracking
 var _footstep_timer: float = 0.0
 var _was_on_floor: bool = true
@@ -144,6 +153,7 @@ var _drop_counter: int = 0
 
 
 func _enter_tree() -> void:
+	add_to_group("spy_players")
 	if Engine.is_editor_hint():
 		return
 	set_multiplayer_authority(name.to_int())
@@ -152,6 +162,7 @@ func _enter_tree() -> void:
 
 
 func _ready() -> void:
+	add_to_group("spy_players")
 	collision_layer = GameConfig.LAYER_PLAYER if GameConfig != null else 4
 	collision_mask = (GameConfig.LAYER_ENVIRONMENT | GameConfig.LAYER_PLAYER) if GameConfig != null else 5
 
@@ -191,6 +202,14 @@ func _ready() -> void:
 		set_process_unhandled_input(true)
 		set_process(true)
 		hud.visible = true
+		if hud != null and _container_ui == null:
+			_container_ui = TOP_DOWN_UI_SCRIPT.new()
+			_container_ui.name = "TopDownContainerUI"
+			hud.add_child(_container_ui)
+		if MatchManager != null:
+			if not MatchManager.clock_updated.is_connected(_on_match_clock_updated):
+				MatchManager.clock_updated.connect(_on_match_clock_updated)
+			_on_match_clock_updated(name.to_int(), MatchManager.get_private_clock(name.to_int()), 0.0)
 	else:
 		camera.current = false
 		set_process_unhandled_input(false)
@@ -356,6 +375,108 @@ func force_drop_all_hands() -> Array[Dictionary]:
 	return drops
 
 
+func set_briefcase_bomb_state(armed: bool, owner_id: int) -> void:
+	_inv().briefcase_armed_bomb = armed
+	_inv().briefcase_bomb_owner_id = owner_id
+
+
+func enter_container_view(container: Node) -> void:
+	active_container = container
+	stance_state = GameConfig.Stance.DRAWER_LOCK if GameConfig != null else 3
+	_reset_interact_hold()
+	if prompt_label != null:
+		prompt_label.visible = false
+
+	if is_inside_tree() and is_multiplayer_authority() and not Engine.is_editor_hint():
+		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+		if camera != null and container != null and container.has_method("get_top_down_camera_transform"):
+			if _camera_tween != null and _camera_tween.is_valid():
+				_camera_tween.kill()
+			var target_xform: Transform3D = container.get_top_down_camera_transform()
+			var dur: float = GameConfig.top_down_cam_lerp_duration if GameConfig != null else 0.18
+			_camera_tween = create_tween()
+			_camera_tween.tween_property(camera, "global_transform", target_xform, dur).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		if hud != null and _container_ui == null:
+			_container_ui = TOP_DOWN_UI_SCRIPT.new()
+			_container_ui.name = "TopDownContainerUI"
+			hud.add_child(_container_ui)
+		if _container_ui != null:
+			var my_id: int = multiplayer.get_unique_id() if _is_peer_connected() else name.to_int()
+			_container_ui.open_for_container(self, container, my_id)
+
+
+func exit_container_view() -> void:
+	active_container = null
+	var lock_stance: int = GameConfig.Stance.DRAWER_LOCK if GameConfig != null else 3
+	if stance_state == lock_stance:
+		stance_state = GameConfig.Stance.WALK if GameConfig != null else 0
+
+	if _container_ui != null:
+		_container_ui.close_view()
+
+	if camera != null:
+		if _camera_tween != null and _camera_tween.is_valid():
+			_camera_tween.kill()
+		if is_inside_tree() and is_multiplayer_authority() and not Engine.is_editor_hint():
+			var dur: float = GameConfig.top_down_cam_lerp_duration if GameConfig != null else 0.18
+			_camera_tween = create_tween()
+			_camera_tween.tween_property(camera, "transform", Transform3D.IDENTITY, dur).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		else:
+			camera.transform = Transform3D.IDENTITY
+
+	if not Engine.is_editor_hint() and is_inside_tree() and is_multiplayer_authority():
+		var scene: Node = get_tree().current_scene if get_tree() != null else null
+		var esc_menu_node: Variant = scene.get("esc_menu") if scene != null else null
+		var esc_open: bool = esc_menu_node is CanvasItem and (esc_menu_node as CanvasItem).visible
+		if not esc_open:
+			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+
+
+func apply_trap_ko(_reason: String, _attacker_peer_id: int = 0) -> Array[Dictionary]:
+	if active_container != null and is_instance_valid(active_container) and active_container.has_method("close_container"):
+		active_container.close_container(name.to_int(), self)
+	elif stance_state == (GameConfig.Stance.DRAWER_LOCK if GameConfig != null else 3):
+		exit_container_view()
+
+	var drops: Array[Dictionary] = force_drop_all_hands()
+	if is_inside_tree() and (not _is_peer_connected() or multiplayer.is_server()):
+		for i in range(drops.size()):
+			var entry: Dictionary = drops[i]
+			var dropped_id: String = str(entry.get("dropped_item_id", "NONE"))
+			if dropped_id == "NONE":
+				continue
+			var angle: float = (TAU * float(i)) / float(maxi(drops.size(), 1))
+			var offset := Vector3(cos(angle) * 0.65, 0.0, sin(angle) * 0.65)
+			_server_spawn_floor_drop(
+				dropped_id,
+				entry.get("dropped_briefcase_items", []),
+				global_position + offset,
+				bool(entry.get("dropped_briefcase_armed_bomb", false)),
+				int(entry.get("dropped_briefcase_bomb_owner", 0))
+			)
+
+	stance_state = GameConfig.Stance.KO if GameConfig != null else 4
+	_sync_inventory_state_to_peers()
+	return drops
+
+
+func _on_match_clock_updated(peer_id: int, remaining_seconds: float, delta_bonus: float) -> void:
+	var my_id: int = multiplayer.get_unique_id() if _is_peer_connected() else name.to_int()
+	if peer_id != my_id:
+		return
+	if clock_label != null:
+		var clamped_sec: int = maxi(ceili(remaining_seconds), 0)
+		@warning_ignore("integer_division")
+		var mins: int = clamped_sec / 60
+		var secs: int = clamped_sec % 60
+		clock_label.text = "CLOCK: %02d:%02d" % [mins, secs]
+		clock_label.modulate = Color(1.0, 0.35, 0.30) if clamped_sec <= 30 else Color(1.0, 1.0, 1.0)
+	if delta_bonus > 0.0 and bonus_toast_label != null:
+		bonus_toast_label.text = "+%ds FIRST SEARCH!" % int(round(delta_bonus))
+		bonus_toast_label.visible = true
+		_bonus_toast_timer = 2.2
+
+
 # ==========================================
 # Server-Authoritative Hand & Pickup RPCs
 # ==========================================
@@ -366,7 +487,13 @@ func server_pickup_world_item(item_id: String, extra_briefcase_items: Array, pic
 		return false
 
 	if str(res["dropped_item_id"]) != "NONE":
-		_server_spawn_floor_drop(str(res["dropped_item_id"]), res["dropped_briefcase_items"], pickup_pos)
+		_server_spawn_floor_drop(
+			str(res["dropped_item_id"]),
+			res["dropped_briefcase_items"],
+			pickup_pos,
+			bool(res.get("dropped_briefcase_armed_bomb", false)),
+			int(res.get("dropped_briefcase_bomb_owner", 0))
+		)
 
 	_sync_inventory_state_to_peers()
 	return true
@@ -411,7 +538,13 @@ func server_request_hand_action(action_type: String, slot_arg: int = 0) -> void:
 
 	if str(res["dropped_item_id"]) != "NONE":
 		var drop_pos: Vector3 = global_position + (-global_transform.basis.z * 0.75)
-		_server_spawn_floor_drop(str(res["dropped_item_id"]), res["dropped_briefcase_items"], drop_pos)
+		_server_spawn_floor_drop(
+			str(res["dropped_item_id"]),
+			res["dropped_briefcase_items"],
+			drop_pos,
+			bool(res.get("dropped_briefcase_armed_bomb", false)),
+			int(res.get("dropped_briefcase_bomb_owner", 0))
+		)
 
 	_sync_inventory_state_to_peers()
 
@@ -427,6 +560,8 @@ func _sync_inventory_state_to_peers() -> void:
 			inv.right_hand_mode,
 			inv.is_charging_club
 		)
+	elif _container_ui != null and _container_ui.visible:
+		_container_ui.refresh_view()
 
 
 @rpc("authority", "call_local", "reliable")
@@ -434,19 +569,21 @@ func _rpc_sync_inventory(l_item: String, b_objs: Array, j_slots: Array, a_slot: 
 	_inv().apply_sync_state(l_item, b_objs, j_slots, a_slot, r_mode, charging)
 	_refresh_hand_and_back_sockets()
 	_update_hud_status()
+	if _container_ui != null and _container_ui.visible:
+		_container_ui.refresh_view()
 
 
-func _server_spawn_floor_drop(dropped_id: String, b_objs: Array, world_pos: Vector3) -> void:
+func _server_spawn_floor_drop(dropped_id: String, b_objs: Array, world_pos: Vector3, b_armed_bomb: bool = false, b_bomb_owner: int = 0) -> void:
 	_drop_counter += 1
 	var drop_name: String = "Dropped_%s_%s_%d" % [name, dropped_id, _drop_counter]
 	if _is_peer_connected():
-		_rpc_spawn_dropped_pickup.rpc(dropped_id, b_objs, world_pos, drop_name)
+		_rpc_spawn_dropped_pickup.rpc(dropped_id, b_objs, world_pos, drop_name, b_armed_bomb, b_bomb_owner)
 	else:
-		_rpc_spawn_dropped_pickup(dropped_id, b_objs, world_pos, drop_name)
+		_rpc_spawn_dropped_pickup(dropped_id, b_objs, world_pos, drop_name, b_armed_bomb, b_bomb_owner)
 
 
 @rpc("authority", "call_local", "reliable")
-func _rpc_spawn_dropped_pickup(dropped_id: String, b_objs: Array, world_pos: Vector3, drop_name: String) -> void:
+func _rpc_spawn_dropped_pickup(dropped_id: String, b_objs: Array, world_pos: Vector3, drop_name: String, b_armed_bomb: bool = false, b_bomb_owner: int = 0) -> void:
 	var target_root: Node = get_tree().current_scene if get_tree() != null else null
 	if target_root == null:
 		target_root = get_parent()
@@ -460,6 +597,8 @@ func _rpc_spawn_dropped_pickup(dropped_id: String, b_objs: Array, world_pos: Vec
 	for item in b_objs:
 		typed_objs.append(str(item))
 	pickup.set("packed_objectives", typed_objs)
+	pickup.set("armed_bomb", b_armed_bomb)
+	pickup.set("bomb_owner_peer_id", b_bomb_owner)
 	target_root.add_child(pickup)
 	pickup.global_position = Vector3(world_pos.x, maxf(world_pos.y, 0.0), world_pos.z)
 
@@ -591,8 +730,6 @@ func _try_sprint_bash_target(node: Node) -> void:
 	while cursor != null:
 		if cursor.has_method("request_sprint_bash"):
 			cursor.request_sprint_bash(multiplayer.get_unique_id() if _is_peer_connected() else 1, global_position)
-			if AudioBridge != null:
-				AudioBridge.request_world_cue("door_bash", cursor.global_position, GameConfig.audio_radius_door_bash, name.to_int())
 			return
 		elif cursor.has_method("request_interaction") and String(cursor.name).contains("Door"):
 			if not bool(cursor.get("is_open")):
@@ -633,17 +770,33 @@ func _set(property: StringName, value: Variant) -> bool:
 
 
 func _is_peer_connected() -> bool:
-	return multiplayer != null and multiplayer.has_multiplayer_peer() and multiplayer.multiplayer_peer.get_connection_status() == MultiplayerPeer.CONNECTION_CONNECTED
+	if Engine.is_editor_hint() or multiplayer == null or not multiplayer.has_multiplayer_peer():
+		return false
+	if multiplayer.multiplayer_peer is OfflineMultiplayerPeer:
+		return false
+	return multiplayer.multiplayer_peer.get_connection_status() == MultiplayerPeer.CONNECTION_CONNECTED
 
 
 func _process(delta: float) -> void:
 	if Engine.is_editor_hint() or not _is_peer_connected() or not is_multiplayer_authority():
 		return
 
+	if _bonus_toast_timer > 0.0:
+		_bonus_toast_timer -= delta
+		if _bonus_toast_timer <= 0.0 and bonus_toast_label != null:
+			bonus_toast_label.visible = false
+
 	if _sens_toast_timer > 0.0:
 		_sens_toast_timer -= delta
 		if _sens_toast_timer <= 0.0:
 			prompt_label.visible = false
+		return
+
+	var lock_stance: int = GameConfig.Stance.DRAWER_LOCK if GameConfig != null else 3
+	var ko_stance: int = GameConfig.Stance.KO if GameConfig != null else 4
+	if stance_state == lock_stance or stance_state == ko_stance:
+		prompt_label.visible = false
+		_reset_interact_hold()
 		return
 
 	_process_interaction_raycast(delta)
@@ -679,7 +832,10 @@ func _process_interaction_raycast(delta: float) -> void:
 	var my_peer_id: int = multiplayer.get_unique_id() if _is_peer_connected() else 1
 
 	if is_interactable and target_collider != null:
-		var supports_hold: bool = target_collider.has_method("request_hold_interaction")
+		var supports_hold: bool = (
+			target_collider.has_method("request_hold_interaction")
+			and (not target_collider.has_method("supports_hold_interaction") or bool(target_collider.supports_hold_interaction()))
+		)
 		if e_just_pressed:
 			_interact_key_down = true
 			_interact_hold_elapsed = 0.0
@@ -725,6 +881,24 @@ func _reset_interact_hold() -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if Engine.is_editor_hint() or not is_multiplayer_authority():
+		return
+
+	var lock_stance: int = GameConfig.Stance.DRAWER_LOCK if GameConfig != null else 3
+	if stance_state == lock_stance:
+		var is_exit_key: bool = (
+			event.is_action_pressed("move_left")
+			or event.is_action_pressed("move_back")
+			or event.is_action_pressed("move_right")
+			or event.is_action_pressed("ui_cancel")
+			or (event is InputEventKey and event.pressed and not event.is_echo() and (event.keycode in [KEY_A, KEY_S, KEY_D, KEY_ESCAPE]))
+		)
+		if is_exit_key:
+			var my_id: int = multiplayer.get_unique_id() if _is_peer_connected() else name.to_int()
+			if active_container != null and is_instance_valid(active_container) and active_container.has_method("request_close_container"):
+				active_container.request_close_container(my_id)
+			else:
+				exit_container_view()
+			get_viewport().set_input_as_handled()
 		return
 
 	if event is InputEventKey and event.pressed and not event.is_echo():

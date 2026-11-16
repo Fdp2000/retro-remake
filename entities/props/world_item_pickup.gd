@@ -3,7 +3,7 @@ class_name WorldItemPickup
 extends StaticBody3D
 
 ## Server-authoritative floor pickup for Loose Objectives (KEY, MONEY, PASSPORT, PLANS),
-## the Compact Briefcase (BRIEFCASE), and Traps/Gadgets (BUCKET, TRIPWIRE, SPRING, BOMB, LIVE_BOMB, DART_GUN).
+## the Compact Briefcase (BRIEFCASE), and Traps/Gadgets (BUCKET, TRIPWIRE, SPRING, BOMB, LIVE_BOMB, DART_GUN)
 
 enum ItemSlotType {
 	LEFT_HAND_OBJECTIVE = 0,
@@ -49,9 +49,12 @@ const ITEM_DISPLAY_NAMES: Dictionary = {
 			_rebuild_visuals()
 
 @export var packed_objectives: Array[String] = []
+@export var armed_bomb: bool = false
+@export var bomb_owner_peer_id: int = 0
 
 var _mesh_instance: MeshInstance3D = null
 var _collision_shape: CollisionShape3D = null
+var _briefcase_container: Node = null
 var _is_consumed: bool = false
 
 
@@ -60,6 +63,8 @@ func _ready() -> void:
 	collision_mask = 0
 	_ensure_child_nodes()
 	_rebuild_visuals()
+	if is_briefcase_item(item_id):
+		_ensure_briefcase_container()
 
 
 static func is_objective_item(id: String) -> bool:
@@ -146,17 +151,54 @@ static func build_item_mesh(id: String) -> MeshInstance3D:
 
 func get_interaction_prompt() -> String:
 	var disp: String = get_display_name(item_id, packed_objectives)
-	if is_objective_item(item_id) or is_briefcase_item(item_id):
+	if is_briefcase_item(item_id):
+		return "[Tap E] Pick Up %s (Left Hand)  |  [Hold E] Open & Inspect" % disp
+	if is_objective_item(item_id):
 		return "[E] Pick Up %s (Left Hand)" % disp
 	if item_id.to_upper() == "LIVE_BOMB":
 		return "[E] Grab %s (Active Hand!)" % disp
 	return "[E] Pick Up %s (Inner Jacket 1-3)" % disp
 
 
+func supports_hold_interaction() -> bool:
+	return is_briefcase_item(item_id)
+
+
+func get_hold_interaction_duration() -> float:
+	return GameConfig.drawer_slow_peek_hold_time if GameConfig != null else 0.60
+
+
+func request_hold_interaction(caller_peer_id: int) -> void:
+	if _is_consumed or not is_briefcase_item(item_id):
+		return
+	var container: Node = _ensure_briefcase_container()
+	if container != null and container.has_method("request_hold_interaction"):
+		container.request_hold_interaction(caller_peer_id)
+
+
+func _ensure_briefcase_container() -> Node:
+	if _briefcase_container != null and is_instance_valid(_briefcase_container):
+		return _briefcase_container
+	_briefcase_container = get_node_or_null("BriefcaseContainer")
+	if _briefcase_container == null:
+		var container_script: Script = load("res://entities/props/searchable_container.gd")
+		_briefcase_container = container_script.new()
+		_briefcase_container.name = "BriefcaseContainer"
+		_briefcase_container.set("container_id", "Briefcase")
+		_briefcase_container.set("is_briefcase_container", true)
+		_briefcase_container.set("clutter_count", 0)
+		_briefcase_container.set("linked_briefcase_pickup", self)
+		add_child(_briefcase_container)
+	_briefcase_container.set("stored_items", packed_objectives.duplicate())
+	_briefcase_container.set("armed_bomb", armed_bomb)
+	_briefcase_container.set("bomb_owner_peer_id", bomb_owner_peer_id)
+	return _briefcase_container
+
+
 func request_interaction(caller_peer_id: int) -> void:
 	if _is_consumed:
 		return
-	if multiplayer.has_multiplayer_peer() and multiplayer.multiplayer_peer.get_connection_status() == MultiplayerPeer.CONNECTION_CONNECTED:
+	if not Engine.is_editor_hint() and multiplayer != null and multiplayer.has_multiplayer_peer() and not (multiplayer.multiplayer_peer is OfflineMultiplayerPeer) and multiplayer.multiplayer_peer.get_connection_status() == MultiplayerPeer.CONNECTION_CONNECTED:
 		_server_request_pickup.rpc_id(1, caller_peer_id)
 	else:
 		_execute_server_pickup(caller_peer_id)
@@ -175,6 +217,15 @@ func _server_request_pickup(caller_peer_id: int) -> void:
 func _execute_server_pickup(peer_id: int) -> void:
 	if _is_consumed:
 		return
+	if is_briefcase_item(item_id) and _briefcase_container != null:
+		if int(_briefcase_container.get("occupied_by_peer_id")) != 0:
+			return
+		packed_objectives.clear()
+		for it in _briefcase_container.get("stored_items"):
+			packed_objectives.append(str(it))
+		armed_bomb = bool(_briefcase_container.get("armed_bomb"))
+		bomb_owner_peer_id = int(_briefcase_container.get("bomb_owner_peer_id"))
+
 	var player: Node = _find_player_node(peer_id)
 	if player == null or not player.has_method("server_pickup_world_item"):
 		return
@@ -182,7 +233,9 @@ func _execute_server_pickup(peer_id: int) -> void:
 	_is_consumed = true
 	var picked: bool = player.server_pickup_world_item(item_id, packed_objectives.duplicate(), global_position)
 	if picked:
-		if multiplayer.has_multiplayer_peer() and multiplayer.multiplayer_peer.get_connection_status() == MultiplayerPeer.CONNECTION_CONNECTED:
+		if is_briefcase_item(item_id) and player.has_method("set_briefcase_bomb_state"):
+			player.set_briefcase_bomb_state(armed_bomb, bomb_owner_peer_id)
+		if not Engine.is_editor_hint() and multiplayer != null and multiplayer.has_multiplayer_peer() and not (multiplayer.multiplayer_peer is OfflineMultiplayerPeer) and multiplayer.multiplayer_peer.get_connection_status() == MultiplayerPeer.CONNECTION_CONNECTED:
 			_rpc_consume_pickup.rpc()
 		else:
 			queue_free()

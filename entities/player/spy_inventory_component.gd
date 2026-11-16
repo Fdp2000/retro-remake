@@ -2,7 +2,7 @@
 class_name SpyInventoryComponent
 extends Node
 
-## Physical Left Hand + 3-Slot Inner Trenchcoat Jacket + Personal Club Inventory (Doc 2 v1.2 §4).
+## Physical Left Hand + 3-Slot Inner Trenchcoat Jacket + Personal Club Inventory (Doc 2 v1.2 §4)
 ## Server-authoritative state component attached to each SpyCharacter.
 
 const JACKET_SLOT_COUNT: int = 3
@@ -16,6 +16,8 @@ enum RightHandMode {
 
 var left_hand_item_id: String = "NONE"
 var briefcase_objectives: Array[String] = []
+var briefcase_armed_bomb: bool = false
+var briefcase_bomb_owner_id: int = 0
 var jacket_slots: Array[String] = ["NONE", "NONE", "NONE"]
 var active_jacket_slot: int = 0
 var right_hand_mode: int = RightHandMode.JACKET_SLOT
@@ -157,7 +159,9 @@ func toggle_personal_club() -> Dictionary:
 func drop_left_hand_item() -> Dictionary:
 	var result: Dictionary = {
 		"dropped_item_id": "NONE",
-		"dropped_briefcase_items": [] as Array[String]
+		"dropped_briefcase_items": [] as Array[String],
+		"dropped_briefcase_armed_bomb": false,
+		"dropped_briefcase_bomb_owner": 0
 	}
 	if left_hand_item_id == "NONE":
 		return result
@@ -165,7 +169,11 @@ func drop_left_hand_item() -> Dictionary:
 	result["dropped_item_id"] = left_hand_item_id
 	if left_hand_item_id == "BRIEFCASE":
 		result["dropped_briefcase_items"] = briefcase_objectives.duplicate()
+		result["dropped_briefcase_armed_bomb"] = briefcase_armed_bomb
+		result["dropped_briefcase_bomb_owner"] = briefcase_bomb_owner_id
 		briefcase_objectives.clear()
+		briefcase_armed_bomb = false
+		briefcase_bomb_owner_id = 0
 	left_hand_item_id = "NONE"
 	return result
 
