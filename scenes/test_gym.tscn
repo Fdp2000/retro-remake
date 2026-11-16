@@ -104,4 +104,4 @@ text = "Resume"
 layout_mode = 2
 text = "Leave to Lobby"
 
-[node name="BuildingComplex2" parent="UI/EscMenu/VBoxContainer" unique_id=2088144634 instance=ExtResource("3_cppg0")]
+[node name="BuildingComplex2" parent="." unique_id=2088144634 instance=ExtResource("3_cppg0")]
