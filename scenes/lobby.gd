@@ -56,6 +56,15 @@ func _ready() -> void:
 	# Ensure mouse is visible in lobby
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
+	# Attach per-user Mouse DPI & Sensitivity settings widget
+	var matchmaking_panel: VBoxContainer = get_node_or_null("MarginContainer/MatchmakingContainer/MatchmakingPanel")
+	if matchmaking_panel != null and matchmaking_panel.get_node_or_null("MouseSettingsWidget") == null:
+		var sep := HSeparator.new()
+		matchmaking_panel.add_child(sep)
+		var mouse_widget: VBoxContainer = preload("res://ui/mouse_settings_widget.gd").new()
+		mouse_widget.name = "MouseSettingsWidget"
+		matchmaking_panel.add_child(mouse_widget)
+
 	# Setup Mode OptionButton
 	mode_option_button.clear()
 	mode_option_button.add_item("Local (ENet)", NetworkManager.NetworkMode.ENET_LOCAL)
@@ -121,7 +130,7 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	if is_in_matchmaking_queue:
 		matchmaking_search_elapsed += delta
-		var minutes: int = int(matchmaking_search_elapsed) / 60
+		var minutes: int = floori(matchmaking_search_elapsed / 60.0)
 		var seconds: int = int(matchmaking_search_elapsed) % 60
 		search_timer_label.text = "%02d:%02d" % [minutes, seconds]
 

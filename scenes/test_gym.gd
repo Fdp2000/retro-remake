@@ -32,7 +32,13 @@ func _ready() -> void:
 		role_label.text = "ROLE: SPY BLACK (CONTENDER)"
 		role_label.modulate = Color(0.7, 0.85, 1.0)
 
-	# ESC Menu buttons
+	# ESC Menu buttons & Mouse DPI/Sensitivity controls
+	var esc_vbox: VBoxContainer = get_node_or_null("UI/EscMenu/VBoxContainer")
+	if esc_vbox != null and esc_vbox.get_node_or_null("MouseSettingsWidget") == null:
+		var mouse_widget: VBoxContainer = preload("res://ui/mouse_settings_widget.gd").new()
+		mouse_widget.name = "MouseSettingsWidget"
+		esc_vbox.add_child(mouse_widget)
+		esc_vbox.move_child(mouse_widget, 1)
 	resume_button.pressed.connect(_on_resume_pressed)
 	leave_button.pressed.connect(_on_leave_button_pressed)
 

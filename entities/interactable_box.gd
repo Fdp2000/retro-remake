@@ -28,7 +28,7 @@ func request_interaction(caller_peer_id: int) -> void:
 	server_interact.rpc_id(1, prop_id, caller_peer_id)
 
 @rpc("any_peer", "call_local", "reliable")
-func server_interact(p_prop_id: int, caller_peer_id: int) -> void:
+func server_interact(_p_prop_id: int, caller_peer_id: int) -> void:
 	# Authoritative server validation: only host / Peer 1 handles interaction logic
 	if not multiplayer.is_server():
 		return

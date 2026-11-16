@@ -15,9 +15,9 @@ const COLOR_SPY_BLACK: Color = Color(0.12, 0.12, 0.12)
 
 @export var head_pitch: float = 0.0
 
-@export var speed: float = 5.0
-@export var jump_velocity: float = 4.5
-@export var mouse_sensitivity: float = 0.003
+@export var speed: float = 4.5
+@export var jump_velocity: float = 4.2
+@export var mouse_sensitivity: float = 0.0022
 
 @onready var head: Node3D = $Head
 @onready var camera: Camera3D = $Head/Camera3D
@@ -34,6 +34,7 @@ var _target_yaw: float = 0.0
 var _initial_pos_set: bool = false
 var _initial_yaw_set: bool = false
 var _interact_key_down: bool = false
+var _sens_toast_timer: float = 0.0
 
 func _enter_tree() -> void:
 	set_multiplayer_authority(name.to_int())
@@ -43,6 +44,10 @@ func _enter_tree() -> void:
 func _ready() -> void:
 	raycast.add_exception(self)
 	_update_mesh_color()
+	if GameConfig != null:
+		speed = GameConfig.walk_speed
+		jump_velocity = GameConfig.jump_velocity
+		mouse_sensitivity = GameConfig.get_effective_mouse_sensitivity()
 	if is_multiplayer_authority():
 		camera.current = true
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
@@ -89,8 +94,14 @@ func _set(property: StringName, value: Variant) -> bool:
 func _is_peer_connected() -> bool:
 	return multiplayer.has_multiplayer_peer() and multiplayer.multiplayer_peer.get_connection_status() == MultiplayerPeer.CONNECTION_CONNECTED
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	if not _is_peer_connected() or not is_multiplayer_authority():
+		return
+
+	if _sens_toast_timer > 0.0:
+		_sens_toast_timer -= delta
+		if _sens_toast_timer <= 0.0:
+			prompt_label.visible = false
 		return
 
 	var is_interactable: bool = false
@@ -109,7 +120,8 @@ func _process(_delta: float) -> void:
 		prompt_label.text = target_collider.get_interaction_prompt() if target_collider.has_method("get_interaction_prompt") else "[E] Interact"
 
 	var interact_pressed: bool = (
-		Input.is_action_just_pressed("interact")
+		Input.is_action_just_pressed("interact_primary")
+		or Input.is_action_just_pressed("interact")
 		or Input.is_key_pressed(KEY_E)
 	)
 
@@ -117,12 +129,21 @@ func _process(_delta: float) -> void:
 		_interact_key_down = true
 		target_collider.request_interaction(multiplayer.get_unique_id())
 
-	if not (Input.is_action_pressed("interact") or Input.is_key_pressed(KEY_E)):
+	if not (Input.is_action_pressed("interact_primary") or Input.is_action_pressed("interact") or Input.is_key_pressed(KEY_E)):
 		_interact_key_down = false
 
 func _unhandled_input(event: InputEvent) -> void:
 	if not is_multiplayer_authority():
 		return
+
+	# Quick on-the-fly mouse sensitivity adjustment with [ and ] (or - and =)
+	if event is InputEventKey and event.pressed and not event.is_echo():
+		if event.keycode == KEY_BRACKETLEFT or event.keycode == KEY_MINUS:
+			_nudge_sensitivity(-0.10)
+			return
+		elif event.keycode == KEY_BRACKETRIGHT or event.keycode == KEY_EQUAL:
+			_nudge_sensitivity(0.10)
+			return
 
 	# Toggle Input.mouse_mode between CAPTURED and VISIBLE when pressing ui_cancel (Escape)
 	if event.is_action_pressed("ui_cancel") or (event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE):
@@ -140,15 +161,27 @@ func _unhandled_input(event: InputEvent) -> void:
 
 	# First-person mouse look (only active when mouse is captured)
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
+		var eff_sens: float = GameConfig.get_effective_mouse_sensitivity() if GameConfig != null else mouse_sensitivity
 		# Mouse horizontal motion rotates the CharacterBody3D around the Y-axis
-		rotate_y(-event.relative.x * mouse_sensitivity)
+		rotate_y(-event.relative.x * eff_sens)
 
 		# Mouse vertical motion rotates the Head around the X-axis (clamped between -89° and +89°)
-		head.rotate_x(-event.relative.y * mouse_sensitivity)
+		head.rotate_x(-event.relative.y * eff_sens)
 		head.rotation.x = clampf(head.rotation.x, deg_to_rad(-89.0), deg_to_rad(89.0))
 
 		# Update the synced head_pitch variable
 		head_pitch = head.rotation.x
+
+func _nudge_sensitivity(delta_mult: float) -> void:
+	if GameConfig == null:
+		return
+	var new_mult: float = clampf(snappedf(GameConfig.mouse_sensitivity_multiplier + delta_mult, 0.05), 0.10, 4.00)
+	GameConfig.set_mouse_settings(GameConfig.mouse_dpi, new_mult, true)
+	mouse_sensitivity = GameConfig.get_effective_mouse_sensitivity()
+	if prompt_label != null:
+		prompt_label.text = "Mouse Sensitivity: %.2fx (%d DPI)" % [GameConfig.mouse_sensitivity_multiplier, GameConfig.mouse_dpi]
+		prompt_label.visible = true
+		_sens_toast_timer = 1.5
 
 func _physics_process(delta: float) -> void:
 	if not _is_peer_connected() or not is_multiplayer_authority():
@@ -170,9 +203,12 @@ func _physics_process(delta: float) -> void:
 	if not is_on_floor():
 		velocity.y -= gravity * delta
 
+	var active_speed: float = GameConfig.walk_speed if GameConfig != null else speed
+	var active_jump: float = GameConfig.jump_velocity if GameConfig != null else jump_velocity
+
 	# Handle jump
 	if is_on_floor() and (Input.is_action_just_pressed("jump") or Input.is_key_pressed(KEY_SPACE)):
-		velocity.y = jump_velocity
+		velocity.y = active_jump
 
 	# Standard first-person WASD vector movement relative to body transform
 	var input_dir: Vector2 = Vector2.ZERO
@@ -187,10 +223,10 @@ func _physics_process(delta: float) -> void:
 
 	var direction: Vector3 = (transform.basis * Vector3(input_dir.x, 0.0, input_dir.y)).normalized()
 	if direction != Vector3.ZERO:
-		velocity.x = direction.x * speed
-		velocity.z = direction.z * speed
+		velocity.x = direction.x * active_speed
+		velocity.z = direction.z * active_speed
 	else:
-		velocity.x = move_toward(velocity.x, 0.0, speed)
-		velocity.z = move_toward(velocity.z, 0.0, speed)
+		velocity.x = move_toward(velocity.x, 0.0, active_speed)
+		velocity.z = move_toward(velocity.z, 0.0, active_speed)
 
 	move_and_slide()
