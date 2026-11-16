@@ -178,7 +178,7 @@ func _terminate_match(reason: String = "") -> void:
 
 
 func _setup_interactive_doors() -> void:
-	var door_script: Script = preload("res://scenes/BuildingComplex/interactive_door.gd")
+	var door_script: Script = preload("res://scenes/BuildingComplex2/interactive_door.gd")
 	for door in find_children("*", "MeshInstance3D", true, false):
 		if String(door.name).begins_with("Door_") and String(door.name).ends_with("_Door") and door.get_script() == null:
 			door.set_script(door_script)

@@ -76,7 +76,8 @@ func _bounds(node: Node3D, parent_transform: Transform3D) -> AABB:
 
 func _apply_wood_material(node: Node3D) -> void:
 	if node is MeshInstance3D:
-		node.material_override = wood_material
+		# A cleared Inspector override must not remove the wood textures.
+		node.material_override = wood_material if wood_material != null else preload("res://scenes/BuildingComplex2/furniture_wood.tres")
 	for child in node.get_children():
 		if child is Node3D:
 			_apply_wood_material(child)

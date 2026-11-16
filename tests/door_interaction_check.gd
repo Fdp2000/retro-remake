@@ -27,24 +27,24 @@ func press_e() -> void:
 	await get_tree().create_timer(0.4).timeout
 
 func run_checks() -> void:
-	var building: Node3D = load("res://scenes/BuildingComplex/BuildingComplex.tscn").instantiate()
+	var building: Node3D = load("res://scenes/BuildingComplex2/BuildingComplex2.tscn").instantiate()
 	add_child(building)
 	var interactive_count: int = 0
 	for door in building.get_node("Doors").get_children():
 		if door.get_node("Door_B_Frame/Door_B_Door").has_method("request_interaction"):
 			interactive_count += 1
-	check(interactive_count == 22, "all 22 complex doors have interaction scripts")
+	check(interactive_count == 15, "all 15 maze doors have interaction scripts")
 	var players := Node3D.new()
 	players.name = "Players"
 	add_child(players)
 	var player: CharacterBody3D = load("res://entities/player/player.tscn").instantiate()
 	player.name = "1"
-	player.position = Vector3(-9, 0, -8.5)
+	player.position = Vector3(13.5, 0, -7)
 	players.add_child(player)
 	player.set_physics_process(false)
 	var camera: Camera3D = player.get_node("Head/Camera3D")
 	var ray: RayCast3D = camera.get_node("RayCast3D")
-	var leaf: MeshInstance3D = building.get_node("Doors/Door_4/Door_B_Frame/Door_B_Door")
+	var leaf: MeshInstance3D = building.get_node("Doors/Horizontal_1_3_1/Door_B_Frame/Door_B_Door")
 	await get_tree().physics_frame
 	await get_tree().physics_frame
 	await get_tree().create_timer(0.1).timeout
@@ -62,7 +62,7 @@ func run_checks() -> void:
 	player.position.z = 0
 	leaf.request_interaction(1)
 	check(not leaf.is_open, "out of range requests rejected")
-	player.position = Vector3(-9, 0, -8.5)
+	player.position = Vector3(13.5, 0, -7)
 	camera.rotation = Vector3.ZERO
 	var blocker := StaticBody3D.new()
 	var shape := CollisionShape3D.new()
@@ -70,7 +70,7 @@ func run_checks() -> void:
 	box.size = Vector3(2, 3, 0.2)
 	shape.shape = box
 	blocker.add_child(shape)
-	blocker.position = Vector3(-9, 1.5, -9.5)
+	blocker.position = Vector3(13.5, 1.5, -8)
 	add_child(blocker)
 	await get_tree().physics_frame
 	await get_tree().physics_frame
