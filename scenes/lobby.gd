@@ -56,9 +56,18 @@ func _ready() -> void:
 	# Ensure mouse is visible in lobby
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
-	# Attach per-user Mouse DPI & Sensitivity settings widget
+	# Attach per-user Mouse DPI & Sensitivity settings widget + Solo Practice button
 	var matchmaking_panel: VBoxContainer = get_node_or_null("MarginContainer/MatchmakingContainer/MatchmakingPanel")
 	if matchmaking_panel != null and matchmaking_panel.get_node_or_null("MouseSettingsWidget") == null:
+		var solo_btn := Button.new()
+		solo_btn.name = "SoloTestGymButton"
+		solo_btn.text = "Solo Test Gym (1P Quick Playtest)"
+		solo_btn.pressed.connect(func():
+			NetworkManager.current_mode = NetworkManager.NetworkMode.ENET_LOCAL
+			if NetworkManager.start_host() == OK:
+				get_tree().change_scene_to_file(TEST_GYM_SCENE_PATH)
+		)
+		matchmaking_panel.add_child(solo_btn)
 		var sep := HSeparator.new()
 		matchmaking_panel.add_child(sep)
 		var mouse_widget: VBoxContainer = preload("res://ui/mouse_settings_widget.gd").new()

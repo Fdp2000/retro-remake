@@ -1,0 +1,18 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://entities/props/world_item_pickup.gd" id="1_pickup"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_pickup"]
+size = Vector3(0.45, 0.35, 0.45)
+
+[node name="WorldItemPickup" type="StaticBody3D"]
+collision_layer = 2
+collision_mask = 0
+script = ExtResource("1_pickup")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.18, 0)
+shape = SubResource("BoxShape3D_pickup")
+
+[node name="VisualMesh" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.18, 0)

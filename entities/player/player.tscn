@@ -10,6 +10,9 @@ height = 1.8
 radius = 0.4
 height = 1.8
 
+[sub_resource type="BoxShape3D" id="BoxShape3D_bash"]
+size = Vector3(0.7, 1.2, 0.5)
+
 [sub_resource type="SceneReplicationConfig" id="SceneReplicationConfig_bls4j"]
 properties/0/path = NodePath(".:position")
 properties/0/spawn = true
@@ -22,9 +25,23 @@ properties/2/spawn = true
 properties/2/replication_mode = 1
 properties/3/path = NodePath(".:spy_role")
 properties/3/spawn = true
-properties/3/replication_mode = 0
+properties/3/replication_mode = 2
+properties/4/path = NodePath(".:stance_state")
+properties/4/spawn = true
+properties/4/replication_mode = 2
+properties/5/path = NodePath(".:left_hand_item_id")
+properties/5/spawn = true
+properties/5/replication_mode = 2
+properties/6/path = NodePath(".:right_hand_item_id")
+properties/6/spawn = true
+properties/6/replication_mode = 2
+properties/7/path = NodePath(".:is_charging_club")
+properties/7/spawn = true
+properties/7/replication_mode = 2
 
 [node name="Player" type="CharacterBody3D" unique_id=342218980]
+collision_layer = 4
+collision_mask = 5
 floor_snap_length = 0.2
 script = ExtResource("1_symyc")
 
@@ -36,14 +53,36 @@ shape = SubResource("CapsuleShape3D_abrql")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9, 0)
 mesh = SubResource("CapsuleMesh_sglur")
 
+[node name="DoorBashDetector" type="Area3D" parent="." unique_id=1812345601]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.0, -0.45)
+collision_layer = 16
+collision_mask = 3
+
+[node name="BashCollisionShape" type="CollisionShape3D" parent="DoorBashDetector" unique_id=1812345602]
+shape = SubResource("BoxShape3D_bash")
+
+[node name="VisualRig" type="Node3D" parent="." unique_id=1812345603]
+
+[node name="BackClubSocket" type="Marker3D" parent="VisualRig" unique_id=1812345604]
+transform = Transform3D(0.866025, -0.5, 0, 0.5, 0.866025, 0, 0, 0, 1, 0, 1.15, 0.28)
+
+[node name="SpyWearableSocket" type="Marker3D" parent="VisualRig" unique_id=1812345605]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.38, 0.88, -0.2)
+
 [node name="Head" type="Node3D" parent="." unique_id=1115623243]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.6, 0)
 
 [node name="Camera3D" type="Camera3D" parent="Head" unique_id=926585414]
 
 [node name="RayCast3D" type="RayCast3D" parent="Head/Camera3D" unique_id=974057279]
-target_position = Vector3(0, 0, -2.5)
+target_position = Vector3(0, 0, -2.2)
 collision_mask = 3
+
+[node name="LeftHandSocket" type="Marker3D" parent="Head/Camera3D" unique_id=1812345606]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.34, -0.26, -0.52)
+
+[node name="RightHandSocket" type="Marker3D" parent="Head/Camera3D" unique_id=1812345607]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.34, -0.26, -0.52)
 
 [node name="MultiplayerSynchronizer" type="MultiplayerSynchronizer" parent="." unique_id=2116920433]
 replication_interval = 0.033333
@@ -69,11 +108,64 @@ anchor_left = 0.5
 anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
-offset_left = -100.0
-offset_top = 16.0
-offset_right = 100.0
-offset_bottom = 40.0
+offset_left = -160.0
+offset_top = 18.0
+offset_right = 160.0
+offset_bottom = 44.0
 grow_horizontal = 2
 grow_vertical = 2
 text = "[E] Interact"
+horizontal_alignment = 1
+
+[node name="HoldProgressBar" type="ProgressBar" parent="HUD" unique_id=1812345608]
+visible = false
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -80.0
+offset_top = 46.0
+offset_right = 80.0
+offset_bottom = 60.0
+grow_horizontal = 2
+grow_vertical = 2
+max_value = 1.0
+show_percentage = false
+
+[node name="StatusBar" type="PanelContainer" parent="HUD" unique_id=1812345609]
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -360.0
+offset_top = -54.0
+offset_right = 360.0
+offset_bottom = -14.0
+grow_horizontal = 2
+grow_vertical = 0
+mouse_filter = 2
+
+[node name="HBox" type="HBoxContainer" parent="HUD/StatusBar" unique_id=1812345610]
+layout_mode = 2
+theme_override_constants/separation = 24
+alignment = 1
+
+[node name="LeftHandLabel" type="Label" parent="HUD/StatusBar/HBox" unique_id=1812345611]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "LEFT [Q]: Empty"
+horizontal_alignment = 1
+
+[node name="StanceLabel" type="Label" parent="HUD/StatusBar/HBox" unique_id=1812345612]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "WALK (4.5 m/s)"
+horizontal_alignment = 1
+
+[node name="RightHandLabel" type="Label" parent="HUD/StatusBar/HBox" unique_id=1812345613]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "RIGHT [1/G]: Club (Back)"
 horizontal_alignment = 1

@@ -1,6 +1,7 @@
 extends Node3D
 
 const PLAYER_SCENE: PackedScene = preload("res://entities/player/player.tscn")
+const PICKUP_SCENE: PackedScene = preload("res://entities/props/world_item_pickup.tscn")
 const LOBBY_SCENE_PATH: String = "res://scenes/lobby.tscn"
 
 const SPAWN_POINTS: Dictionary = {
@@ -23,6 +24,8 @@ var is_terminating: bool = false
 
 func _ready() -> void:
 	_setup_interactive_doors()
+	_spawn_test_pickups()
+
 	# Configure local role badge
 	var my_id: int = multiplayer.get_unique_id() if (multiplayer.has_multiplayer_peer() and NetworkManager.is_online()) else 1
 	if my_id == 1:
@@ -69,6 +72,9 @@ func _ready() -> void:
 	# Arena loading handshake
 	if multiplayer.is_server():
 		_on_peer_arena_loaded(1)
+		# If launched via Solo Test Gym (0 remote peers connected), mark slot 2 ready so Peer 1 spawns immediately
+		if NetworkManager.is_online() and multiplayer.get_peers().is_empty():
+			_on_peer_arena_loaded(2)
 	else:
 		notify_arena_ready.rpc_id(1)
 
@@ -77,6 +83,31 @@ func _ready() -> void:
 			print("TestGym [--auto-ready]: Automated ENet integration verified! Players in tree: %d" % players_container.get_child_count())
 			get_tree().quit(0)
 		)
+
+
+func _spawn_test_pickups() -> void:
+	if get_node_or_null("TestPickups") != null:
+		return
+	var container := Node3D.new()
+	container.name = "TestPickups"
+	add_child(container)
+
+	var test_items: Array[Dictionary] = [
+		{"id": "BRIEFCASE", "pos": Vector3(-5.5, 0.0, -1.2)},
+		{"id": "KEY", "pos": Vector3(-4.7, 0.0, -1.2)},
+		{"id": "MONEY", "pos": Vector3(-3.9, 0.0, -1.2)},
+		{"id": "PASSPORT", "pos": Vector3(-3.1, 0.0, -1.2)},
+		{"id": "PLANS", "pos": Vector3(-2.3, 0.0, -1.2)},
+		{"id": "BUCKET", "pos": Vector3(-1.3, 0.0, -1.2)},
+		{"id": "TRIPWIRE", "pos": Vector3(-0.5, 0.0, -1.2)}
+	]
+	for i in range(test_items.size()):
+		var entry: Dictionary = test_items[i]
+		var pickup: StaticBody3D = PICKUP_SCENE.instantiate() as StaticBody3D
+		pickup.name = "TestPickup_%d_%s" % [i, str(entry["id"])]
+		pickup.set("item_id", str(entry["id"]))
+		container.add_child(pickup)
+		pickup.position = entry["pos"]
 
 
 func _unhandled_input(event: InputEvent) -> void:

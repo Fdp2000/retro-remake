@@ -6,6 +6,10 @@ func suite_name() -> String:
 	return "phase2_network_lobby"
 
 
+func teardown() -> void:
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+
+
 func _instantiate_live_scene(scene_path: String, script_path: String) -> Node:
 	var packed: PackedScene = load(scene_path)
 	var placeholder_root: Node = packed.instantiate()
@@ -52,6 +56,7 @@ func test_player_role_and_colors() -> void:
 	assert_true(mesh_inst1.material_override.albedo_color.is_equal_approx(Color(0.12, 0.12, 0.12)), "Peer 1 dynamically changes to Spy Black when spy_role=2")
 	p1.spy_role = 1
 	assert_true(mesh_inst1.material_override.albedo_color.is_equal_approx(Color(0.92, 0.92, 0.92)), "Peer 1 dynamically reverts to Spy White when spy_role=1")
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
 
 func test_player_scene_replication_config() -> void:
@@ -138,3 +143,4 @@ func test_arena_handshake_logic() -> void:
 	assert_true(p2.get("spy_role") == 2, "Client player has spy_role = 2 (Black)")
 	assert_true(p1.position.is_equal_approx(Vector3(-3.0, 1.0, 0.0)), "Host player at SPAWN_POINTS[1]")
 	assert_true(p2.position.is_equal_approx(Vector3(3.0, 1.0, 0.0)), "Client player at SPAWN_POINTS[2]")
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
