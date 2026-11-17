@@ -1,5 +1,11 @@
 [gd_scene format=3 uid="uid://cic7pxpo7he7x"]
 
+[ext_resource type="PackedScene" uid="uid://c86verayk2y0i" path="res://Assets/Models/Prefabs/drawer_b.tscn" id="1_agk1v"]
+[ext_resource type="PackedScene" uid="uid://cvqyj3ug21edp" path="res://Assets/Models/Prefabs/shelf_a.tscn" id="2_lpjvc"]
+[ext_resource type="PackedScene" uid="uid://djhiosp3i5krw" path="res://Assets/Models/Prefabs/shelf_b.tscn" id="3_vnbcm"]
+[ext_resource type="PackedScene" uid="uid://dpkyc74faxmhm" path="res://Assets/Models/Prefabs/chair_e.tscn" id="4_r4asu"]
+[ext_resource type="PackedScene" uid="uid://nkihpbg1yu8v" path="res://Assets/Models/Prefabs/carpet_b.tscn" id="5_mrssy"]
+
 [sub_resource type="PlaneMesh" id="PlaneMesh_g3nxs"]
 
 [node name="NoahWorkspace" type="Node3D" unique_id=2078210684]
@@ -7,3 +13,18 @@
 [node name="MeshInstance3D" type="MeshInstance3D" parent="." unique_id=1513638933]
 transform = Transform3D(9.73, 0, 0, 0, 9.73, 0, 0, 0, 9.73, 0, 0, 0)
 mesh = SubResource("PlaneMesh_g3nxs")
+
+[node name="Drawer_B" parent="." unique_id=1844999042 instance=ExtResource("1_agk1v")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.9728284, 0, -1.5579929)
+
+[node name="Shelf_A" parent="." unique_id=1324500769 instance=ExtResource("2_lpjvc")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.6968434, 0, -1.5133343)
+
+[node name="Shelf_B" parent="." unique_id=1028616663 instance=ExtResource("3_vnbcm")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.20551562, 0, -1.517278)
+
+[node name="Chair_E" parent="." unique_id=253903086 instance=ExtResource("4_r4asu")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.231658, 0, -1.331229)
+
+[node name="Carpet_B" parent="." unique_id=151793716 instance=ExtResource("5_mrssy")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.175002, 0, 0.2334311)

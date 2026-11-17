@@ -1,0 +1,8 @@
+[gd_scene format=3 uid="uid://cbd2v1i8k1gdp"]
+
+[ext_resource type="PackedScene" uid="uid://c2sa5lrja73k8" path="res://Assets/Models/Adjusted/Carpet_A.glb" id="1_4mo08"]
+
+[node name="Carpet_A" unique_id=1697434115 instance=ExtResource("1_4mo08")]
+
+[node name="Carpet A" parent="." index="0" unique_id=193198508]
+transform = Transform3D(0.505, 0, 0, 0, 0.505, 0, 0, 0, 0.505, 0, 0, 0)

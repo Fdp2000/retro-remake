@@ -1,0 +1,11 @@
+[gd_scene format=3 uid="uid://dnesebvf4ef1d"]
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_g3nxs"]
+radius = 0.455
+height = 1.8
+
+[node name="ScaleChecker" type="Node3D" unique_id=1449557140]
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="." unique_id=1026494347]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9060353, 0)
+mesh = SubResource("CapsuleMesh_g3nxs")
