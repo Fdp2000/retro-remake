@@ -165,7 +165,7 @@ func supports_hold_interaction() -> bool:
 
 
 func get_hold_interaction_duration() -> float:
-	return GameConfig.drawer_slow_peek_hold_time if GameConfig != null else 0.60
+	return 0.50
 
 
 func request_hold_interaction(caller_peer_id: int) -> void:

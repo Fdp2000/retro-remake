@@ -10,6 +10,8 @@ extends Node3D
 @export var open_angle_deg: float = 90.0
 
 var is_open: bool = false
+var open_fraction: float = 0.0
+var push_side_sign: float = -1.0
 var current_target_angle_rad: float = 0.0
 var has_rigged_bucket: bool = false
 var bucket_owner_peer_id: int = 0
@@ -97,15 +99,19 @@ func get_interaction_prompt() -> String:
 
 
 func get_hold_interaction_duration() -> float:
-	return GameConfig.door_slow_peek_hold_time if GameConfig != null else 0.60
+	return GameConfig.door_slow_peek_hold_time if GameConfig != null else 2.80
 
 
-func request_begin_peek(caller_peer_id: int) -> void:
+func request_step_push(caller_peer_id: int, delta: float) -> void:
 	var opener_pos: Vector3 = _resolve_opener_position(caller_peer_id)
 	if _is_peer_connected():
-		_server_begin_peek.rpc_id(1, caller_peer_id, opener_pos)
+		_server_step_push.rpc_id(1, caller_peer_id, delta, opener_pos)
 	else:
-		_execute_begin_peek(caller_peer_id, opener_pos)
+		_execute_step_push(caller_peer_id, delta, opener_pos)
+
+
+func request_begin_peek(_caller_peer_id: int) -> void:
+	pass
 
 
 func request_interaction(caller_peer_id: int) -> void:
@@ -158,7 +164,7 @@ func steal_water_bucket(thief_peer_id: int) -> bool:
 
 
 @rpc("any_peer", "call_local", "reliable")
-func _server_begin_peek(caller_peer_id: int, opener_pos: Vector3) -> void:
+func _server_step_push(caller_peer_id: int, delta: float, opener_pos: Vector3) -> void:
 	if _is_peer_connected() and not multiplayer.is_server():
 		return
 	var sender_id: int = multiplayer.get_remote_sender_id()
@@ -169,26 +175,38 @@ func _server_begin_peek(caller_peer_id: int, opener_pos: Vector3) -> void:
 		opener_pos = (player as Node3D).global_position
 		if opener_pos.distance_to(_safe_global_pos()) > 3.5:
 			return
-	_execute_begin_peek(caller_peer_id, opener_pos)
+	_execute_step_push(caller_peer_id, delta, opener_pos)
 
 
-func _execute_begin_peek(_peer_id: int, opener_pos: Vector3) -> void:
-	var target_rad: float = 0.0 if is_open else compute_away_angle_rad(opener_pos)
-	var dur: float = GameConfig.door_slow_peek_swing_duration if GameConfig != null else 0.60
-	if _is_peer_connected():
-		_rpc_begin_peek_swing.rpc(target_rad, dur)
+func _execute_step_push(peer_id: int, delta: float, opener_pos: Vector3) -> void:
+	var slow_dur: float = GameConfig.door_slow_peek_swing_duration if GameConfig != null else 2.80
+	var step: float = clampf(delta, 0.0, 0.15) / maxf(slow_dur, 0.5)
+	if is_open:
+		open_fraction = clampf(open_fraction - step, 0.0, 1.0)
+		if open_fraction <= 0.02:
+			open_fraction = 0.0
+			is_open = false
 	else:
-		_rpc_begin_peek_swing(target_rad, dur)
+		if open_fraction <= 0.02:
+			push_side_sign = 1.0 if compute_away_angle_rad(opener_pos) >= 0.0 else -1.0
+		open_fraction = clampf(open_fraction + step, 0.0, 1.0)
+		if open_fraction >= 0.98:
+			open_fraction = 1.0
+			is_open = true
 
+	current_target_angle_rad = push_side_sign * deg_to_rad(open_angle_deg) * open_fraction
+	if has_rigged_bucket:
+		var release_deg: float = GameConfig.door_bucket_release_angle_deg if GameConfig != null else 25.0
+		if open_fraction * open_angle_deg >= release_deg:
+			has_rigged_bucket = false
+			var owner_id: int = bucket_owner_peer_id
+			bucket_owner_peer_id = 0
+			_resolve_bucket_drop(peer_id, opener_pos, owner_id)
 
-@rpc("authority", "call_local", "reliable")
-func _rpc_begin_peek_swing(target_angle_rad: float, dur: float) -> void:
-	_ensure_nodes()
-	if _swing_tween != null and _swing_tween.is_valid():
-		_swing_tween.kill()
-	if is_inside_tree() and dur > 0.0:
-		_swing_tween = create_tween()
-		_swing_tween.tween_property(_hinge_pivot, "rotation:y", target_angle_rad, dur).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	if _is_peer_connected():
+		_rpc_sync_door.rpc(is_open, current_target_angle_rad, 0.0, has_rigged_bucket)
+	else:
+		_rpc_sync_door(is_open, current_target_angle_rad, 0.0, has_rigged_bucket)
 
 
 @rpc("any_peer", "call_local", "reliable")
@@ -213,20 +231,23 @@ func _execute_door_action(peer_id: int, mode: String, opener_pos: Vector3) -> vo
 		if mode != "FAST_TOGGLE" and mode != "SLOW_PEEK":
 			return
 		is_open = false
+		open_fraction = 0.0
 		current_target_angle_rad = 0.0
 		duration = GameConfig.door_close_duration if GameConfig != null else 0.30
 		if mode == "FAST_TOGGLE" and AudioBridge != null and GameConfig != null:
 			AudioBridge.request_world_cue("door_close", pos_now, GameConfig.audio_radius_door_close, peer_id)
 	else:
 		is_open = true
+		open_fraction = 1.0
 		current_target_angle_rad = compute_away_angle_rad(opener_pos)
+		push_side_sign = 1.0 if current_target_angle_rad >= 0.0 else -1.0
 		match mode:
 			"SPRINT_BASH":
 				duration = GameConfig.door_sprint_bash_duration if GameConfig != null else 0.12
 				if AudioBridge != null and GameConfig != null:
 					AudioBridge.request_world_cue("door_bash", pos_now, GameConfig.audio_radius_door_bash, peer_id)
 			"SLOW_PEEK":
-				duration = GameConfig.door_slow_peek_swing_duration if GameConfig != null else 0.60
+				duration = GameConfig.door_slow_peek_swing_duration if GameConfig != null else 2.80
 			_:
 				duration = GameConfig.door_fast_open_duration if GameConfig != null else 0.25
 				if AudioBridge != null and GameConfig != null:
@@ -278,24 +299,32 @@ func _resolve_bucket_drop(opener_peer_id: int, opener_pos: Vector3, owner_id: in
 func _rpc_sync_door(opened: bool, target_angle_rad: float, duration: float, bucket_rigged: bool) -> void:
 	_ensure_nodes()
 	is_open = opened
+	open_fraction = clampf(absf(target_angle_rad) / maxf(deg_to_rad(open_angle_deg), 0.01), 0.0, 1.0)
+	if absf(target_angle_rad) > 0.01:
+		push_side_sign = 1.0 if target_angle_rad >= 0.0 else -1.0
 	if _door_body != null:
-		_door_body.collision_layer = (GameConfig.LAYER_INTERACTABLE if GameConfig != null else 2) if is_open else ((GameConfig.LAYER_ENVIRONMENT | GameConfig.LAYER_INTERACTABLE) if GameConfig != null else 3)
+		var passable_open: bool = is_open or absf(target_angle_rad) >= deg_to_rad(30.0)
+		_door_body.collision_layer = (GameConfig.LAYER_INTERACTABLE if GameConfig != null else 2) if passable_open else ((GameConfig.LAYER_ENVIRONMENT | GameConfig.LAYER_INTERACTABLE) if GameConfig != null else 3)
 	current_target_angle_rad = target_angle_rad
 	has_rigged_bucket = bucket_rigged
 	if _bucket_visual != null:
 		_bucket_visual.visible = has_rigged_bucket
 
 	var final_rad: float = target_angle_rad
-	if not is_open and has_rigged_bucket:
+	if not is_open and open_fraction <= 0.06 and has_rigged_bucket:
 		var ajar_deg: float = GameConfig.door_bucket_ajar_angle_deg if GameConfig != null else 5.0
 		final_rad = deg_to_rad(ajar_deg)
+
+	if _swing_tween != null and _swing_tween.is_valid():
+		_swing_tween.kill()
+
+	if duration <= 0.0:
+		_hinge_pivot.rotation.y = final_rad
+		return
 
 	var total_span: float = maxf(deg_to_rad(open_angle_deg), 0.1)
 	var remaining_span: float = absf(final_rad - _hinge_pivot.rotation.y)
 	var scaled_dur: float = duration * clampf(remaining_span / total_span, 0.12, 1.0)
-
-	if _swing_tween != null and _swing_tween.is_valid():
-		_swing_tween.kill()
 
 	if is_inside_tree() and scaled_dur > 0.01 and not is_equal_approx(_hinge_pivot.rotation.y, final_rad):
 		_swing_tween = create_tween()

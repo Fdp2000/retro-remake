@@ -91,18 +91,18 @@ const LAYER_TRIGGERS: int = 1 << 4           # Layer 5: RoomZones, DoorBashDetec
 @export_group("Doors & Drawers")
 @export var door_fast_open_duration: float = 0.25
 @export var door_sprint_bash_duration: float = 0.12
-@export var door_slow_peek_hold_time: float = 0.60
-@export var door_slow_peek_swing_duration: float = 0.60
+@export var door_slow_peek_hold_time: float = 2.80
+@export var door_slow_peek_swing_duration: float = 2.80
 @export var door_close_duration: float = 0.30
 @export var door_bucket_ajar_angle_deg: float = 5.0
 @export var door_bucket_release_angle_deg: float = 25.0
 @export var bucket_hit_radius: float = 1.2
 @export var bucket_max_safe_reach: float = 1.8
 
-@export var drawer_fast_slam_duration: float = 0.15
-@export var drawer_slow_peek_hold_time: float = 0.70
-@export var drawer_close_duration: float = 0.25
-@export var top_down_cam_lerp_duration: float = 0.18
+@export var drawer_fast_slam_duration: float = 0.22
+@export var drawer_slow_peek_hold_time: float = 2.80
+@export var drawer_close_duration: float = 0.30
+@export var top_down_cam_lerp_duration: float = 0.65
 
 # ==========================================
 # Doc 4: The 5-Trap & Gadget Ecosystem [TUNABLE]

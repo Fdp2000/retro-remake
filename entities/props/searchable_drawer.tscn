@@ -6,10 +6,16 @@
 size = Vector3(1.2, 0.85, 0.7)
 
 [sub_resource type="BoxMesh" id="BoxMesh_desk"]
-size = Vector3(1.2, 0.85, 0.7)
+size = Vector3(1.2, 0.50, 0.7)
 
 [sub_resource type="StandardMaterial3D" id="Mat_desk"]
 albedo_color = Color(0.45, 0.30, 0.18, 1)
+
+[sub_resource type="BoxMesh" id="BoxMesh_desktop"]
+size = Vector3(1.22, 0.08, 0.72)
+
+[sub_resource type="BoxMesh" id="BoxMesh_side_pillar"]
+size = Vector3(0.14, 0.24, 0.70)
 
 [sub_resource type="BoxMesh" id="BoxMesh_tray"]
 size = Vector3(0.95, 0.22, 0.55)
@@ -27,16 +33,31 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.425, 0)
 shape = SubResource("BoxShape3D_desk")
 
 [node name="BodyMesh" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.425, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.25, 0)
 mesh = SubResource("BoxMesh_desk")
 surface_material_override/0 = SubResource("Mat_desk")
 
+[node name="DeskTopMesh" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.78, 0)
+mesh = SubResource("BoxMesh_desktop")
+surface_material_override/0 = SubResource("Mat_desk")
+
+[node name="DeskLeftPillar" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.53, 0.62, 0)
+mesh = SubResource("BoxMesh_side_pillar")
+surface_material_override/0 = SubResource("Mat_desk")
+
+[node name="DeskRightPillar" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.53, 0.62, 0)
+mesh = SubResource("BoxMesh_side_pillar")
+surface_material_override/0 = SubResource("Mat_desk")
+
 [node name="TrayPivot" type="Node3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.62, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.61, 0.08)
 
 [node name="TrayMesh" type="MeshInstance3D" parent="TrayPivot"]
 mesh = SubResource("BoxMesh_tray")
 surface_material_override/0 = SubResource("Mat_tray")
 
 [node name="TopDownVantage" type="Marker3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, -4.37114e-08, 1, 0, -1, -4.37114e-08, 0, 1.38, 0.48)
+transform = Transform3D(1, 0, 0, 0, -4.37114e-08, 1, 0, -1, -4.37114e-08, 0, 1.42, 0.52)

@@ -151,6 +151,9 @@ var _dragging_3d_clutter_idx: int = -1
 var _dragging_3d_clutter_node: Node3D = null
 var _dragging_3d_plane_y: float = 0.0
 var _dragging_3d_offset_xz: Vector2 = Vector2.ZERO
+var _drawer_focus_just_entered: bool = false
+var _drawer_e_held: bool = false
+var _drawer_e_hold_elapsed: float = 0.0
 
 # Footstep & airborne tracking
 var _footstep_timer: float = 0.0
@@ -396,8 +399,11 @@ func enter_container_view(container: Node) -> void:
 	stance_state = GameConfig.Stance.DRAWER_LOCK if GameConfig != null else 3
 	_dragging_3d_clutter_idx = -1
 	_dragging_3d_clutter_node = null
-	if not (_interact_key_down and _interact_target == container):
-		_reset_interact_hold()
+	if not already_same_container:
+		_drawer_focus_just_entered = (not Engine.is_editor_hint() and is_inside_tree() and _is_e_key_pressed())
+		_drawer_e_held = false
+		_drawer_e_hold_elapsed = 0.0
+	_reset_interact_hold()
 	if prompt_label != null:
 		prompt_label.visible = false
 
@@ -407,9 +413,9 @@ func enter_container_view(container: Node) -> void:
 			if _camera_tween != null and _camera_tween.is_valid():
 				_camera_tween.kill()
 			var target_xform: Transform3D = container.get_top_down_camera_transform()
-			var dur: float = GameConfig.top_down_cam_lerp_duration if GameConfig != null else 0.18
+			var dur: float = GameConfig.top_down_cam_lerp_duration if GameConfig != null else 0.65
 			_camera_tween = create_tween()
-			_camera_tween.tween_property(camera, "global_transform", target_xform, dur).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+			_camera_tween.tween_property(camera, "global_transform", target_xform, dur).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
 		if hud != null and _container_ui == null:
 			_container_ui = TOP_DOWN_UI_SCRIPT.new()
 			_container_ui.name = "TopDownContainerUI"
@@ -423,6 +429,9 @@ func exit_container_view() -> void:
 	active_container = null
 	_dragging_3d_clutter_idx = -1
 	_dragging_3d_clutter_node = null
+	_drawer_focus_just_entered = false
+	_drawer_e_held = false
+	_drawer_e_hold_elapsed = 0.0
 	var lock_stance: int = GameConfig.Stance.DRAWER_LOCK if GameConfig != null else 3
 	if stance_state == lock_stance:
 		stance_state = GameConfig.Stance.WALK if GameConfig != null else 0
@@ -434,9 +443,9 @@ func exit_container_view() -> void:
 		if _camera_tween != null and _camera_tween.is_valid():
 			_camera_tween.kill()
 		if is_inside_tree() and is_multiplayer_authority() and not Engine.is_editor_hint():
-			var dur: float = GameConfig.top_down_cam_lerp_duration if GameConfig != null else 0.18
+			var dur: float = GameConfig.top_down_cam_lerp_duration if GameConfig != null else 0.65
 			_camera_tween = create_tween()
-			_camera_tween.tween_property(camera, "transform", Transform3D.IDENTITY, dur).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+			_camera_tween.tween_property(camera, "transform", Transform3D.IDENTITY, dur).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
 		else:
 			camera.transform = Transform3D.IDENTITY
 
@@ -935,6 +944,7 @@ func _process(delta: float) -> void:
 		_tick_active_interact_hold(delta)
 	if stance_state == lock_stance:
 		prompt_label.visible = false
+		_tick_drawer_open_input(delta)
 		return
 
 	_process_interaction_raycast()
@@ -946,6 +956,35 @@ func _is_e_key_pressed() -> bool:
 		or Input.is_action_pressed("interact")
 		or Input.is_key_pressed(KEY_E)
 	)
+
+
+func _tick_drawer_open_input(delta: float) -> void:
+	if active_container == null or not is_instance_valid(active_container):
+		return
+	var e_down: bool = _is_e_key_pressed()
+	if _drawer_focus_just_entered:
+		if not e_down:
+			_drawer_focus_just_entered = false
+		return
+	if bool(active_container.get("is_briefcase_container")):
+		return
+
+	var my_peer_id: int = multiplayer.get_unique_id() if _is_peer_connected() else name.to_int()
+	var open_prog: float = float(active_container.get("drawer_open_progress"))
+	if e_down:
+		if open_prog >= 0.999:
+			return
+		if not _drawer_e_held:
+			_drawer_e_held = true
+			_drawer_e_hold_elapsed = 0.0
+		_drawer_e_hold_elapsed += delta
+		if _drawer_e_hold_elapsed >= TAP_RELEASE_THRESHOLD and active_container.has_method("request_step_open_drawer"):
+			active_container.request_step_open_drawer(my_peer_id, delta)
+	elif _drawer_e_held:
+		if _drawer_e_hold_elapsed < TAP_RELEASE_THRESHOLD and open_prog < 0.999:
+			active_container.request_interaction(my_peer_id)
+		_drawer_e_held = false
+		_drawer_e_hold_elapsed = 0.0
 
 
 func _tick_active_interact_hold(delta: float) -> void:
@@ -965,25 +1004,32 @@ func _tick_active_interact_hold(delta: float) -> void:
 		return
 
 	var my_peer_id: int = multiplayer.get_unique_id() if _is_peer_connected() else 1
+	if _interact_target.has_method("request_step_push"):
+		if e_down:
+			_interact_hold_elapsed += delta
+			if _interact_hold_elapsed >= TAP_RELEASE_THRESHOLD:
+				_interact_hold_triggered = true
+				_interact_target.request_step_push(my_peer_id, delta)
+		else:
+			if not _interact_hold_triggered:
+				_interact_target.request_interaction(my_peer_id)
+			_reset_interact_hold()
+		return
+
 	var hold_dur: float = (
 		float(_interact_target.get_hold_interaction_duration())
 		if _interact_target.has_method("get_hold_interaction_duration")
-		else (GameConfig.door_slow_peek_hold_time if GameConfig != null else 0.60)
+		else (GameConfig.door_slow_peek_hold_time if GameConfig != null else 2.80)
 	)
-	var commit_threshold: float = TAP_RELEASE_THRESHOLD if _interact_target.has_method("request_begin_open") else hold_dur
-
 	if e_down:
 		if not _interact_hold_triggered:
 			_interact_hold_elapsed += delta
-			if _interact_hold_elapsed >= commit_threshold:
+			if _interact_hold_elapsed >= hold_dur:
 				_interact_hold_triggered = true
 				_interact_target.request_hold_interaction(my_peer_id)
 	else:
 		if not _interact_hold_triggered:
-			if _interact_hold_elapsed >= TAP_RELEASE_THRESHOLD and _interact_target.has_method("request_begin_peek"):
-				_interact_target.request_hold_interaction(my_peer_id)
-			else:
-				_interact_target.request_interaction(my_peer_id)
+			_interact_target.request_interaction(my_peer_id)
 		_reset_interact_hold()
 
 
@@ -1015,6 +1061,10 @@ func _process_interaction_raycast() -> void:
 
 	var my_peer_id: int = multiplayer.get_unique_id() if _is_peer_connected() else 1
 	if is_interactable and target_collider != null and e_just_pressed and not _interact_key_down:
+		if target_collider.has_method("request_focus_container"):
+			_drawer_focus_just_entered = true
+			target_collider.request_focus_container(my_peer_id)
+			return
 		var supports_hold: bool = (
 			target_collider.has_method("request_hold_interaction")
 			and (not target_collider.has_method("supports_hold_interaction") or bool(target_collider.supports_hold_interaction()))
@@ -1026,10 +1076,6 @@ func _process_interaction_raycast() -> void:
 		if not supports_hold:
 			_interact_hold_triggered = true
 			target_collider.request_interaction(my_peer_id)
-		elif target_collider.has_method("request_begin_open"):
-			target_collider.request_begin_open(my_peer_id)
-		elif target_collider.has_method("request_begin_peek"):
-			target_collider.request_begin_peek(my_peer_id)
 
 
 func _reset_interact_hold() -> void:
@@ -1106,6 +1152,10 @@ func _raycast_container_3d(screen_pos: Vector2) -> Dictionary:
 	var collider_node: Node = hit.get("collider") as Node
 	if collider_node == null or active_container == null or not active_container.is_ancestor_of(collider_node):
 		return {}
+	if not bool(active_container.get("is_briefcase_container")) and active_container is Node3D:
+		var local_hit: Vector3 = (active_container as Node3D).to_local(hit["position"])
+		if local_hit.z < 0.34:
+			return {}
 	return hit
 
 

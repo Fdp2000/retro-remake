@@ -67,14 +67,17 @@ func refresh_view() -> void:
 
 	var is_briefcase: bool = bool(_container.get("is_briefcase_container"))
 	var c_id: String = str(_container.get("container_id"))
+	var vis_ratio: float = float(_container.get("drawer_visual_ratio"))
 	if is_briefcase:
 		_title_label.text = "COMPACT BRIEFCASE — Click 3D item/bomb to take | [A / S / D / ESC] Close"
+	elif vis_ratio < 0.90:
+		_title_label.text = "%s (%d%% Open) — [Tap E] Fast Yank Open | [Hold E] Slowly Ease Open | [A / S / D / ESC] Step Back" % [c_id.to_upper(), int(round(vis_ratio * 100.0))]
 	else:
 		_title_label.text = "%s — Drag 3D junk aside (LMB) to uncover items | Click item to take | [A / S / D / ESC] Close" % c_id.to_upper()
 
 	if _push_clutter_btn != null:
 		var clutter_arr: Array = _container.get("clutter_positions") as Array
-		_push_clutter_btn.visible = (not is_briefcase) and clutter_arr != null and not clutter_arr.is_empty()
+		_push_clutter_btn.visible = (not is_briefcase) and vis_ratio >= 0.55 and clutter_arr != null and not clutter_arr.is_empty()
 
 	_refresh_left_hand_panel()
 	_refresh_status_label(is_briefcase)
@@ -187,22 +190,26 @@ func _refresh_left_hand_panel() -> void:
 func _refresh_status_label(is_briefcase: bool) -> void:
 	if _container_status_label == null or _container == null:
 		return
+	var vis_ratio: float = float(_container.get("drawer_visual_ratio"))
 	if bool(_container.get("live_bomb_lit")):
 		var rem: float = float(_container.get("live_bomb_fuse_remaining"))
 		_container_status_label.modulate = Color(1.0, 0.30, 0.15)
 		_container_status_label.text = "LIT BOMB! (%.1fs) — Click 3D Bomb to Grab!" % rem
-	elif bool(_container.get("armed_spring")) and not is_briefcase:
+	elif bool(_container.get("armed_spring")) and not is_briefcase and vis_ratio >= 0.15:
 		_container_status_label.modulate = Color(1.0, 0.35, 0.30)
-		_container_status_label.text = "SPRING ARMED ON LIP — Click 3D Trap to Unlatch!"
+		_container_status_label.text = "SPRING VISIBLE! — Release E & Click Trap to Unlatch!"
 	elif bool(_container.get("spring_unlatched")):
 		_container_status_label.modulate = Color(0.35, 0.95, 0.85)
 		_container_status_label.text = "Spring Unlatched — LMB Steal | RMB Re-Arm"
 	elif bool(_container.get("staged_spring_on_lip")):
 		_container_status_label.modulate = Color(1.0, 0.78, 0.30)
-		_container_status_label.text = "Spring Staged on Lip (Arms on Close)"
-	elif bool(_container.get("armed_bomb")) or bool(_container.get("staged_bomb_in_tray")):
+		_container_status_label.text = "Spring Staged (Arms on Close)"
+	elif bool(_container.get("staged_bomb_in_tray")):
 		_container_status_label.modulate = Color(1.0, 0.70, 0.25)
 		_container_status_label.text = "Bomb Planted in Tray (Arms on Close)"
+	elif not is_briefcase and vis_ratio < 0.15:
+		_container_status_label.modulate = Color(0.78, 0.84, 0.88)
+		_container_status_label.text = "Drawer Closed (0%) — Tap E or Hold E"
 	else:
 		_container_status_label.modulate = Color(0.78, 0.84, 0.88)
 		_container_status_label.text = "3D Tray: Ready"

@@ -6,6 +6,17 @@ func suite_name() -> String:
 	return "phase3_doors_containers_and_exit"
 
 
+func setup() -> void:
+	if GameConfig != null:
+		var fresh_cfg: Node = track(load("res://core/game_config.gd").new()) as Node
+		GameConfig.door_slow_peek_hold_time = fresh_cfg.door_slow_peek_hold_time
+		GameConfig.door_slow_peek_swing_duration = fresh_cfg.door_slow_peek_swing_duration
+		GameConfig.drawer_fast_slam_duration = fresh_cfg.drawer_fast_slam_duration
+		GameConfig.drawer_slow_peek_hold_time = fresh_cfg.drawer_slow_peek_hold_time
+		GameConfig.drawer_close_duration = fresh_cfg.drawer_close_duration
+		GameConfig.top_down_cam_lerp_duration = fresh_cfg.top_down_cam_lerp_duration
+
+
 func teardown() -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	if MatchManager != null:
@@ -260,19 +271,22 @@ func test_drawer_3d_interior_layers_and_immediate_preview() -> void:
 	var back_norm: Vector2 = drawer.tray_local_xz_to_norm(local_xz.x, local_xz.y)
 	assert_true(sample_norm.is_equal_approx(back_norm), "3D tray XZ round-trips cleanly to normalized coordinates")
 
-	# 2. Immediate begin_open_preview enters DRAWER_LOCK before full commit
-	assert_true(drawer.begin_open_preview(1, p1), "begin_open_preview succeeds on unoccupied drawer")
-	assert_eq(p1.stance_state, GameConfig.Stance.DRAWER_LOCK, "Player immediately enters DRAWER_LOCK on press-down")
-	assert_eq(drawer.occupied_by_peer_id, 0, "Preview does not lock occupied_by_peer_id until tap/hold commits")
+	# 2. Two-stage flow: focus_container enters DRAWER_LOCK while keeping tray closed (0.0 ratio)
+	assert_true(drawer.focus_container(1, p1), "focus_container succeeds on unoccupied drawer")
+	assert_eq(p1.stance_state, GameConfig.Stance.DRAWER_LOCK, "Player enters DRAWER_LOCK upon focusing drawer")
+	assert_eq(drawer.occupied_by_peer_id, 1, "Focusing locks drawer occupant while closed")
+	assert_true(is_equal_approx(drawer.drawer_visual_ratio, 0.0), "Drawer tray stays closed at 0.0 until player taps or holds E")
 
-	# 3. Verify hollow tray structure & multi-layer 3D clutter/items/spring built inside ContentsRoot
+	# 3. Verify hollow tray structure & multi-layer 3D clutter/items/front-inside spring
 	drawer._rebuild_3d_interior()
 	var tray: Node3D = drawer.get_tray_node()
 	assert_true(tray != null, "TrayPivot exists in 3D drawer")
+	assert_true(is_equal_approx(tray.position.z, drawer.DRAWER_CLOSED_Z), "TrayPivot rests inside desk at DRAWER_CLOSED_Z")
 	var contents_root: Node3D = tray.get_node_or_null("ContentsRoot") as Node3D
 	assert_true(contents_root != null, "ContentsRoot built inside TrayPivot")
 	var lip_node: Node3D = contents_root.get_node_or_null("LipSpringTrap") as Node3D
-	assert_true(lip_node != null, "LipSpringTrap 3D Area3D built when spring armed")
+	assert_true(lip_node != null, "LipSpringTrap 3D Area3D built near front inside of drawer")
+	assert_true(is_equal_approx(lip_node.position.z, 0.16), "LipSpringTrap sits near front inside of drawer (z=0.16)")
 	var item_key: Node3D = contents_root.get_node_or_null("TrayItem_0_KEY") as Node3D
 	var clutter_0: Node3D = drawer.get_clutter_area_node(0)
 	var clutter_5: Node3D = drawer.get_clutter_area_node(5)
@@ -280,6 +294,20 @@ func test_drawer_3d_interior_layers_and_immediate_preview() -> void:
 	assert_true(clutter_0 != null and clutter_5 != null, "Multi-layer 3D clutter props built (indices 0..5)")
 	assert_gt(clutter_0.position.y, item_key.position.y, "Clutter Layer 1 sits above bottom-layer items")
 	assert_gt(clutter_5.position.y, clutter_0.position.y, "Clutter Layer 3 sits above Clutter Layer 1")
+
+	# 4. Slow Ease-In pull: 1.4s of 2.8s moves less than 35% visually, safely revealing front spring without triggering KO
+	drawer.step_open_drawer(1, 1.4, p1)
+	assert_true(drawer.drawer_visual_ratio > 0.20 and drawer.drawer_visual_ratio < 0.35, "Slow ease-in opens extra slowly early (< 0.35 at half hold time)")
+	assert_eq(p1.stance_state, GameConfig.Stance.DRAWER_LOCK, "Slow ease-in stops safely shy of spring trigger threshold")
+	assert_true(drawer.unlatch_spring(1), "Player can unlatch revealed spring trap mid-pull")
+
+	# 5. Hold-to-push door moves incrementally proportional to hold time (does not full-swing)
+	var door: Node3D = track(load("res://entities/props/embassy_door.gd").new()) as Node3D
+	door._ensure_nodes()
+	for _i in range(7):
+		door._execute_step_push(1, 0.10, Vector3(0.0, 0.0, 2.0))
+	assert_false(door.is_open, "Partial hold-push keeps door partially ajar rather than snapping open")
+	assert_true(is_equal_approx(door.open_fraction, 0.25), "0.7s of 2.8s slow push opens door fraction to 0.25")
 
 	drawer.close_container(1, p1)
 	if drawer.get_parent() != null:

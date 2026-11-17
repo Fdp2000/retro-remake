@@ -10,7 +10,10 @@ signal state_changed()
 
 const PICKUP_SCRIPT = preload("res://entities/props/world_item_pickup.gd")
 const DRAWER_CONTENTS_MASK: int = 32
-const DRAWER_OPEN_Z: float = 0.48
+const DRAWER_CLOSED_Z: float = 0.08
+const DRAWER_OPEN_Z: float = 0.56
+const SPRING_TRIGGER_VISUAL_RATIO: float = 0.42
+const DRAWER_EASE_EXPONENT: float = 1.85
 const DEFAULT_CLUTTER_POSITIONS: Array[Vector2] = [
 	Vector2(0.34, 0.40), # Layer 1: Manila Folder
 	Vector2(0.62, 0.42), # Layer 1: Embassy Ledger
@@ -57,8 +60,11 @@ var _occupant_player_override: Node = null
 var _tray_drawer_node: Node3D = null
 var _top_down_vantage: Marker3D = null
 var _slide_tween: Tween = null
-var _tray_target_z: float = 0.0
+var _tray_target_z: float = DRAWER_CLOSED_Z
 var _is_preview_sliding: bool = false
+var _opened_effects_applied: bool = false
+var drawer_open_progress: float = 0.0
+var drawer_visual_ratio: float = 0.0
 var _hollow_built: bool = false
 var _contents_root: Node3D = null
 var _clutter_area_nodes: Dictionary = {}
@@ -112,11 +118,11 @@ func get_interaction_prompt() -> String:
 		return "[IN USE]"
 	if is_briefcase_container:
 		return "[Hold E] Inspect Briefcase"
-	return "[Tap E] Fast Slam Drawer  |  [Hold E] Slow Peek"
+	return "[E] Look Inside Drawer"
 
 
 func get_hold_interaction_duration() -> float:
-	return GameConfig.drawer_slow_peek_hold_time if GameConfig != null else 0.70
+	return GameConfig.drawer_slow_peek_hold_time if GameConfig != null else 2.80
 
 
 func get_top_down_camera_transform() -> Transform3D:
@@ -130,16 +136,27 @@ func get_top_down_camera_transform() -> Transform3D:
 		var b_origin: Vector3 = xform.origin + Vector3(0.0, 0.90, 0.0)
 		var b_target: Vector3 = xform.origin + Vector3(0.0, 0.08, 0.0)
 		return Transform3D(Basis.looking_at((b_target - b_origin).normalized(), up_dir), b_origin)
-	var origin: Vector3 = xform * Vector3(0.0, 1.38, DRAWER_OPEN_Z)
-	var look_target: Vector3 = xform * Vector3(0.0, 0.55, DRAWER_OPEN_Z)
+	var origin: Vector3 = xform * Vector3(0.0, 1.42, 0.52)
+	var look_target: Vector3 = xform * Vector3(0.0, 0.55, 0.52)
 	return Transform3D(Basis.looking_at((look_target - origin).normalized(), up_dir), origin)
 
 
-func request_begin_open(caller_peer_id: int) -> void:
+func request_focus_container(caller_peer_id: int) -> void:
 	if _is_peer_connected():
-		_server_begin_open.rpc_id(1, caller_peer_id)
+		_server_focus_container.rpc_id(1, caller_peer_id)
 	else:
-		begin_open_preview(caller_peer_id)
+		focus_container(caller_peer_id)
+
+
+func request_step_open_drawer(caller_peer_id: int, delta: float) -> void:
+	if _is_peer_connected():
+		_server_step_open_drawer.rpc_id(1, caller_peer_id, delta)
+	else:
+		step_open_drawer(caller_peer_id, delta)
+
+
+func request_begin_open(caller_peer_id: int) -> void:
+	request_focus_container(caller_peer_id)
 
 
 func request_interaction(caller_peer_id: int) -> void:
@@ -216,31 +233,117 @@ func request_grab_lit_bomb(caller_peer_id: int) -> void:
 # Core Authoritative Operations
 # ==========================================
 
-func begin_open_preview(peer_id: int, player_override: Node = null) -> bool:
+func focus_container(peer_id: int, player_override: Node = null) -> bool:
 	_init_clutter_if_empty()
 	if occupied_by_peer_id != 0 and occupied_by_peer_id != peer_id:
 		return false
 
 	var player: Node = player_override if player_override != null else _find_player_node(peer_id)
+	var already_this_occupant: bool = (occupied_by_peer_id == peer_id)
+	occupied_by_peer_id = peer_id
 	_occupant_player_override = player_override
-	_is_preview_sliding = true
+	_is_preview_sliding = false
 
-	if _is_peer_connected():
-		_rpc_begin_open_preview.rpc(peer_id)
-	else:
-		_apply_open_preview_local(peer_id, player)
+	if not already_this_occupant:
+		drawer_open_progress = 1.0 if is_briefcase_container else 0.0
+		drawer_visual_ratio = 1.0 if is_briefcase_container else 0.0
+		_opened_effects_applied = false
+		if _slide_tween != null and _slide_tween.is_valid():
+			_slide_tween.kill()
+		if _tray_drawer_node != null:
+			_tray_drawer_node.position.z = 0.0 if is_briefcase_container else DRAWER_CLOSED_Z
+			_tray_target_z = _tray_drawer_node.position.z
+
+	_sync_state_to_peers()
+	if player != null and player.has_method("enter_container_view"):
+		player.enter_container_view(self)
 	return true
 
 
-func _apply_open_preview_local(peer_id: int, explicit_player: Node = null) -> void:
-	_ensure_3d_tray_structure()
-	_rebuild_3d_interior()
-	_animate_tray_open(true, true)
-	var local_id: int = multiplayer.get_unique_id() if _is_peer_connected() else 1
-	if peer_id == local_id:
-		var local_player: Node = explicit_player if explicit_player != null else _find_player_node(local_id)
-		if local_player != null and local_player.has_method("enter_container_view"):
-			local_player.enter_container_view(self)
+func step_open_drawer(peer_id: int, delta: float, player_override: Node = null) -> void:
+	if occupied_by_peer_id != peer_id or is_briefcase_container:
+		return
+
+	var slow_dur: float = GameConfig.drawer_slow_peek_hold_time if GameConfig != null else 2.80
+	drawer_open_progress = clampf(drawer_open_progress + delta / maxf(slow_dur, 0.5), 0.0, 1.0)
+	drawer_visual_ratio = pow(drawer_open_progress, DRAWER_EASE_EXPONENT)
+	_tray_target_z = lerpf(DRAWER_CLOSED_Z, DRAWER_OPEN_Z, drawer_visual_ratio)
+
+	if _slide_tween != null and _slide_tween.is_valid():
+		_slide_tween.kill()
+	if _tray_drawer_node != null:
+		_tray_drawer_node.position.z = _tray_target_z
+
+	if armed_spring and drawer_visual_ratio >= SPRING_TRIGGER_VISUAL_RATIO:
+		var player: Node = player_override if player_override != null else (_occupant_player_override if _occupant_player_override != null else _find_player_node(peer_id))
+		_trigger_spring_trap_ko(peer_id, player)
+		return
+
+	if drawer_visual_ratio >= 0.65 and not _opened_effects_applied:
+		_activate_opened_drawer_effects(peer_id, true)
+		_sync_state_to_peers()
+		return
+
+	if _is_peer_connected():
+		_rpc_sync_drawer_slide.rpc(drawer_open_progress, drawer_visual_ratio)
+	else:
+		state_changed.emit()
+
+
+func begin_open_preview(peer_id: int, player_override: Node = null) -> bool:
+	return focus_container(peer_id, player_override)
+
+
+func _activate_opened_drawer_effects(peer_id: int, is_slow_peek: bool) -> Dictionary:
+	var out: Dictionary = {"lit_bomb": false, "awarded_bonus": false}
+	if _opened_effects_applied:
+		return out
+	_opened_effects_applied = true
+
+	if armed_bomb:
+		armed_bomb = false
+		live_bomb_lit = true
+		var min_f: float = GameConfig.time_bomb_fuse_min if GameConfig != null else 2.5
+		var max_f: float = GameConfig.time_bomb_fuse_max if GameConfig != null else 4.0
+		var base_fuse: float = randf_range(min_f, max_f)
+		if is_slow_peek:
+			live_bomb_fuse_remaining = maxf(base_fuse - 0.70, 0.5)
+		else:
+			live_bomb_fuse_remaining = base_fuse
+		if AudioBridge != null:
+			var fuse_rad: float = GameConfig.audio_radius_bomb_fuse if GameConfig != null else 10.0
+			AudioBridge.request_world_cue("bomb_hiss", _safe_global_pos(), fuse_rad, bomb_owner_peer_id)
+		out["lit_bomb"] = true
+
+	if not is_briefcase_container and not searched_by_peers.has(peer_id):
+		searched_by_peers[peer_id] = true
+		out["awarded_bonus"] = true
+		if MatchManager != null:
+			if MatchManager.match_state != MatchManager.MatchState.IN_PROGRESS:
+				MatchManager.start_new_match([1, 2])
+			MatchManager.award_first_search_bonus(peer_id)
+
+	return out
+
+
+func _trigger_spring_trap_ko(peer_id: int, player: Node) -> void:
+	armed_spring = false
+	spring_unlatched = false
+	var owner_id: int = spring_owner_peer_id
+	spring_owner_peer_id = 0
+	drawer_open_progress = 0.0
+	drawer_visual_ratio = 0.0
+	_opened_effects_applied = false
+	if AudioBridge != null:
+		AudioBridge.request_world_cue("spring_trigger", _safe_global_pos(), 10.0, owner_id)
+	if player != null and player.has_method("apply_trap_ko"):
+		player.apply_trap_ko("SPRING", owner_id)
+	elif player != null and player.has_method("force_drop_all_hands"):
+		player.force_drop_all_hands()
+	occupied_by_peer_id = 0
+	_occupant_player_override = null
+	_animate_tray_open(false, false)
+	_sync_state_to_peers()
 
 
 func open_container(peer_id: int, is_slow_peek: bool, player_override: Node = null) -> Dictionary:
@@ -260,60 +363,33 @@ func open_container(peer_id: int, is_slow_peek: bool, player_override: Node = nu
 	var player: Node = player_override if player_override != null else _find_player_node(peer_id)
 	_is_preview_sliding = false
 
-	if not is_slow_peek and not is_briefcase_container and AudioBridge != null:
+	if not is_slow_peek and not is_briefcase_container and not _opened_effects_applied and AudioBridge != null:
 		var slam_rad: float = GameConfig.audio_radius_drawer_fast if GameConfig != null else 10.0
 		AudioBridge.request_world_cue("drawer_slam", _safe_global_pos(), slam_rad, peer_id)
 
 	# 1. Armed Spring Check (Doc 3 §3.B)
 	if armed_spring and not is_briefcase_container:
 		if not is_slow_peek:
-			armed_spring = false
-			spring_unlatched = false
-			var owner_id: int = spring_owner_peer_id
-			spring_owner_peer_id = 0
-			if AudioBridge != null:
-				AudioBridge.request_world_cue("spring_trigger", _safe_global_pos(), 10.0, owner_id)
-			if player != null and player.has_method("apply_trap_ko"):
-				player.apply_trap_ko("SPRING", owner_id)
-			elif player != null and player.has_method("force_drop_all_hands"):
-				player.force_drop_all_hands()
-			_animate_tray_open(false, false)
-			_sync_state_to_peers()
+			_trigger_spring_trap_ko(peer_id, player)
 			result["reason"] = "SPRING_KO"
 			result["triggered_spring"] = true
 			return result
 		else:
 			spring_unlatched = false
+			drawer_open_progress = 0.56
+			drawer_visual_ratio = pow(drawer_open_progress, DRAWER_EASE_EXPONENT)
+	else:
+		drawer_open_progress = 1.0
+		drawer_visual_ratio = 1.0
 
-	# 2. Armed Time Bomb Check (Doc 3 §3.B & Doc 4 §3.4)
-	if armed_bomb:
-		armed_bomb = false
-		live_bomb_lit = true
-		var min_f: float = GameConfig.time_bomb_fuse_min if GameConfig != null else 2.5
-		var max_f: float = GameConfig.time_bomb_fuse_max if GameConfig != null else 4.0
-		var base_fuse: float = randf_range(min_f, max_f)
-		if is_slow_peek:
-			var peek_burn: float = GameConfig.drawer_slow_peek_hold_time if GameConfig != null else 0.70
-			live_bomb_fuse_remaining = maxf(base_fuse - peek_burn, 0.5)
-		else:
-			live_bomb_fuse_remaining = base_fuse
-		if AudioBridge != null:
-			var fuse_rad: float = GameConfig.audio_radius_bomb_fuse if GameConfig != null else 10.0
-			AudioBridge.request_world_cue("bomb_hiss", _safe_global_pos(), fuse_rad, bomb_owner_peer_id)
-		result["lit_bomb"] = true
-
-	# 3. First-Visit Exploration Bonus (+10s — Doc 3 §3.A)
-	if not is_briefcase_container and not searched_by_peers.has(peer_id):
-		searched_by_peers[peer_id] = true
-		result["awarded_bonus"] = true
-		if MatchManager != null:
-			if MatchManager.match_state != MatchManager.MatchState.IN_PROGRESS:
-				MatchManager.start_new_match([1, 2])
-			MatchManager.award_first_search_bonus(peer_id)
+	# 2 & 3. Armed Bomb Ignition + First-Visit Exploration Bonus (+10s)
+	var eff: Dictionary = _activate_opened_drawer_effects(peer_id, is_slow_peek)
+	result["lit_bomb"] = bool(eff["lit_bomb"])
+	result["awarded_bonus"] = bool(eff["awarded_bonus"])
 
 	occupied_by_peer_id = peer_id
 	_occupant_player_override = player_override
-	_animate_tray_open(true, is_slow_peek)
+	_animate_tray_to_ratio(drawer_visual_ratio, is_slow_peek)
 	_sync_state_to_peers()
 
 	if player != null and player.has_method("enter_container_view"):
@@ -329,6 +405,9 @@ func close_container(peer_id: int, player_override: Node = null) -> void:
 		return
 
 	_is_preview_sliding = false
+	_opened_effects_applied = false
+	drawer_open_progress = 0.0
+	drawer_visual_ratio = 0.0
 	if staged_spring_on_lip:
 		staged_spring_on_lip = false
 		armed_spring = true
@@ -578,20 +657,26 @@ func _sync_back_to_briefcase_pickup() -> void:
 
 
 func _animate_tray_open(open_state: bool, slow: bool) -> void:
+	_animate_tray_to_ratio(1.0 if open_state else 0.0, slow)
+
+
+func _animate_tray_to_ratio(ratio: float, slow: bool) -> void:
 	if _tray_drawer_node == null:
 		return
-	var target_z: float = (0.0 if is_briefcase_container else DRAWER_OPEN_Z) if open_state else 0.0
+	var clamped_ratio: float = clampf(ratio, 0.0, 1.0)
+	var target_z: float = 0.0 if is_briefcase_container else lerpf(DRAWER_CLOSED_Z, DRAWER_OPEN_Z, clamped_ratio)
 	var current_z: float = _tray_drawer_node.position.z
-	if open_state and slow and is_equal_approx(_tray_target_z, target_z) and _slide_tween != null and _slide_tween.is_valid() and _slide_tween.is_running():
+	if slow and is_equal_approx(_tray_target_z, target_z) and _slide_tween != null and _slide_tween.is_valid() and _slide_tween.is_running():
 		return
 
 	var base_dur: float = 0.0
-	if open_state:
-		base_dur = (GameConfig.drawer_slow_peek_hold_time if GameConfig != null else 0.70) if slow else (GameConfig.drawer_fast_slam_duration if GameConfig != null else 0.15)
+	if clamped_ratio > 0.01:
+		base_dur = (GameConfig.drawer_slow_peek_hold_time if GameConfig != null else 2.80) if slow else (GameConfig.drawer_fast_slam_duration if GameConfig != null else 0.22)
 	else:
-		base_dur = GameConfig.drawer_close_duration if GameConfig != null else 0.25
+		base_dur = GameConfig.drawer_close_duration if GameConfig != null else 0.30
 
-	var frac: float = clampf(absf(target_z - current_z) / maxf(DRAWER_OPEN_Z, 0.01), 0.12, 1.0)
+	var travel: float = maxf(DRAWER_OPEN_Z - DRAWER_CLOSED_Z, 0.01)
+	var frac: float = clampf(absf(target_z - current_z) / travel, 0.12, 1.0)
 	var dur: float = base_dur * frac
 	_tray_target_z = target_z
 
@@ -609,18 +694,35 @@ func _animate_tray_open(open_state: bool, slow: bool) -> void:
 # ==========================================
 
 @rpc("any_peer", "call_local", "reliable")
-func _server_begin_open(caller_peer_id: int) -> void:
+func _server_focus_container(caller_peer_id: int) -> void:
 	if _is_peer_connected() and not multiplayer.is_server():
 		return
 	var sender: int = multiplayer.get_remote_sender_id()
 	if sender != 0:
 		caller_peer_id = sender
-	begin_open_preview(caller_peer_id)
+	focus_container(caller_peer_id)
 
 
-@rpc("authority", "call_local", "reliable")
-func _rpc_begin_open_preview(peer_id: int) -> void:
-	_apply_open_preview_local(peer_id)
+@rpc("any_peer", "call_local", "reliable")
+func _server_step_open_drawer(caller_peer_id: int, delta: float) -> void:
+	if _is_peer_connected() and not multiplayer.is_server():
+		return
+	var sender: int = multiplayer.get_remote_sender_id()
+	if sender != 0:
+		caller_peer_id = sender
+	step_open_drawer(caller_peer_id, delta)
+
+
+@rpc("authority", "call_local", "unreliable_ordered")
+func _rpc_sync_drawer_slide(open_prog: float, vis_ratio: float) -> void:
+	drawer_open_progress = clampf(open_prog, 0.0, 1.0)
+	drawer_visual_ratio = clampf(vis_ratio, 0.0, 1.0)
+	_tray_target_z = 0.0 if is_briefcase_container else lerpf(DRAWER_CLOSED_Z, DRAWER_OPEN_Z, drawer_visual_ratio)
+	if _slide_tween != null and _slide_tween.is_valid():
+		_slide_tween.kill()
+	if _tray_drawer_node != null:
+		_tray_drawer_node.position.z = _tray_target_z
+	state_changed.emit()
 
 @rpc("any_peer", "call_local", "reliable")
 func _server_open_container(caller_peer_id: int, is_slow_peek: bool) -> void:
@@ -723,6 +825,8 @@ func _sync_state_to_peers() -> void:
 		"live_bomb_lit": live_bomb_lit,
 		"live_bomb_fuse_remaining": live_bomb_fuse_remaining,
 		"occupied_by_peer_id": occupied_by_peer_id,
+		"drawer_open_progress": drawer_open_progress,
+		"drawer_visual_ratio": drawer_visual_ratio,
 		"clutter_positions": clutter_positions.duplicate()
 	}
 	if _is_peer_connected():
@@ -746,6 +850,8 @@ func _rpc_sync_container_state(state_dict: Dictionary) -> void:
 	live_bomb_lit = bool(state_dict.get("live_bomb_lit", false))
 	live_bomb_fuse_remaining = float(state_dict.get("live_bomb_fuse_remaining", 0.0))
 	occupied_by_peer_id = int(state_dict.get("occupied_by_peer_id", 0))
+	drawer_open_progress = float(state_dict.get("drawer_open_progress", 0.0))
+	drawer_visual_ratio = float(state_dict.get("drawer_visual_ratio", 0.0))
 
 	var raw_clutter: Array = state_dict.get("clutter_positions", [])
 	if not raw_clutter.is_empty():
@@ -761,7 +867,14 @@ func _rpc_sync_container_state(state_dict: Dictionary) -> void:
 				local_player.enter_container_view(self)
 			elif prev_occ == local_id and occupied_by_peer_id == 0 and local_player.has_method("exit_container_view"):
 				local_player.exit_container_view()
-		_animate_tray_open(occupied_by_peer_id != 0, false)
+		if occupied_by_peer_id == 0:
+			_animate_tray_to_ratio(0.0, false)
+		elif drawer_visual_ratio > 0.0:
+			_animate_tray_to_ratio(drawer_visual_ratio, false)
+	elif occupied_by_peer_id != 0 and not is_briefcase_container:
+		var desired_z: float = lerpf(DRAWER_CLOSED_Z, DRAWER_OPEN_Z, drawer_visual_ratio)
+		if not is_equal_approx(_tray_target_z, desired_z):
+			_animate_tray_to_ratio(drawer_visual_ratio, false)
 
 	_rebuild_3d_interior()
 	state_changed.emit()
@@ -894,23 +1007,23 @@ func _rebuild_3d_interior() -> void:
 		_contents_root.remove_child(child)
 		child.queue_free()
 
-	# 1. Front Lip Spring Trap (Drawer only)
+	# 1. Front-Inside Lip Spring Trap (Drawer only)
 	if not is_briefcase_container and (armed_spring or spring_unlatched or staged_spring_on_lip):
 		var lip_area := Area3D.new()
 		lip_area.name = "LipSpringTrap"
 		lip_area.collision_layer = DRAWER_CONTENTS_MASK
 		lip_area.collision_mask = 0
-		lip_area.position = Vector3(0.0, 0.10, 0.24)
+		lip_area.position = Vector3(0.0, 0.065, 0.16)
 		lip_area.set_meta("container_role", "lip_spring")
 
 		var lip_col := CollisionShape3D.new()
 		var lip_shape := BoxShape3D.new()
-		lip_shape.size = Vector3(0.38, 0.09, 0.12)
+		lip_shape.size = Vector3(0.36, 0.08, 0.11)
 		lip_col.shape = lip_shape
 		lip_area.add_child(lip_col)
 
 		var spring_mesh := PICKUP_SCRIPT.build_item_mesh("SPRING")
-		spring_mesh.scale = Vector3(0.95, 0.55, 0.55)
+		spring_mesh.scale = Vector3(0.85, 0.45, 0.45)
 		var mat: StandardMaterial3D = spring_mesh.material_override as StandardMaterial3D
 		if mat != null:
 			if armed_spring:
