@@ -1148,6 +1148,10 @@ func _rebuild_3d_interior() -> void:
 		var item_mesh := PICKUP_SCRIPT.build_item_mesh(item_id)
 		item_mesh.scale = layout["scale"] as Vector3
 		item_area.add_child(item_mesh)
+		if PICKUP_SCRIPT.is_objective_item(item_id):
+			var glint: CPUParticles3D = PICKUP_SCRIPT.create_objective_glint_particles(true)
+			glint.position = Vector3(0.0, 0.007, 0.0)
+			item_area.add_child(glint)
 		_contents_root.add_child(item_area)
 
 	# 4. Upper Layers — Strictly Disjoint Vertical Y Strata (Zero Clipping)

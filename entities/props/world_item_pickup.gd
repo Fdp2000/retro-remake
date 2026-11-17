@@ -145,8 +145,42 @@ static func build_item_mesh(id: String) -> MeshInstance3D:
 			box.size = Vector3(0.22, 0.14, 0.22)
 			mi.mesh = box
 
+	if is_objective_item(upper):
+		mat.emission_enabled = true
+		mat.emission = mat.albedo_color * 0.45
+		mat.emission_energy_multiplier = 0.65
 	mi.material_override = mat
 	return mi
+
+
+static func create_objective_glint_particles(in_drawer: bool = false) -> CPUParticles3D:
+	var particles := CPUParticles3D.new()
+	particles.name = "ObjectiveGlintParticles"
+	particles.amount = 6 if in_drawer else 8
+	particles.lifetime = 0.65 if in_drawer else 0.90
+	particles.preprocess = 0.35
+	particles.local_coords = true
+	particles.emitting = true
+	particles.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
+	particles.emission_box_extents = Vector3(0.055, 0.001, 0.055) if in_drawer else Vector3(0.14, 0.04, 0.14)
+	particles.direction = Vector3(0.0, 1.0, 0.0)
+	particles.spread = 12.0 if in_drawer else 24.0
+	particles.gravity = Vector3.ZERO
+	particles.initial_velocity_min = 0.003 if in_drawer else 0.08
+	particles.initial_velocity_max = 0.006 if in_drawer else 0.18
+	particles.scale_amount_min = 0.5
+	particles.scale_amount_max = 1.1
+
+	var spark_mesh := QuadMesh.new()
+	spark_mesh.size = Vector2(0.014, 0.014) if in_drawer else Vector2(0.028, 0.028)
+	var spark_mat := StandardMaterial3D.new()
+	spark_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	spark_mat.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+	spark_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	spark_mat.albedo_color = Color(1.0, 0.94, 0.55, 0.90)
+	spark_mesh.material = spark_mat
+	particles.mesh = spark_mesh
+	return particles
 
 
 func get_interaction_prompt() -> String:
@@ -284,8 +318,16 @@ func _ensure_child_nodes() -> void:
 
 func _rebuild_visuals() -> void:
 	_ensure_child_nodes()
+	var old_glint: Node = get_node_or_null("ObjectiveGlintParticles")
+	if old_glint != null:
+		remove_child(old_glint)
+		old_glint.queue_free()
 	var template: MeshInstance3D = build_item_mesh(item_id)
 	_mesh_instance.mesh = template.mesh
 	_mesh_instance.material_override = template.material_override
 	_mesh_instance.rotation = template.rotation
 	template.free()
+	if is_objective_item(item_id):
+		var glint := create_objective_glint_particles(false)
+		glint.position = Vector3(0.0, 0.22, 0.0)
+		add_child(glint)

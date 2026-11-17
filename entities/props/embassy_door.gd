@@ -6,6 +6,8 @@ extends Node3D
 ## Swings 90° away from whichever side the opener approaches from (Dot Product Rule).
 ## Supports Tap E (Fast Open), Hold E (Silent Slow Peek), Sprint Auto-Bash, and Water Bucket rigging.
 
+const PICKUP_SCRIPT = preload("res://entities/props/world_item_pickup.gd")
+
 @export var door_id: String = "EmbassyDoor"
 @export var open_angle_deg: float = 90.0
 
@@ -65,6 +67,12 @@ func _ensure_nodes() -> void:
 		_door_body.collision_layer = (GameConfig.LAYER_ENVIRONMENT | GameConfig.LAYER_INTERACTABLE) if GameConfig != null else 3
 
 	_bucket_visual = _hinge_pivot.get_node_or_null("BucketMount") as MeshInstance3D
+	if _bucket_visual == null:
+		_bucket_visual = PICKUP_SCRIPT.build_item_mesh("BUCKET")
+		_bucket_visual.name = "BucketMount"
+		_bucket_visual.position = Vector3(0.65, 2.24, 0.0)
+		_bucket_visual.visible = has_rigged_bucket
+		_hinge_pivot.add_child(_bucket_visual)
 
 
 func _safe_global_transform() -> Transform3D:
@@ -94,8 +102,10 @@ func compute_away_angle_rad(opener_world_pos: Vector3) -> float:
 
 func get_interaction_prompt() -> String:
 	if is_open:
-		return "[E] Close Door"
-	return "[Tap E] Fast Open  |  [Hold E] Silent Peek"
+		return "[Tap E] Close  |  [Hold E] Pull Shut"
+	if has_rigged_bucket:
+		return "[Tap E] Open  |  [Hold E] Peek  |  [Look Up + E] Steal Bucket"
+	return "[Tap E] Fast Open  |  [Hold E] Slowly Push Open"
 
 
 func get_hold_interaction_duration() -> float:
@@ -140,6 +150,7 @@ func request_sprint_bash(caller_peer_id: int, basher_pos: Vector3) -> void:
 
 
 func rig_water_bucket(owner_peer_id: int) -> bool:
+	_ensure_nodes()
 	if is_open or has_rigged_bucket:
 		return false
 	has_rigged_bucket = true
@@ -147,19 +158,42 @@ func rig_water_bucket(owner_peer_id: int) -> bool:
 	_apply_closed_visuals()
 	if AudioBridge != null and GameConfig != null:
 		AudioBridge.request_world_cue("trap_arm", _safe_global_pos() + Vector3(0.0, 2.0, 0.0), GameConfig.audio_radius_trap_setup, owner_peer_id)
+	if _is_peer_connected():
+		_rpc_sync_door.rpc(is_open, current_target_angle_rad, 0.0, has_rigged_bucket)
 	return true
 
 
-func steal_water_bucket(thief_peer_id: int) -> bool:
+func request_steal_bucket(caller_peer_id: int) -> void:
+	if not has_rigged_bucket:
+		return
+	if _is_peer_connected():
+		_server_steal_bucket.rpc_id(1, caller_peer_id)
+	else:
+		steal_water_bucket(caller_peer_id)
+
+
+@rpc("any_peer", "call_local", "reliable")
+func _server_steal_bucket(caller_peer_id: int) -> void:
+	if _is_peer_connected() and not multiplayer.is_server():
+		return
+	var sender_id: int = multiplayer.get_remote_sender_id()
+	if sender_id != 0 and sender_id != caller_peer_id:
+		caller_peer_id = sender_id
+	steal_water_bucket(caller_peer_id)
+
+
+func steal_water_bucket(thief_peer_id: int, player_override: Node = null) -> bool:
 	if not has_rigged_bucket:
 		return false
-	var player: Node = _find_player_node(thief_peer_id)
+	var player: Node = player_override if player_override != null else _find_player_node(thief_peer_id)
 	if player != null and player.has_method("server_pickup_world_item"):
 		if not player.server_pickup_world_item("BUCKET", [], _safe_global_pos()):
 			return false
 	has_rigged_bucket = false
 	bucket_owner_peer_id = 0
 	_apply_closed_visuals()
+	if _is_peer_connected():
+		_rpc_sync_door.rpc(is_open, current_target_angle_rad, 0.0, has_rigged_bucket)
 	return true
 
 

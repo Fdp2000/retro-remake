@@ -5,6 +5,7 @@ const PICKUP_SCENE: PackedScene = preload("res://entities/props/world_item_picku
 const EMBASSY_DOOR_SCENE: PackedScene = preload("res://entities/props/embassy_door.tscn")
 const DRAWER_SCENE: PackedScene = preload("res://entities/props/searchable_drawer.tscn")
 const AIRPORT_EXIT_SCENE: PackedScene = preload("res://entities/props/airport_exit_door.tscn")
+const MATCH_SPAWNER_SCRIPT = preload("res://core/match_spawner.gd")
 const LOBBY_SCENE_PATH: String = "res://scenes/lobby.tscn"
 
 const SPAWN_POINTS: Dictionary = {
@@ -31,11 +32,11 @@ func _ready() -> void:
 	_spawn_test_pickups()
 	_spawn_test_props()
 
-	if MatchManager != null and not MatchManager.match_ended.is_connected(_on_match_ended):
-		MatchManager.match_ended.connect(_on_match_ended)
-
-	if MatchManager != null and not MatchManager.match_ended.is_connected(_on_match_ended):
-		MatchManager.match_ended.connect(_on_match_ended)
+	if MatchManager != null:
+		if not MatchManager.match_ended.is_connected(_on_match_ended):
+			MatchManager.match_ended.connect(_on_match_ended)
+		if not MatchManager.match_started.is_connected(_on_match_started):
+			MatchManager.match_started.connect(_on_match_started)
 
 	# Configure local role badge (Host vs Contender)
 	var my_id: int = multiplayer.get_unique_id() if (multiplayer.has_multiplayer_peer() and NetworkManager.is_online()) else 1
@@ -120,7 +121,10 @@ func _spawn_test_pickups() -> void:
 		{"id": "PASSPORT", "pos": Vector3(-4.5, 0.0, -2.5)},
 		{"id": "PLANS", "pos": Vector3(-3.7, 0.0, -2.5)},
 		{"id": "BUCKET", "pos": Vector3(-2.9, 0.0, -2.5)},
-		{"id": "TRIPWIRE", "pos": Vector3(-2.1, 0.0, -2.5)}
+		{"id": "TRIPWIRE", "pos": Vector3(-2.1, 0.0, -2.5)},
+		{"id": "SPRING", "pos": Vector3(-1.3, 0.0, -2.5)},
+		{"id": "BOMB", "pos": Vector3(-0.5, 0.0, -2.5)},
+		{"id": "DART_GUN", "pos": Vector3(0.3, 0.0, -2.5)}
 	]
 	for i in range(test_items.size()):
 		var entry: Dictionary = test_items[i]
@@ -165,6 +169,11 @@ func _spawn_test_props() -> void:
 	props_root.add_child(exit_door)
 	exit_door.position = Vector3(-6.2, 0.0, -4.5)
 	exit_door.rotation.y = deg_to_rad(90.0)
+
+
+func _on_match_started(seed_value: int) -> void:
+	var spawner := MATCH_SPAWNER_SCRIPT.new()
+	spawner.populate_level(self, seed_value, DRAWER_SCENE, PICKUP_SCENE, ["Room_2_2"])
 
 
 func _on_match_ended(_winner_peer_id: int, reason: String) -> void:

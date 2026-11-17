@@ -13,6 +13,12 @@ const COLOR_SPY_BLACK: Color = Color(0.12, 0.12, 0.12)
 const PICKUP_SCENE: PackedScene = preload("res://entities/props/world_item_pickup.tscn")
 const PICKUP_SCRIPT = preload("res://entities/props/world_item_pickup.gd")
 const TOP_DOWN_UI_SCRIPT = preload("res://ui/top_down_container_ui.gd")
+const DVD_RETICLE_UI_SCRIPT = preload("res://ui/dvd_dart_reticle_ui.gd")
+const CLUB_QTE_UI_SCRIPT = preload("res://ui/club_qte_bar_ui.gd")
+const WATCH_BLUFF_UI_SCRIPT = preload("res://ui/spy_watch_bluff_ui.gd")
+const CRT_REPLAY_UI_SCRIPT = preload("res://ui/crt_replay_monitor_ui.gd")
+const TRIPWIRE_SCRIPT = preload("res://entities/traps/tripwire_trap.gd")
+const THROWN_BOMB_SCRIPT = preload("res://entities/traps/thrown_time_bomb.gd")
 const TAP_RELEASE_THRESHOLD: float = 0.20
 
 # ==========================================
@@ -143,6 +149,10 @@ var _interact_target: Object = null
 # Container View, KO Recovery & Clock HUD
 var active_container: Node = null
 var _container_ui: TopDownContainerUI = null
+var _dvd_reticle_ui: DVDDartReticleUI = null
+var _club_qte_ui: ClubQTEBarUI = null
+var _watch_bluff_ui: SpyWatchBluffUI = null
+var _crt_replay_ui: CRTReplayMonitorUI = null
 var _camera_tween: Tween = null
 var _bonus_toast_timer: float = 0.0
 var ko_remaining_seconds: float = 0.0
@@ -154,6 +164,24 @@ var _dragging_3d_offset_xz: Vector2 = Vector2.ZERO
 var _drawer_focus_just_entered: bool = false
 var _drawer_e_held: bool = false
 var _drawer_e_hold_elapsed: float = 0.0
+var _interact_steal_bucket: bool = false
+
+# Doc 4, 5 & 6 Combat, Trap Setup, Hot-Potato Bomb & Anti-Camp State
+var live_bomb_remaining: float = 0.0
+var live_bomb_owner_peer_id: int = 0
+var club_overcharge_stumble_remaining: float = 0.0
+var _club_feint_cooldown: float = 0.0
+var _club_whiff_recovery: float = 0.0
+var _lmb_trap_hold_active: bool = false
+var _lmb_trap_hold_elapsed: float = 0.0
+var _lmb_trap_mode: String = ""
+var _lmb_trap_target: Object = null
+var _lmb_trap_pos: Vector3 = Vector3.ZERO
+var _lmb_trap_yaw: float = 0.0
+var anti_camp_timer: float = 0.0
+var anti_camp_sniffle_warned: bool = false
+var _last_room_key: String = ""
+var _action_counter: int = 0
 
 # Footstep & airborne tracking
 var _footstep_timer: float = 0.0
@@ -214,10 +242,7 @@ func _ready() -> void:
 		set_process_unhandled_input(true)
 		set_process(true)
 		hud.visible = true
-		if hud != null and _container_ui == null:
-			_container_ui = TOP_DOWN_UI_SCRIPT.new()
-			_container_ui.name = "TopDownContainerUI"
-			hud.add_child(_container_ui)
+		ensure_overlay_uis()
 		if MatchManager != null:
 			if not MatchManager.clock_updated.is_connected(_on_match_clock_updated):
 				MatchManager.clock_updated.connect(_on_match_clock_updated)
@@ -228,6 +253,33 @@ func _ready() -> void:
 		set_process_unhandled_input(false)
 		set_process(false)
 		hud.visible = false
+
+
+func ensure_overlay_uis() -> void:
+	var target_hud: CanvasLayer = hud if hud != null else get_node_or_null("HUD") as CanvasLayer
+	if target_hud == null:
+		return
+	if _container_ui == null:
+		_container_ui = TOP_DOWN_UI_SCRIPT.new()
+		_container_ui.name = "TopDownContainerUI"
+		target_hud.add_child(_container_ui)
+	if _dvd_reticle_ui == null:
+		_dvd_reticle_ui = DVD_RETICLE_UI_SCRIPT.new()
+		_dvd_reticle_ui.name = "DVDDartReticleUI"
+		target_hud.add_child(_dvd_reticle_ui)
+	if _club_qte_ui == null:
+		_club_qte_ui = CLUB_QTE_UI_SCRIPT.new()
+		_club_qte_ui.name = "ClubQTEBarUI"
+		target_hud.add_child(_club_qte_ui)
+	if _watch_bluff_ui == null:
+		_watch_bluff_ui = WATCH_BLUFF_UI_SCRIPT.new()
+		_watch_bluff_ui.name = "SpyWatchBluffUI"
+		target_hud.add_child(_watch_bluff_ui)
+		_watch_bluff_ui.setup_for_player(self)
+	if _crt_replay_ui == null:
+		_crt_replay_ui = CRT_REPLAY_UI_SCRIPT.new()
+		_crt_replay_ui.name = "CRTReplayMonitorUI"
+		target_hud.add_child(_crt_replay_ui)
 
 
 # ==========================================
@@ -242,7 +294,7 @@ func update_stance_from_inputs(wants_sprint: bool, wants_crouch: bool) -> int:
 
 	if wants_crouch:
 		stance_state = GameConfig.Stance.CROUCH if GameConfig != null else 2
-	elif wants_sprint and not is_charging_club:
+	elif wants_sprint and not is_charging_club and club_overcharge_stumble_remaining <= 0.0:
 		stance_state = GameConfig.Stance.SPRINT if GameConfig != null else 1
 	else:
 		stance_state = GameConfig.Stance.WALK if GameConfig != null else 0
@@ -251,12 +303,13 @@ func update_stance_from_inputs(wants_sprint: bool, wants_crouch: bool) -> int:
 
 func get_current_move_speed() -> float:
 	if GameConfig != null:
-		return GameConfig.compute_final_move_speed(
+		var base: float = GameConfig.compute_final_move_speed(
 			stance_state,
 			left_hand_item_id == "BRIEFCASE",
 			is_charging_club
 		)
-	return speed
+		return base * (0.30 if club_overcharge_stumble_remaining > 0.0 else 1.0)
+	return speed * (0.30 if club_overcharge_stumble_remaining > 0.0 else 1.0)
 
 
 func get_current_footstep_radius() -> float:
@@ -399,6 +452,15 @@ func enter_container_view(container: Node) -> void:
 	stance_state = GameConfig.Stance.DRAWER_LOCK if GameConfig != null else 3
 	_dragging_3d_clutter_idx = -1
 	_dragging_3d_clutter_node = null
+	_lmb_trap_hold_active = false
+	_lmb_trap_hold_elapsed = 0.0
+	if _dvd_reticle_ui != null:
+		_dvd_reticle_ui.set_active(false)
+	if _club_qte_ui != null:
+		_club_qte_ui.cancel_charge()
+	if _watch_bluff_ui != null and _watch_bluff_ui.is_map_open:
+		_watch_bluff_ui.set_map_open(false)
+	reset_anti_camp()
 	if not already_same_container:
 		_drawer_focus_just_entered = (not Engine.is_editor_hint() and is_inside_tree() and _is_e_key_pressed())
 		_drawer_e_held = false
@@ -416,10 +478,7 @@ func enter_container_view(container: Node) -> void:
 			var dur: float = GameConfig.top_down_cam_lerp_duration if GameConfig != null else 0.65
 			_camera_tween = create_tween()
 			_camera_tween.tween_property(camera, "global_transform", target_xform, dur).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
-		if hud != null and _container_ui == null:
-			_container_ui = TOP_DOWN_UI_SCRIPT.new()
-			_container_ui.name = "TopDownContainerUI"
-			hud.add_child(_container_ui)
+		ensure_overlay_uis()
 		if _container_ui != null:
 			var my_id: int = multiplayer.get_unique_id() if _is_peer_connected() else name.to_int()
 			_container_ui.open_for_container(self, container, my_id)
@@ -467,6 +526,17 @@ func apply_trap_ko(_reason: String, _attacker_peer_id: int = 0) -> Array[Diction
 	elif stance_state == (GameConfig.Stance.DRAWER_LOCK if GameConfig != null else 3):
 		exit_container_view()
 
+	live_bomb_remaining = 0.0
+	live_bomb_owner_peer_id = 0
+	_lmb_trap_hold_active = false
+	_lmb_trap_hold_elapsed = 0.0
+	if _dvd_reticle_ui != null:
+		_dvd_reticle_ui.set_active(false)
+	if _club_qte_ui != null:
+		_club_qte_ui.cancel_charge()
+	if _watch_bluff_ui != null and _watch_bluff_ui.is_map_open:
+		_watch_bluff_ui.set_map_open(false)
+
 	var drops: Array[Dictionary] = force_drop_all_hands()
 	if is_inside_tree() and (not _is_peer_connected() or multiplayer.is_server()):
 		for i in range(drops.size()):
@@ -490,7 +560,32 @@ func apply_trap_ko(_reason: String, _attacker_peer_id: int = 0) -> Array[Diction
 	else:
 		_rpc_apply_ko_state(ko_dur, 0.0, true)
 	_sync_inventory_state_to_peers()
+
+	var victim_id: int = name.to_int()
+	if _attacker_peer_id > 0 and _attacker_peer_id != victim_id and _reason != "CLUB":
+		_dispatch_crt_replay_to_attacker(_attacker_peer_id, _reason, victim_id)
 	return drops
+
+
+func _dispatch_crt_replay_to_attacker(attacker_id: int, reason: String, victim_id: int) -> void:
+	if not is_inside_tree() or get_tree() == null:
+		return
+	for p in get_tree().get_nodes_in_group("spy_players"):
+		if p.name.to_int() == attacker_id and p.has_method("notify_crt_replay"):
+			if _is_peer_connected() and multiplayer.is_server():
+				p.notify_crt_replay.rpc_id(attacker_id, reason, victim_id)
+			else:
+				p.notify_crt_replay(reason, victim_id)
+			return
+
+
+@rpc("any_peer", "call_local", "reliable")
+func notify_crt_replay(reason: String, victim_peer_id: int) -> void:
+	ensure_overlay_uis()
+	if _crt_replay_ui != null:
+		_crt_replay_ui.trigger_replay(reason, victim_peer_id)
+	if AudioBridge != null:
+		AudioBridge.play_local_cue("crt_static")
 
 
 func _is_authorized_state_rpc() -> bool:
@@ -747,6 +842,574 @@ func _rpc_spawn_dropped_pickup(dropped_id: String, b_objs: Array, world_pos: Vec
 
 
 # ==========================================
+# Doc 4, 5 & 6: Traps, Club QTE, Watch Bluffs & Anti-Camp
+# ==========================================
+
+func set_live_bomb_timer(fuse_sec: float, owner_id: int) -> void:
+	live_bomb_remaining = maxf(fuse_sec, 0.05)
+	live_bomb_owner_peer_id = owner_id
+	_update_hud_status()
+
+
+@rpc("any_peer", "call_local", "reliable")
+func _rpc_sync_live_bomb_timer(fuse_sec: float, owner_id: int) -> void:
+	if not _is_authorized_state_rpc():
+		return
+	set_live_bomb_timer(fuse_sec, owner_id)
+
+
+func catch_live_bomb(fuse_sec: float, owner_id: int) -> void:
+	pickup_item("LIVE_BOMB")
+	_sync_inventory_state_to_peers()
+	var clamped: float = maxf(fuse_sec, 0.15)
+	if _is_peer_connected():
+		_rpc_sync_live_bomb_timer.rpc(clamped, owner_id)
+	else:
+		set_live_bomb_timer(clamped, owner_id)
+	if AudioBridge != null:
+		AudioBridge.request_world_cue("bomb_hiss", _safe_global_pos(), 6.0, name.to_int())
+
+
+func step_live_bomb_fuse(delta: float) -> bool:
+	if right_hand_mode != SpyInventoryComponent.RightHandMode.LIVE_BOMB:
+		live_bomb_remaining = 0.0
+		return false
+	if live_bomb_remaining <= 0.0:
+		return false
+	live_bomb_remaining -= delta
+	if is_inside_tree() and is_multiplayer_authority() and prompt_label != null and stance_state != (GameConfig.Stance.DRAWER_LOCK if GameConfig != null else 3):
+		prompt_label.text = "HOT POTATO! [LMB] THROW! (%.1fs)" % maxf(live_bomb_remaining, 0.0)
+		prompt_label.visible = true
+	if live_bomb_remaining <= 0.0:
+		if not _is_peer_connected() or multiplayer.is_server():
+			var owner_id: int = live_bomb_owner_peer_id
+			live_bomb_remaining = 0.0
+			live_bomb_owner_peer_id = 0
+			_inv().consume_live_bomb()
+			_sync_inventory_state_to_peers()
+			var blast_origin: Vector3 = _safe_global_pos() + Vector3(0.0, 0.85, 0.0)
+			var w3d: World3D = get_world_3d() if is_inside_tree() else null
+			var tree: SceneTree = get_tree() if is_inside_tree() else null
+			THROWN_BOMB_SCRIPT.detonate_blast_at(tree, w3d, blast_origin, owner_id)
+		return true
+	return false
+
+
+func throw_live_bomb(custom_origin: Vector3 = Vector3.ZERO, custom_dir: Vector3 = Vector3.ZERO) -> Node:
+	if right_hand_mode != SpyInventoryComponent.RightHandMode.LIVE_BOMB:
+		return null
+	reset_anti_camp()
+	var origin: Vector3 = custom_origin
+	var dir: Vector3 = custom_dir
+	if origin == Vector3.ZERO:
+		if camera != null and camera.is_inside_tree():
+			origin = camera.global_position + (-camera.global_transform.basis.z * 0.60)
+		else:
+			origin = _safe_global_pos() + Vector3(0.0, 1.45, -0.6)
+	if dir == Vector3.ZERO:
+		if camera != null and camera.is_inside_tree():
+			dir = -camera.global_transform.basis.z.normalized()
+		else:
+			dir = Vector3(0.0, 0.0, -1.0)
+	dir = dir.normalized()
+	var fuse_now: float = maxf(live_bomb_remaining, 0.20)
+	var orig_owner: int = live_bomb_owner_peer_id if live_bomb_owner_peer_id > 0 else name.to_int()
+	live_bomb_remaining = 0.0
+	live_bomb_owner_peer_id = 0
+	if _is_peer_connected() and not multiplayer.is_server():
+		_rpc_server_throw_live_bomb.rpc_id(1, origin, dir, fuse_now, orig_owner)
+		return null
+	return _server_execute_throw_live_bomb(origin, dir, fuse_now, orig_owner)
+
+
+@rpc("any_peer", "call_local", "reliable")
+func _rpc_server_throw_live_bomb(origin: Vector3, dir: Vector3, fuse_sec: float, orig_owner: int) -> void:
+	if _is_peer_connected() and not multiplayer.is_server():
+		return
+	var sender_id: int = multiplayer.get_remote_sender_id()
+	if sender_id != 0 and sender_id != name.to_int():
+		return
+	_server_execute_throw_live_bomb(origin, dir, fuse_sec, orig_owner)
+
+
+func _server_execute_throw_live_bomb(origin: Vector3, dir: Vector3, fuse_sec: float, orig_owner: int) -> Node:
+	if not _inv().consume_live_bomb():
+		return null
+	_sync_inventory_state_to_peers()
+	_action_counter += 1
+	var throw_speed: float = GameConfig.time_bomb_throw_speed if GameConfig != null else 9.5
+	var launch_vel: Vector3 = dir.normalized() * throw_speed + Vector3(0.0, 2.8, 0.0)
+	var bomb_name: String = "ThrownBomb_%s_%d" % [name, _action_counter]
+	var resolved_fuse: float = maxf(fuse_sec, 0.25)
+	if AudioBridge != null:
+		AudioBridge.request_world_cue("club_whoosh", origin, 6.0, name.to_int())
+	if _is_peer_connected():
+		_rpc_spawn_thrown_bomb.rpc(bomb_name, origin, launch_vel, resolved_fuse, orig_owner, name.to_int())
+		return _find_spawned_node_in_scene(bomb_name)
+	return _spawn_thrown_bomb_local(bomb_name, origin, launch_vel, resolved_fuse, orig_owner, name.to_int())
+
+
+@rpc("any_peer", "call_local", "reliable")
+func _rpc_spawn_thrown_bomb(bomb_name: String, spawn_pos: Vector3, launch_vel: Vector3, fuse_sec: float, owner_id: int, thrower_id: int) -> void:
+	if not _is_authorized_state_rpc():
+		return
+	_spawn_thrown_bomb_local(bomb_name, spawn_pos, launch_vel, fuse_sec, owner_id, thrower_id)
+
+
+func _spawn_thrown_bomb_local(bomb_name: String, spawn_pos: Vector3, launch_vel: Vector3, fuse_sec: float, owner_id: int, thrower_id: int) -> Node:
+	var target_root: Node = (get_tree().current_scene if get_tree() != null else null)
+	if target_root == null:
+		target_root = get_parent()
+	if target_root == null:
+		return null
+	var bomb: StaticBody3D = THROWN_BOMB_SCRIPT.new() as StaticBody3D
+	bomb.name = bomb_name
+	bomb.set("owner_peer_id", owner_id)
+	bomb.set("thrower_peer_id", thrower_id)
+	bomb.set("fuse_remaining", fuse_sec)
+	bomb.set("velocity", launch_vel)
+	target_root.add_child(bomb)
+	if bomb.is_inside_tree():
+		bomb.global_position = spawn_pos
+	else:
+		bomb.position = spawn_pos
+	return bomb
+
+
+func _find_spawned_node_in_scene(node_name: String) -> Node:
+	var target_root: Node = get_tree().current_scene if (is_inside_tree() and get_tree() != null) else get_parent()
+	return target_root.get_node_or_null(node_name) if target_root != null else null
+
+
+@rpc("any_peer", "call_local", "reliable")
+func _rpc_server_rig_bucket_on_door(door_path: NodePath) -> void:
+	if _is_peer_connected() and not multiplayer.is_server():
+		return
+	var sender_id: int = multiplayer.get_remote_sender_id()
+	if sender_id != 0 and sender_id != name.to_int():
+		return
+	var door_node: Node = get_node_or_null(door_path)
+	if door_node == null and is_inside_tree() and get_tree() != null:
+		door_node = get_tree().root.get_node_or_null(door_path)
+	if door_node == null or not door_node.has_method("rig_water_bucket"):
+		return
+	if _inv().get_active_right_item_id() != "BUCKET":
+		return
+	if bool(door_node.call("rig_water_bucket", name.to_int())):
+		_inv().consume_active_jacket_slot("BUCKET")
+		_sync_inventory_state_to_peers()
+		if AudioBridge != null and door_node is Node3D:
+			AudioBridge.request_world_cue("trap_arm", (door_node as Node3D).global_position, 6.0, name.to_int())
+
+
+@rpc("any_peer", "call_local", "reliable")
+func _rpc_server_deploy_tripwire(place_pos: Vector3, place_yaw: float) -> void:
+	if _is_peer_connected() and not multiplayer.is_server():
+		return
+	var sender_id: int = multiplayer.get_remote_sender_id()
+	if sender_id != 0 and sender_id != name.to_int():
+		return
+	if _inv().consume_active_jacket_slot("TRIPWIRE") == "NONE":
+		return
+	_sync_inventory_state_to_peers()
+	_action_counter += 1
+	var trap_name: String = "Tripwire_%s_%d" % [name, _action_counter]
+	if AudioBridge != null:
+		AudioBridge.request_world_cue("trap_arm", place_pos, 6.0, name.to_int())
+	if _is_peer_connected():
+		_rpc_spawn_tripwire.rpc(trap_name, place_pos, place_yaw, name.to_int())
+	else:
+		_spawn_tripwire_local(trap_name, place_pos, place_yaw, name.to_int())
+
+
+@rpc("any_peer", "call_local", "reliable")
+func _rpc_spawn_tripwire(trap_name: String, place_pos: Vector3, place_yaw: float, owner_id: int) -> void:
+	if not _is_authorized_state_rpc():
+		return
+	_spawn_tripwire_local(trap_name, place_pos, place_yaw, owner_id)
+
+
+func _spawn_tripwire_local(trap_name: String, place_pos: Vector3, place_yaw: float, owner_id: int) -> Node:
+	var target_root: Node = get_tree().current_scene if (is_inside_tree() and get_tree() != null) else get_parent()
+	if target_root == null:
+		return null
+	var trap: StaticBody3D = TRIPWIRE_SCRIPT.new() as StaticBody3D
+	trap.name = trap_name
+	trap.set("owner_peer_id", owner_id)
+	target_root.add_child(trap)
+	if trap.is_inside_tree():
+		trap.global_position = place_pos
+	else:
+		trap.position = place_pos
+	trap.rotation.y = place_yaw
+	return trap
+
+
+func fire_dart_gun(custom_origin: Vector3 = Vector3.ZERO, custom_dir: Vector3 = Vector3.ZERO) -> bool:
+	if _inv().get_active_right_item_id() != "DART_GUN":
+		return false
+	reset_anti_camp()
+	ensure_overlay_uis()
+	var ray_origin: Vector3 = custom_origin
+	var ray_dir: Vector3 = custom_dir
+	if ray_origin == Vector3.ZERO or ray_dir == Vector3.ZERO:
+		if camera != null and camera.is_inside_tree():
+			var ret_pos: Vector2 = _dvd_reticle_ui.get_reticle_screen_center() if _dvd_reticle_ui != null else (get_viewport().get_visible_rect().size * 0.5)
+			ray_origin = camera.project_ray_origin(ret_pos)
+			ray_dir = camera.project_ray_normal(ret_pos)
+		else:
+			ray_origin = _safe_global_pos() + Vector3(0.0, 1.5, 0.0)
+			ray_dir = -global_transform.basis.z
+	ray_dir = ray_dir.normalized()
+	if _dvd_reticle_ui != null:
+		_dvd_reticle_ui.set_active(false)
+	if _is_peer_connected() and not multiplayer.is_server():
+		_rpc_server_fire_dart_gun.rpc_id(1, ray_origin, ray_dir)
+		return true
+	return _execute_dart_shot(ray_origin, ray_dir)
+
+
+@rpc("any_peer", "call_local", "reliable")
+func _rpc_server_fire_dart_gun(ray_origin: Vector3, ray_dir: Vector3) -> void:
+	if _is_peer_connected() and not multiplayer.is_server():
+		return
+	var sender_id: int = multiplayer.get_remote_sender_id()
+	if sender_id != 0 and sender_id != name.to_int():
+		return
+	_execute_dart_shot(ray_origin, ray_dir)
+
+
+func _execute_dart_shot(ray_origin: Vector3, ray_dir: Vector3) -> bool:
+	if _inv().consume_active_jacket_slot("DART_GUN") == "NONE":
+		return false
+	_sync_inventory_state_to_peers()
+	var shooter_id: int = name.to_int()
+	if AudioBridge != null:
+		var dart_rad: float = GameConfig.audio_radius_trap_setup if GameConfig != null else 5.0
+		AudioBridge.request_world_cue("dart_fire", ray_origin, dart_rad, shooter_id)
+	if not is_inside_tree() or get_world_3d() == null or get_world_3d().direct_space_state == null:
+		return false
+	var ray_end: Vector3 = ray_origin + ray_dir.normalized() * 24.0
+	var mask: int = (GameConfig.LAYER_ENVIRONMENT | GameConfig.LAYER_PLAYER) if GameConfig != null else 5
+	var space: PhysicsDirectSpaceState3D = get_world_3d().direct_space_state
+	var query := PhysicsRayQueryParameters3D.create(ray_origin, ray_end, mask, [get_rid()])
+	var hit: Dictionary = space.intersect_ray(query)
+	if not hit.is_empty():
+		var collider: Object = hit.get("collider")
+		if collider is Node and (collider as Node).is_in_group("spy_players"):
+			if collider.has_method("apply_trap_ko"):
+				collider.apply_trap_ko("DART_GUN", shooter_id)
+			return true
+		return false
+
+	# Fallback capsule-segment check along the ray segment (ensures hit resolution before broadphase flush)
+	if get_tree() == null:
+		return false
+	var env_mask: int = GameConfig.LAYER_ENVIRONMENT if GameConfig != null else 1
+	var ko_val: int = GameConfig.Stance.KO if GameConfig != null else 4
+	var crouch_val: int = GameConfig.Stance.CROUCH if GameConfig != null else 2
+	var closest_rival: Node = null
+	var closest_dist_sq: float = INF
+	for p in get_tree().get_nodes_in_group("spy_players"):
+		if p == self or not (p is Node3D):
+			continue
+		var p_stance: int = int(p.get("stance_state"))
+		if p_stance == ko_val or float(p.get("wakeup_immunity_remaining")) > 0.0:
+			continue
+		var p_pos: Vector3 = (p as Node3D).global_position
+		var top_y: float = (GameConfig.crouched_capsule_height if GameConfig != null else 1.0) if p_stance == crouch_val else (GameConfig.standing_capsule_height if GameConfig != null else 1.8)
+		var pts: PackedVector3Array = Geometry3D.get_closest_points_between_segments(
+			ray_origin, ray_end,
+			p_pos + Vector3(0.0, 0.25, 0.0),
+			p_pos + Vector3(0.0, top_y, 0.0)
+		)
+		if pts.size() == 2 and pts[0].distance_to(pts[1]) <= 0.45:
+			var env_q := PhysicsRayQueryParameters3D.create(ray_origin, pts[0], env_mask, [get_rid()])
+			if not space.intersect_ray(env_q).is_empty():
+				continue
+			var d_sq: float = ray_origin.distance_squared_to(pts[0])
+			if d_sq < closest_dist_sq:
+				closest_dist_sq = d_sq
+				closest_rival = p
+	if closest_rival != null and closest_rival.has_method("apply_trap_ko"):
+		closest_rival.apply_trap_ko("DART_GUN", shooter_id)
+		return true
+	return false
+
+
+func begin_club_qte_charge(fixed_green_start: float = -1.0) -> bool:
+	if right_hand_mode != SpyInventoryComponent.RightHandMode.CLUB or is_charging_club:
+		return false
+	if _club_feint_cooldown > 0.0 or _club_whiff_recovery > 0.0 or club_overcharge_stumble_remaining > 0.0:
+		return false
+	reset_anti_camp()
+	ensure_overlay_uis()
+	_trigger_hand_action("START_CLUB_CHARGE")
+	if not is_charging_club:
+		start_club_charge()
+	if _club_qte_ui != null:
+		_club_qte_ui.begin_charge(fixed_green_start)
+	return true
+
+
+func evaluate_club_release() -> String:
+	ensure_overlay_uis()
+	var outcome: String = _club_qte_ui.evaluate_release() if _club_qte_ui != null else "WHIFF"
+	_trigger_hand_action("STOP_CLUB_CHARGE")
+	if is_charging_club:
+		stop_club_charge()
+	reset_anti_camp()
+
+	var cam_origin: Vector3 = camera.global_position if (camera != null and camera.is_inside_tree()) else (_safe_global_pos() + Vector3(0.0, 1.5, 0.0))
+	var cam_forward: Vector3 = (-camera.global_transform.basis.z.normalized()) if (camera != null and camera.is_inside_tree()) else (-global_transform.basis.z.normalized())
+
+	match outcome:
+		"FEINT":
+			_club_feint_cooldown = GameConfig.club_feint_cooldown if GameConfig != null else 0.40
+			if _club_qte_ui != null:
+				_club_qte_ui.show_outcome("FEINT!", Color(0.85, 0.85, 0.90))
+		"WHIFF":
+			_club_whiff_recovery = GameConfig.club_whiff_recovery_time if GameConfig != null else 0.60
+			if _club_qte_ui != null:
+				_club_qte_ui.show_outcome("WHIFF! (0.6s recovery)", Color(0.95, 0.45, 0.25))
+			if AudioBridge != null:
+				AudioBridge.request_world_cue("club_whoosh", cam_origin, 4.0, name.to_int())
+		"KO_SLAM":
+			if _club_qte_ui != null:
+				_club_qte_ui.show_outcome("CLUB SLAM!", Color(0.30, 0.95, 0.45))
+			if _is_peer_connected() and not multiplayer.is_server():
+				_rpc_server_club_slam.rpc_id(1, cam_origin, cam_forward)
+			else:
+				_server_execute_club_slam(cam_origin, cam_forward)
+		"OVERCHARGE":
+			var stumble_dur: float = GameConfig.club_overcharge_stumble_duration if GameConfig != null else 2.0
+			club_overcharge_stumble_remaining = stumble_dur
+			velocity += (-cam_forward * 3.2)
+			if _club_qte_ui != null:
+				_club_qte_ui.show_outcome("OVERCHARGED! STUMBLE (2.0s)", Color(1.0, 0.25, 0.22))
+			if _is_peer_connected() and not multiplayer.is_server():
+				_rpc_server_club_overcharge.rpc_id(1)
+			else:
+				_server_execute_club_overcharge()
+	return outcome
+
+
+@rpc("any_peer", "call_local", "reliable")
+func _rpc_server_club_slam(cam_origin: Vector3, cam_forward: Vector3) -> void:
+	if _is_peer_connected() and not multiplayer.is_server():
+		return
+	var sender_id: int = multiplayer.get_remote_sender_id()
+	if sender_id != 0 and sender_id != name.to_int():
+		return
+	_server_execute_club_slam(cam_origin, cam_forward)
+
+
+func _server_execute_club_slam(cam_origin: Vector3, cam_forward: Vector3) -> void:
+	var my_id: int = name.to_int()
+	if AudioBridge != null:
+		AudioBridge.request_world_cue("club_slam", cam_origin, 8.0, my_id)
+	if not is_inside_tree() or get_tree() == null:
+		return
+	var melee_range: float = GameConfig.club_melee_range if GameConfig != null else 2.0
+	var env_mask: int = GameConfig.LAYER_ENVIRONMENT if GameConfig != null else 1
+	var space: PhysicsDirectSpaceState3D = get_world_3d().direct_space_state if get_world_3d() != null else null
+	var fwd_flat: Vector3 = Vector3(cam_forward.x, 0.0, cam_forward.z).normalized()
+
+	for p in get_tree().get_nodes_in_group("spy_players"):
+		if p == self or not (p is Node3D):
+			continue
+		var target_pos: Vector3 = (p as Node3D).global_position + Vector3(0.0, 1.0, 0.0)
+		var delta_vec: Vector3 = target_pos - cam_origin
+		var dist: float = delta_vec.length()
+		if dist > melee_range:
+			continue
+		var dir_flat: Vector3 = Vector3(delta_vec.x, 0.0, delta_vec.z).normalized()
+		if dist > 0.75 and fwd_flat.length_squared() > 0.01 and fwd_flat.dot(dir_flat) < 0.25:
+			continue
+		if space != null:
+			var query := PhysicsRayQueryParameters3D.create(cam_origin, target_pos, env_mask, [get_rid()])
+			if not space.intersect_ray(query).is_empty():
+				continue
+		if p.has_method("apply_trap_ko"):
+			p.apply_trap_ko("CLUB", my_id)
+
+
+@rpc("any_peer", "call_local", "reliable")
+func _rpc_server_club_overcharge() -> void:
+	if _is_peer_connected() and not multiplayer.is_server():
+		return
+	_server_execute_club_overcharge()
+
+
+func _server_execute_club_overcharge() -> void:
+	club_overcharge_stumble_remaining = GameConfig.club_overcharge_stumble_duration if GameConfig != null else 2.0
+	if AudioBridge != null:
+		AudioBridge.request_world_cue("club_stumble", _safe_global_pos(), 8.0, name.to_int())
+
+
+func emit_watch_bluff(cue_id: String, target_pos: Vector3) -> void:
+	reset_anti_camp()
+	var radius: float = GameConfig.audio_radius_bluff if GameConfig != null else 12.0
+	if AudioBridge != null:
+		AudioBridge.request_world_cue(cue_id, target_pos, radius, name.to_int())
+
+
+func get_current_room_name() -> String:
+	var pos_now: Vector3 = _safe_global_pos()
+	if is_inside_tree() and get_tree() != null and get_tree().current_scene != null:
+		var rooms_root: Node = get_tree().current_scene.get_node_or_null("BuildingComplex2/Rooms")
+		if rooms_root != null:
+			var best_name: String = ""
+			var best_dist_sq: float = INF
+			for r in rooms_root.get_children():
+				if r is Node3D:
+					var d2: float = (r as Node3D).global_position.distance_squared_to(pos_now)
+					if d2 < best_dist_sq:
+						best_dist_sq = d2
+						best_name = r.name
+			if not best_name.is_empty():
+				return best_name
+	return "Grid_%d_%d" % [int(floor(pos_now.x / 6.0)), int(floor(pos_now.z / 6.0))]
+
+
+func reset_anti_camp() -> void:
+	anti_camp_timer = 0.0
+	anti_camp_sniffle_warned = false
+
+
+func step_anti_camp(delta: float, room_override: String = "") -> String:
+	var ko_val: int = GameConfig.Stance.KO if GameConfig != null else 4
+	if stance_state == ko_val:
+		return ""
+	var room_key: String = room_override if not room_override.is_empty() else get_current_room_name()
+	if _last_room_key.is_empty():
+		_last_room_key = room_key
+	elif room_key != _last_room_key:
+		_last_room_key = room_key
+		reset_anti_camp()
+		return ""
+
+	anti_camp_timer += delta
+	var warn_sec: float = GameConfig.anti_camp_warning_seconds if GameConfig != null else 15.0
+	var sneeze_sec: float = GameConfig.anti_camp_sneeze_seconds if GameConfig != null else 20.0
+	var repeat_sec: float = GameConfig.anti_camp_repeat_seconds if GameConfig != null else 15.0
+
+	if anti_camp_timer >= sneeze_sec:
+		anti_camp_timer = maxf(sneeze_sec - repeat_sec, 0.0)
+		anti_camp_sniffle_warned = false
+		var sneeze_rad: float = GameConfig.audio_radius_sneeze if GameConfig != null else 22.0
+		if AudioBridge != null:
+			AudioBridge.request_world_cue("sneeze", _safe_global_pos(), sneeze_rad, name.to_int())
+		if bonus_toast_label != null:
+			bonus_toast_label.text = "ACHOO! (Position Revealed 22m)"
+			bonus_toast_label.visible = true
+			_bonus_toast_timer = 2.0
+		return "SNEEZE"
+
+	if anti_camp_timer >= warn_sec and not anti_camp_sniffle_warned:
+		anti_camp_sniffle_warned = true
+		if AudioBridge != null:
+			AudioBridge.play_local_cue("sniffle_warning")
+		if bonus_toast_label != null:
+			bonus_toast_label.text = "*Sniffle* Move rooms soon!"
+			bonus_toast_label.visible = true
+			_bonus_toast_timer = 1.8
+		return "SNIFFLE"
+
+	return ""
+
+
+func _is_aiming_for_bucket_steal(target: Object, hit_point: Vector3) -> bool:
+	if target == null or not target.has_method("request_steal_bucket"):
+		return false
+	if not bool(target.get("has_rigged_bucket")):
+		return false
+	var local_pitch_up: bool = head != null and head.rotation.x > deg_to_rad(10.0)
+	var rel_height: float = hit_point.y - _safe_global_pos().y
+	return local_pitch_up or rel_height >= 1.50
+
+
+func _try_begin_primary_action() -> void:
+	if club_overcharge_stumble_remaining > 0.0:
+		return
+	var active_right: String = right_hand_item_id
+	match active_right:
+		"CLUB":
+			begin_club_qte_charge()
+		"LIVE_BOMB":
+			throw_live_bomb()
+		"DART_GUN":
+			fire_dart_gun()
+		"BUCKET":
+			if raycast != null and raycast.is_colliding():
+				var col: Object = raycast.get_collider()
+				while col is Node and not col.has_method("rig_water_bucket"):
+					col = col.get_parent()
+				if col != null and col.has_method("rig_water_bucket") and not bool(col.get("is_open")) and not bool(col.get("has_rigged_bucket")):
+					_lmb_trap_hold_active = true
+					_lmb_trap_hold_elapsed = 0.0
+					_lmb_trap_mode = "BUCKET"
+					_lmb_trap_target = col
+		"TRIPWIRE":
+			if raycast != null and raycast.is_colliding():
+				var hit_col: Object = raycast.get_collider()
+				var hit_normal: Vector3 = raycast.get_collision_normal()
+				if hit_col is Node and ((hit_col as PhysicsBody3D).collision_layer & (GameConfig.LAYER_ENVIRONMENT if GameConfig != null else 1)) != 0 and hit_normal.y > 0.70:
+					_lmb_trap_hold_active = true
+					_lmb_trap_hold_elapsed = 0.0
+					_lmb_trap_mode = "TRIPWIRE"
+					_lmb_trap_pos = raycast.get_collision_point()
+					_lmb_trap_yaw = rotation.y
+
+
+func _update_lmb_trap_hold(delta: float) -> void:
+	if not _lmb_trap_hold_active:
+		return
+	if not Input.is_action_pressed("primary_action") or Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
+		_lmb_trap_hold_active = false
+		_lmb_trap_hold_elapsed = 0.0
+		if hold_progress_bar != null:
+			hold_progress_bar.visible = false
+		return
+	var hold_req: float = GameConfig.trap_setup_hold_time if GameConfig != null else 0.80
+	_lmb_trap_hold_elapsed += delta
+	if hold_progress_bar != null:
+		hold_progress_bar.visible = true
+		hold_progress_bar.value = clampf((_lmb_trap_hold_elapsed / maxf(hold_req, 0.05)) * 100.0, 0.0, 100.0)
+	if _lmb_trap_hold_elapsed >= hold_req:
+		_complete_lmb_trap_rig()
+
+
+func _complete_lmb_trap_rig() -> void:
+	var mode: String = _lmb_trap_mode
+	var target_obj: Object = _lmb_trap_target
+	var place_pos: Vector3 = _lmb_trap_pos
+	var place_yaw: float = _lmb_trap_yaw
+	_lmb_trap_hold_active = false
+	_lmb_trap_hold_elapsed = 0.0
+	_lmb_trap_mode = ""
+	_lmb_trap_target = null
+	if hold_progress_bar != null:
+		hold_progress_bar.visible = false
+	reset_anti_camp()
+	if mode == "BUCKET" and target_obj is Node and is_instance_valid(target_obj):
+		var door_path: NodePath = (target_obj as Node).get_path()
+		if _is_peer_connected() and not multiplayer.is_server():
+			_rpc_server_rig_bucket_on_door.rpc_id(1, door_path)
+		else:
+			_rpc_server_rig_bucket_on_door(door_path)
+	elif mode == "TRIPWIRE":
+		if _is_peer_connected() and not multiplayer.is_server():
+			_rpc_server_deploy_tripwire.rpc_id(1, place_pos, place_yaw)
+		else:
+			_rpc_server_deploy_tripwire(place_pos, place_yaw)
+
+
+func _safe_global_pos() -> Vector3:
+	return global_position if is_inside_tree() else position
+
+
+# ==========================================
 # Visual Sockets & HUD Updates
 # ==========================================
 
@@ -921,8 +1584,15 @@ func _is_peer_connected() -> bool:
 
 
 func _process(delta: float) -> void:
-	if Engine.is_editor_hint() or not _is_peer_connected() or not is_multiplayer_authority():
+	if Engine.is_editor_hint() or (_is_peer_connected() and not is_multiplayer_authority()):
 		return
+
+	if _club_feint_cooldown > 0.0:
+		_club_feint_cooldown = maxf(_club_feint_cooldown - delta, 0.0)
+	if _club_whiff_recovery > 0.0:
+		_club_whiff_recovery = maxf(_club_whiff_recovery - delta, 0.0)
+	if club_overcharge_stumble_remaining > 0.0:
+		club_overcharge_stumble_remaining = maxf(club_overcharge_stumble_remaining - delta, 0.0)
 
 	if _bonus_toast_timer > 0.0:
 		_bonus_toast_timer -= delta
@@ -939,14 +1609,33 @@ func _process(delta: float) -> void:
 	var ko_stance: int = GameConfig.Stance.KO if GameConfig != null else 4
 	if stance_state == ko_stance:
 		_reset_interact_hold()
+		if _dvd_reticle_ui != null:
+			_dvd_reticle_ui.set_active(false)
 		return
+
+	step_live_bomb_fuse(delta)
+	step_anti_camp(delta)
+
 	if _interact_key_down:
 		_tick_active_interact_hold(delta)
 	if stance_state == lock_stance:
 		prompt_label.visible = false
+		if _dvd_reticle_ui != null:
+			_dvd_reticle_ui.set_active(false)
 		_tick_drawer_open_input(delta)
 		return
 
+	if _dvd_reticle_ui != null:
+		var holding_dart: bool = (right_hand_item_id == "DART_GUN")
+		_dvd_reticle_ui.set_active(holding_dart)
+		if holding_dart and get_viewport() != null:
+			_dvd_reticle_ui.step_bounce(delta, get_viewport().get_visible_rect().size)
+
+	if is_charging_club and _club_qte_ui != null:
+		if _club_qte_ui.update_charge(delta) == "OVERCHARGED":
+			evaluate_club_release()
+
+	_update_lmb_trap_hold(delta)
 	_process_interaction_raycast()
 
 
@@ -994,6 +1683,26 @@ func _tick_active_interact_hold(delta: float) -> void:
 			_reset_interact_hold()
 		return
 
+	var my_peer_id: int = multiplayer.get_unique_id() if _is_peer_connected() else 1
+	if _interact_steal_bucket:
+		var steal_dur: float = GameConfig.trap_steal_hold_time if GameConfig != null else 1.00
+		if e_down:
+			if not _interact_hold_triggered:
+				_interact_hold_elapsed += delta
+				if hold_progress_bar != null:
+					hold_progress_bar.visible = true
+					hold_progress_bar.value = clampf((_interact_hold_elapsed / maxf(steal_dur, 0.05)) * 100.0, 0.0, 100.0)
+				if _interact_hold_elapsed >= steal_dur:
+					_interact_hold_triggered = true
+					_interact_target.request_steal_bucket(my_peer_id)
+					if hold_progress_bar != null:
+						hold_progress_bar.visible = false
+		else:
+			if not _interact_hold_triggered and _interact_hold_elapsed < TAP_RELEASE_THRESHOLD:
+				_interact_target.request_interaction(my_peer_id)
+			_reset_interact_hold()
+		return
+
 	var supports_hold: bool = (
 		_interact_target.has_method("request_hold_interaction")
 		and (not _interact_target.has_method("supports_hold_interaction") or bool(_interact_target.supports_hold_interaction()))
@@ -1003,7 +1712,6 @@ func _tick_active_interact_hold(delta: float) -> void:
 			_reset_interact_hold()
 		return
 
-	var my_peer_id: int = multiplayer.get_unique_id() if _is_peer_connected() else 1
 	if _interact_target.has_method("request_step_push"):
 		if e_down:
 			_interact_hold_elapsed += delta
@@ -1024,9 +1732,14 @@ func _tick_active_interact_hold(delta: float) -> void:
 	if e_down:
 		if not _interact_hold_triggered:
 			_interact_hold_elapsed += delta
+			if hold_progress_bar != null:
+				hold_progress_bar.visible = true
+				hold_progress_bar.value = clampf((_interact_hold_elapsed / maxf(hold_dur, 0.05)) * 100.0, 0.0, 100.0)
 			if _interact_hold_elapsed >= hold_dur:
 				_interact_hold_triggered = true
 				_interact_target.request_hold_interaction(my_peer_id)
+				if hold_progress_bar != null:
+					hold_progress_bar.visible = false
 	else:
 		if not _interact_hold_triggered:
 			_interact_target.request_interaction(my_peer_id)
@@ -1036,20 +1749,35 @@ func _tick_active_interact_hold(delta: float) -> void:
 func _process_interaction_raycast() -> void:
 	var is_interactable: bool = false
 	var target_collider: Object = null
+	var hit_point: Vector3 = Vector3.ZERO
+	var aiming_bucket_steal: bool = false
 
 	if raycast != null and raycast.is_colliding():
+		hit_point = raycast.get_collision_point()
 		var collider: Object = raycast.get_collider()
 		while collider is Node and not collider.has_method("request_interaction"):
 			collider = collider.get_parent()
 		if collider and collider.has_method("request_interaction"):
 			is_interactable = true
 			target_collider = collider
+			aiming_bucket_steal = _is_aiming_for_bucket_steal(target_collider, hit_point)
 
-	prompt_label.visible = is_interactable
-	if is_interactable:
-		prompt_label.text = target_collider.get_interaction_prompt() if target_collider.has_method("get_interaction_prompt") else "[E] Interact"
+	if live_bomb_remaining <= 0.0:
+		if is_interactable:
+			var p_text: String = "[Hold E 1.0s] Steal Rigged Water Bucket" if aiming_bucket_steal else (
+				target_collider.get_interaction_prompt() if target_collider.has_method("get_interaction_prompt") else "[E] Interact"
+			)
+			if right_hand_item_id == "BUCKET" and target_collider.has_method("rig_water_bucket") and not bool(target_collider.get("is_open")) and not bool(target_collider.get("has_rigged_bucket")):
+				p_text += "  |  [Hold LMB] Rig Water Bucket"
+			prompt_label.text = p_text
+			prompt_label.visible = true
+		elif right_hand_item_id == "TRIPWIRE" and raycast != null and raycast.is_colliding() and raycast.get_collision_normal().y > 0.70:
+			prompt_label.text = "[Hold LMB] Rig Tripwire Here"
+			prompt_label.visible = true
+		else:
+			prompt_label.visible = false
 
-	if hold_progress_bar != null:
+	if hold_progress_bar != null and not _lmb_trap_hold_active and not _interact_key_down:
 		hold_progress_bar.visible = false
 
 	var e_down: bool = _is_e_key_pressed()
@@ -1061,11 +1789,12 @@ func _process_interaction_raycast() -> void:
 
 	var my_peer_id: int = multiplayer.get_unique_id() if _is_peer_connected() else 1
 	if is_interactable and target_collider != null and e_just_pressed and not _interact_key_down:
+		reset_anti_camp()
 		if target_collider.has_method("request_focus_container"):
 			_drawer_focus_just_entered = true
 			target_collider.request_focus_container(my_peer_id)
 			return
-		var supports_hold: bool = (
+		var supports_hold: bool = aiming_bucket_steal or (
 			target_collider.has_method("request_hold_interaction")
 			and (not target_collider.has_method("supports_hold_interaction") or bool(target_collider.supports_hold_interaction()))
 		)
@@ -1073,6 +1802,7 @@ func _process_interaction_raycast() -> void:
 		_interact_hold_elapsed = 0.0
 		_interact_hold_triggered = false
 		_interact_target = target_collider
+		_interact_steal_bucket = aiming_bucket_steal
 		if not supports_hold:
 			_interact_hold_triggered = true
 			target_collider.request_interaction(my_peer_id)
@@ -1083,7 +1813,8 @@ func _reset_interact_hold() -> void:
 	_interact_hold_elapsed = 0.0
 	_interact_hold_triggered = false
 	_interact_target = null
-	if hold_progress_bar != null:
+	_interact_steal_bucket = false
+	if hold_progress_bar != null and not _lmb_trap_hold_active:
 		hold_progress_bar.visible = false
 
 
@@ -1277,15 +2008,43 @@ func _unhandled_input(event: InputEvent) -> void:
 		_trigger_hand_action("DROP_RIGHT")
 		return
 	if event.is_action_pressed("toggle_club") and not event.is_echo():
+		reset_anti_camp()
 		_trigger_hand_action("TOGGLE_CLUB")
 		return
 
+	if event.is_action_pressed("cycle_bluff_cue") and not event.is_echo():
+		ensure_overlay_uis()
+		if _watch_bluff_ui != null:
+			_watch_bluff_ui.cycle_cue()
+		return
+
+	if event is InputEventKey and event.keycode == KEY_B and event.pressed and not event.is_echo():
+		ensure_overlay_uis()
+		if _watch_bluff_ui != null:
+			emit_watch_bluff(_watch_bluff_ui.get_selected_cue_id(), _safe_global_pos())
+		return
+
+	if event is InputEventKey and event.keycode == KEY_TAB and not event.is_echo():
+		ensure_overlay_uis()
+		if _watch_bluff_ui != null:
+			_watch_bluff_ui.set_map_open(event.pressed)
+			Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if event.pressed else Input.MOUSE_MODE_CAPTURED
+		return
+
+	if event.is_action_pressed("spy_gadget_ptt") and not event.is_echo():
+		ensure_overlay_uis()
+		if _watch_bluff_ui != null:
+			_watch_bluff_ui.set_radio_active(true)
+	elif event.is_action_released("spy_gadget_ptt"):
+		if _watch_bluff_ui != null:
+			_watch_bluff_ui.set_radio_active(false)
+
 	if event.is_action_pressed("primary_action") and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
-		if right_hand_mode == SpyInventoryComponent.RightHandMode.CLUB and not is_charging_club:
-			_trigger_hand_action("START_CLUB_CHARGE")
+		_try_begin_primary_action()
 	elif event.is_action_released("primary_action"):
+		_lmb_trap_hold_active = false
 		if is_charging_club:
-			_trigger_hand_action("STOP_CLUB_CHARGE")
+			evaluate_club_release()
 
 	if event.is_action_pressed("ui_cancel") or (event is InputEventKey and event.pressed and not event.is_echo() and event.keycode == KEY_ESCAPE):
 		var scene: Node = get_tree().current_scene if get_tree() != null else null
@@ -1302,7 +2061,8 @@ func _unhandled_input(event: InputEvent) -> void:
 			var scene: Node = get_tree().current_scene if get_tree() != null else null
 			var esc_menu_node: Variant = scene.get("esc_menu") if scene != null else null
 			var esc_open: bool = esc_menu_node is CanvasItem and (esc_menu_node as CanvasItem).visible
-			if not esc_open:
+			var map_open: bool = _watch_bluff_ui != null and _watch_bluff_ui.is_map_open
+			if not esc_open and not map_open:
 				Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 				return
 
@@ -1382,6 +2142,7 @@ func _physics_process(delta: float) -> void:
 		and stance_state != (GameConfig.Stance.DRAWER_LOCK if GameConfig != null else 3)
 		and stance_state != (GameConfig.Stance.KO if GameConfig != null else 4)
 		and not is_charging_club
+		and club_overcharge_stumble_remaining <= 0.0
 	)
 	if can_jump and (Input.is_action_just_pressed("jump") or Input.is_key_pressed(KEY_SPACE)):
 		velocity.y = GameConfig.jump_velocity if GameConfig != null else jump_velocity

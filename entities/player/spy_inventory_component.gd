@@ -198,6 +198,26 @@ func drop_right_hand_item() -> Dictionary:
 	return result
 
 
+func consume_active_jacket_slot(expected_id: String = "") -> String:
+	if right_hand_mode != RightHandMode.JACKET_SLOT:
+		return "NONE"
+	var slot_idx: int = clampi(active_jacket_slot, 0, JACKET_SLOT_COUNT - 1)
+	var cur: String = jacket_slots[slot_idx]
+	if cur == "NONE" or cur.is_empty():
+		return "NONE"
+	if expected_id != "" and cur != expected_id.to_upper():
+		return "NONE"
+	jacket_slots[slot_idx] = "NONE"
+	return cur
+
+
+func consume_live_bomb() -> bool:
+	if right_hand_mode != RightHandMode.LIVE_BOMB:
+		return false
+	right_hand_mode = RightHandMode.JACKET_SLOT
+	return true
+
+
 func start_club_charge() -> Dictionary:
 	var result: Dictionary = {
 		"dropped_item_id": "NONE",

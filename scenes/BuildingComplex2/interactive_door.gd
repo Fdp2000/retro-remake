@@ -1,14 +1,19 @@
 extends MeshInstance3D
 
+const PICKUP_SCRIPT = preload("res://entities/props/world_item_pickup.gd")
+
 @export var open_angle: float = -90.0
 @export var swing_duration: float = 0.3
 
 var is_open: bool = false
+var has_rigged_bucket: bool = false
+var bucket_owner_peer_id: int = 0
 var _closed_rotation: float = 0.0
 var _open_fraction: float = 0.0
 var _push_target_y: float = 0.0
 var _swing: Tween
 var _busy: bool = false
+var _bucket_visual: MeshInstance3D = null
 
 func _ready() -> void:
 	set_multiplayer_authority(1)
@@ -24,11 +29,27 @@ func _ready() -> void:
 				solid_box.size = Vector3(1.20, 2.08, 0.062)
 				(col as CollisionShape3D).shape = solid_box
 				(col as CollisionShape3D).position = Vector3(0.605, 0.0, 0.031)
+	_ensure_bucket_visual()
 	if multiplayer.has_multiplayer_peer() and not multiplayer.is_server():
 		_request_state.call_deferred()
 
+
+func _ensure_bucket_visual() -> void:
+	if _bucket_visual == null:
+		_bucket_visual = get_node_or_null("BucketMount") as MeshInstance3D
+	if _bucket_visual == null:
+		_bucket_visual = PICKUP_SCRIPT.build_item_mesh("BUCKET")
+		_bucket_visual.name = "BucketMount"
+		_bucket_visual.position = Vector3(0.60, 1.15, 0.03)
+		_bucket_visual.visible = has_rigged_bucket
+		add_child(_bucket_visual)
+
 func get_interaction_prompt() -> String:
-	return "[Tap E] Close  |  [Hold E] Pull Shut" if is_open else "[Tap E] Fast Open  |  [Hold E] Slowly Push Open"
+	if is_open:
+		return "[Tap E] Close  |  [Hold E] Pull Shut"
+	if has_rigged_bucket:
+		return "[Tap E] Open  |  [Hold E] Peek  |  [Look Up + E] Steal Bucket"
+	return "[Tap E] Fast Open  |  [Hold E] Slowly Push Open"
 
 
 func get_hold_interaction_duration() -> float:
@@ -67,6 +88,115 @@ func request_sprint_bash(_peer_id: int, _basher_pos: Vector3) -> void:
 		server_interact(false, true)
 	else:
 		server_interact.rpc_id(1, false, true)
+
+
+func rig_water_bucket(owner_peer_id: int) -> bool:
+	_ensure_bucket_visual()
+	if is_open or has_rigged_bucket:
+		return false
+	has_rigged_bucket = true
+	bucket_owner_peer_id = owner_peer_id
+	if AudioBridge != null and GameConfig != null:
+		AudioBridge.request_world_cue("trap_arm", global_position + Vector3(0.0, 2.0, 0.0), GameConfig.audio_radius_trap_setup, owner_peer_id)
+	if _is_peer_connected():
+		_rpc_sync_bucket_state.rpc(true)
+	else:
+		_rpc_sync_bucket_state(true)
+	return true
+
+
+func request_steal_bucket(caller_peer_id: int) -> void:
+	if not has_rigged_bucket:
+		return
+	if _is_peer_connected():
+		_server_steal_bucket.rpc_id(1, caller_peer_id)
+	else:
+		steal_water_bucket(caller_peer_id)
+
+
+@rpc("any_peer", "call_local", "reliable")
+func _server_steal_bucket(caller_peer_id: int) -> void:
+	if _is_peer_connected() and not multiplayer.is_server():
+		return
+	var sender_id: int = multiplayer.get_remote_sender_id()
+	if sender_id != 0:
+		caller_peer_id = sender_id
+	steal_water_bucket(caller_peer_id)
+
+
+func steal_water_bucket(thief_peer_id: int, player_override: Node = null) -> bool:
+	if not has_rigged_bucket:
+		return false
+	var scene: Node = get_tree().current_scene if get_tree() != null else null
+	var player: Node = player_override if player_override != null else (scene.get_node_or_null("Players/" + str(thief_peer_id)) if scene != null else null)
+	if player != null and player.has_method("server_pickup_world_item"):
+		if not player.server_pickup_world_item("BUCKET", [], global_position):
+			return false
+	has_rigged_bucket = false
+	bucket_owner_peer_id = 0
+	if _is_peer_connected():
+		_rpc_sync_bucket_state.rpc(false)
+	else:
+		_rpc_sync_bucket_state(false)
+	return true
+
+
+@rpc("authority", "call_local", "reliable")
+func _rpc_sync_bucket_state(rigged: bool) -> void:
+	_ensure_bucket_visual()
+	has_rigged_bucket = rigged
+	if _bucket_visual != null:
+		_bucket_visual.visible = has_rigged_bucket
+	if not is_open:
+		var ajar_deg: float = GameConfig.door_bucket_ajar_angle_deg if GameConfig != null else 5.0
+		rotation.y = (_closed_rotation + deg_to_rad(ajar_deg)) if has_rigged_bucket else _closed_rotation
+
+
+func _trigger_rigged_bucket_drop(opener_peer_id: int, swing_dur: float) -> void:
+	var owner_id: int = bucket_owner_peer_id
+	has_rigged_bucket = false
+	bucket_owner_peer_id = 0
+	if _is_peer_connected():
+		_rpc_sync_bucket_state.rpc(false)
+	else:
+		_rpc_sync_bucket_state(false)
+	var release_deg: float = GameConfig.door_bucket_release_angle_deg if GameConfig != null else 25.0
+	var open_deg: float = maxf(absf(open_angle), 1.0)
+	var delay: float = clampf(swing_dur * (release_deg / open_deg), 0.0, 1.5)
+	if not is_inside_tree() or delay <= 0.01:
+		_resolve_bucket_drop(opener_peer_id, owner_id)
+		return
+	get_tree().create_timer(delay).timeout.connect(func():
+		_resolve_bucket_drop(opener_peer_id, owner_id)
+	)
+
+
+func _resolve_bucket_drop(opener_peer_id: int, owner_id: int) -> void:
+	var pos_now: Vector3 = global_position if is_inside_tree() else position
+	if AudioBridge != null and GameConfig != null:
+		AudioBridge.request_world_cue("bucket_spill", pos_now, GameConfig.audio_radius_bucket_spill, owner_id)
+	var scene: Node = get_tree().current_scene if (is_inside_tree() and get_tree() != null) else null
+	var player: Node = scene.get_node_or_null("Players/" + str(opener_peer_id)) if scene != null else null
+	if player == null and is_inside_tree() and get_tree() != null:
+		for candidate in get_tree().get_nodes_in_group("spy_players"):
+			if candidate.name.to_int() == opener_peer_id:
+				player = candidate
+				break
+	if player is Node3D:
+		var opener_pos: Vector3 = (player as Node3D).global_position
+		var door_center: Vector3 = pos_now + global_basis.x * 0.60
+		var flat_dist: float = Vector2(opener_pos.x - door_center.x, opener_pos.z - door_center.z).length()
+		var hit_radius: float = GameConfig.bucket_hit_radius if GameConfig != null else 1.2
+		if flat_dist <= hit_radius and player.has_method("apply_trap_ko"):
+			player.apply_trap_ko("BUCKET", owner_id)
+
+
+func _is_peer_connected() -> bool:
+	if Engine.is_editor_hint() or multiplayer == null or not multiplayer.has_multiplayer_peer():
+		return false
+	if multiplayer.multiplayer_peer is OfflineMultiplayerPeer:
+		return false
+	return multiplayer.multiplayer_peer.get_connection_status() == MultiplayerPeer.CONNECTION_CONNECTED
 
 
 func _request_state() -> void:
@@ -141,6 +271,10 @@ func server_step_push(delta: float) -> void:
 			is_open = true
 
 	var new_y: float = lerpf(_closed_rotation, _push_target_y, _open_fraction)
+	if has_rigged_bucket:
+		var release_deg: float = GameConfig.door_bucket_release_angle_deg if GameConfig != null else 25.0
+		if _open_fraction * absf(open_angle) >= release_deg:
+			_trigger_rigged_bucket_drop(sender, 0.0)
 	if multiplayer.has_multiplayer_peer():
 		sync_step_angle.rpc(new_y, is_open, _open_fraction, _push_target_y)
 	else:
@@ -188,6 +322,8 @@ func server_interact(is_slow_peek: bool = false, is_sprint_bash: bool = false) -
 			dur = GameConfig.door_fast_open_duration if GameConfig != null else 0.25
 			if AudioBridge != null and GameConfig != null:
 				AudioBridge.request_world_cue("door_open", global_position, GameConfig.audio_radius_door_fast, sender)
+		if has_rigged_bucket:
+			_trigger_rigged_bucket_drop(sender, dur)
 	else:
 		dur = GameConfig.door_close_duration if GameConfig != null else 0.30
 		if not is_slow_peek and AudioBridge != null and GameConfig != null:
