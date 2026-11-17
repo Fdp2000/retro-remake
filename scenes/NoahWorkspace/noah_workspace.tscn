@@ -1,0 +1,9 @@
+[gd_scene format=3 uid="uid://cic7pxpo7he7x"]
+
+[sub_resource type="PlaneMesh" id="PlaneMesh_g3nxs"]
+
+[node name="NoahWorkspace" type="Node3D" unique_id=2078210684]
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="." unique_id=1513638933]
+transform = Transform3D(9.73, 0, 0, 0, 9.73, 0, 0, 0, 9.73, 0, 0, 0)
+mesh = SubResource("PlaneMesh_g3nxs")
