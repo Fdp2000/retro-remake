@@ -17,7 +17,13 @@ func _ready() -> void:
 	_open_fraction = 1.0 if is_open else 0.0
 	_push_target_y = rotation.y if is_open else (_closed_rotation + deg_to_rad(open_angle))
 	for body in find_children("*", "StaticBody3D", true, false):
-		body.collision_layer = 2 if is_open else 3
+		body.collision_layer = 3
+		for col in body.get_children():
+			if col is CollisionShape3D and (col as CollisionShape3D).shape is ConcavePolygonShape3D:
+				var solid_box := BoxShape3D.new()
+				solid_box.size = Vector3(1.20, 2.08, 0.062)
+				(col as CollisionShape3D).shape = solid_box
+				(col as CollisionShape3D).position = Vector3(0.605, 0.0, 0.031)
 	if multiplayer.has_multiplayer_peer() and not multiplayer.is_server():
 		_request_state.call_deferred()
 
@@ -150,9 +156,8 @@ func sync_step_angle(new_y: float, opened_state: bool, frac: float, push_target_
 	_open_fraction = clampf(frac, 0.0, 1.0)
 	_push_target_y = push_target_y
 	rotation.y = new_y
-	var passable: bool = is_open or _open_fraction >= 0.35
 	for body in find_children("*", "StaticBody3D", true, false):
-		body.collision_layer = 2 if passable else 3
+		body.collision_layer = 3
 
 
 @rpc("any_peer", "call_remote", "reliable")
@@ -199,7 +204,7 @@ func sync_state(opened: bool, target_y: float = 9999.0, dur: float = -1.0) -> vo
 	is_open = opened
 	_open_fraction = 1.0 if is_open else 0.0
 	for body in find_children("*", "StaticBody3D", true, false):
-		body.collision_layer = 2 if is_open else 3
+		body.collision_layer = 3
 	if _swing != null and _swing.is_valid():
 		_swing.kill()
 	var final_y: float = target_y

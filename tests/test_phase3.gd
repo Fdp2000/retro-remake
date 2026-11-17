@@ -294,6 +294,7 @@ func test_drawer_3d_interior_layers_and_immediate_preview() -> void:
 	assert_true(clutter_0 != null and clutter_5 != null, "Multi-layer 3D clutter props built (indices 0..5)")
 	assert_gt(clutter_0.position.y, item_key.position.y, "Clutter Layer 1 sits above bottom-layer items")
 	assert_gt(clutter_5.position.y, clutter_0.position.y, "Clutter Layer 3 sits above Clutter Layer 1")
+	assert_eq(contents_root.find_children("*", "Label3D", true, false).size(), 0, "Drawer objects have zero Label3D name tags")
 
 	# 4. Slow Ease-In pull: 1.4s of 2.8s moves less than 35% visually, safely revealing front spring without triggering KO
 	drawer.step_open_drawer(1, 1.4, p1)
@@ -301,13 +302,31 @@ func test_drawer_3d_interior_layers_and_immediate_preview() -> void:
 	assert_eq(p1.stance_state, GameConfig.Stance.DRAWER_LOCK, "Slow ease-in stops safely shy of spring trigger threshold")
 	assert_true(drawer.unlatch_spring(1), "Player can unlatch revealed spring trap mid-pull")
 
-	# 5. Hold-to-push door moves incrementally proportional to hold time (does not full-swing)
+	# Analytical exact-AABB picking & disjoint clutter strata when fully opened
+	drawer.step_open_drawer(1, 1.5, p1)
+	var tray_after: Node3D = drawer.get_tray_node()
+	tray_after.position.z = drawer.DRAWER_OPEN_Z
+	var cRoot: Node3D = tray_after.get_node("ContentsRoot") as Node3D
+	var c0: Area3D = drawer.get_clutter_area_node(0) as Area3D
+	var c1: Area3D = drawer.get_clutter_area_node(1) as Area3D
+	assert_gt(c1.position.y, c0.position.y, "Every clutter piece occupies its own higher non-clipping stratum")
+	var miss_pick: Dictionary = drawer.pick_drawer_object_at_ray(drawer.global_position + Vector3(5.0, 2.0, 0.5), Vector3.DOWN)
+	assert_true(miss_pick.is_empty(), "Analytical ray misses outside exact object bounds")
+	var hit_c0: Dictionary = drawer.pick_drawer_object_at_ray(c0.global_position + Vector3(0.0, 1.0, 0.0), Vector3.DOWN)
+	assert_false(hit_c0.is_empty(), "Analytical ray hits clutter item directly overhead")
+	if not hit_c0.is_empty():
+		assert_true(hit_c0["collider"] is Area3D and cRoot.is_ancestor_of(hit_c0["collider"]), "Picked collider belongs to drawer ContentsRoot")
+
+	# 5. Hold-to-push door moves incrementally & stays solid (layer 3) when open
 	var door: Node3D = track(load("res://entities/props/embassy_door.gd").new()) as Node3D
 	door._ensure_nodes()
 	for _i in range(7):
 		door._execute_step_push(1, 0.10, Vector3(0.0, 0.0, 2.0))
 	assert_false(door.is_open, "Partial hold-push keeps door partially ajar rather than snapping open")
 	assert_true(is_equal_approx(door.open_fraction, 0.25), "0.7s of 2.8s slow push opens door fraction to 0.25")
+	door._execute_door_action(1, "FAST_TOGGLE", Vector3(0.0, 0.0, 2.0))
+	assert_true(door.is_open, "Door opens fully")
+	assert_eq(door._door_body.collision_layer, 3, "Open door leaf keeps Layer 1 Environment + Layer 2 Interactable (solid mesh)")
 
 	drawer.close_container(1, p1)
 	if drawer.get_parent() != null:

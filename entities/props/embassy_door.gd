@@ -303,8 +303,7 @@ func _rpc_sync_door(opened: bool, target_angle_rad: float, duration: float, buck
 	if absf(target_angle_rad) > 0.01:
 		push_side_sign = 1.0 if target_angle_rad >= 0.0 else -1.0
 	if _door_body != null:
-		var passable_open: bool = is_open or absf(target_angle_rad) >= deg_to_rad(30.0)
-		_door_body.collision_layer = (GameConfig.LAYER_INTERACTABLE if GameConfig != null else 2) if passable_open else ((GameConfig.LAYER_ENVIRONMENT | GameConfig.LAYER_INTERACTABLE) if GameConfig != null else 3)
+		_door_body.collision_layer = (GameConfig.LAYER_ENVIRONMENT | GameConfig.LAYER_INTERACTABLE) if GameConfig != null else 3
 	current_target_angle_rad = target_angle_rad
 	has_rigged_bucket = bucket_rigged
 	if _bucket_visual != null:

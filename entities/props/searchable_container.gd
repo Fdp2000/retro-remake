@@ -28,13 +28,31 @@ const ITEM_TRAY_POSITIONS: Array[Vector2] = [
 	Vector2(0.36, 0.68),
 	Vector2(0.64, 0.68)
 ]
-const CLUTTER_PROP_NAMES: Array[String] = [
-	"Manila Folder",
-	"Embassy Ledger",
-	"Classified Envelope",
-	"Folded Newspaper",
-	"Heavy Stapler",
-	"Wooden Clipboard"
+const CLUTTER_PROP_SPECS: Array[Dictionary] = [
+	{ # 0: Manila Folder
+		"base_y": -0.030, "size": Vector3(0.26, 0.006, 0.19), "color": Color(0.84, 0.72, 0.48),
+		"acc_size": Vector3(0.08, 0.006, 0.035), "acc_color": Color(0.88, 0.76, 0.52), "acc_pos": Vector3(-0.07, 0.0, -0.105)
+	},
+	{ # 1: Embassy Ledger
+		"base_y": -0.019, "size": Vector3(0.21, 0.010, 0.25), "color": Color(0.45, 0.14, 0.16),
+		"acc_size": Vector3(0.032, 0.011, 0.25), "acc_color": Color(0.85, 0.72, 0.25), "acc_pos": Vector3(-0.09, 0.0005, 0.0)
+	},
+	{ # 2: Classified Envelope
+		"base_y": -0.008, "size": Vector3(0.23, 0.006, 0.14), "color": Color(0.92, 0.90, 0.82),
+		"acc_size": Vector3(0.10, 0.002, 0.035), "acc_color": Color(0.82, 0.16, 0.16), "acc_pos": Vector3(0.0, 0.004, 0.0)
+	},
+	{ # 3: Folded Newspaper
+		"base_y": 0.002, "size": Vector3(0.24, 0.008, 0.20), "color": Color(0.76, 0.77, 0.75),
+		"acc_size": Vector3(0.20, 0.002, 0.035), "acc_color": Color(0.18, 0.20, 0.22), "acc_pos": Vector3(0.0, 0.005, -0.055)
+	},
+	{ # 4: Wooden Clipboard
+		"base_y": 0.013, "size": Vector3(0.19, 0.008, 0.25), "color": Color(0.56, 0.38, 0.22),
+		"acc_size": Vector3(0.15, 0.003, 0.19), "acc_color": Color(0.95, 0.95, 0.92), "acc_pos": Vector3(0.0, 0.0055, 0.015)
+	},
+	{ # 5: Heavy Stapler
+		"base_y": 0.028, "size": Vector3(0.20, 0.016, 0.065), "color": Color(0.24, 0.26, 0.30),
+		"acc_size": Vector3(0.16, 0.008, 0.045), "acc_color": Color(0.78, 0.22, 0.20), "acc_pos": Vector3(-0.01, 0.010, 0.0)
+	}
 ]
 
 @export var container_id: String = "Drawer"
@@ -68,7 +86,6 @@ var drawer_visual_ratio: float = 0.0
 var _hollow_built: bool = false
 var _contents_root: Node3D = null
 var _clutter_area_nodes: Dictionary = {}
-var _lit_bomb_label_3d: Label3D = null
 
 
 func _ready() -> void:
@@ -90,8 +107,6 @@ func _process(delta: float) -> void:
 		return
 	if _is_peer_connected() and not multiplayer.is_server():
 		live_bomb_fuse_remaining = maxf(live_bomb_fuse_remaining - delta, 0.0)
-		if _lit_bomb_label_3d != null and is_instance_valid(_lit_bomb_label_3d):
-			_lit_bomb_label_3d.text = "LIT BOMB! (%.1fs)\nCLICK TO GRAB!" % live_bomb_fuse_remaining
 		state_changed.emit()
 		return
 
@@ -99,8 +114,6 @@ func _process(delta: float) -> void:
 	if live_bomb_fuse_remaining <= 0.0:
 		_detonate_container_bomb()
 	else:
-		if _lit_bomb_label_3d != null and is_instance_valid(_lit_bomb_label_3d):
-			_lit_bomb_label_3d.text = "LIT BOMB! (%.1fs)\nCLICK TO GRAB!" % live_bomb_fuse_remaining
 		state_changed.emit()
 
 
@@ -326,7 +339,7 @@ func _activate_opened_drawer_effects(peer_id: int, is_slow_peek: bool) -> Dictio
 	return out
 
 
-func _trigger_spring_trap_ko(peer_id: int, player: Node) -> void:
+func _trigger_spring_trap_ko(_peer_id: int, player: Node) -> void:
 	armed_spring = false
 	spring_unlatched = false
 	var owner_id: int = spring_owner_peer_id
@@ -994,6 +1007,56 @@ func _ensure_3d_tray_structure() -> void:
 		_tray_drawer_node.add_child(_contents_root)
 
 
+func _get_stored_item_tray_layout(item_id: String) -> Dictionary:
+	match item_id.to_upper():
+		"KEY":
+			return {"scale": Vector3(0.70, 0.25, 0.55), "size": Vector3(0.126, 0.015, 0.165)}
+		"MONEY":
+			return {"scale": Vector3(0.50, 0.06, 0.50), "size": Vector3(0.160, 0.017, 0.160)}
+		"PASSPORT":
+			return {"scale": Vector3(0.72, 0.38, 0.72), "size": Vector3(0.130, 0.015, 0.173)}
+		"PLANS":
+			return {"scale": Vector3(0.16, 0.55, 0.55), "size": Vector3(0.198, 0.016, 0.055)}
+		"BUCKET":
+			return {"scale": Vector3(0.45, 0.06, 0.45), "size": Vector3(0.144, 0.017, 0.144)}
+		"BOMB", "LIVE_BOMB":
+			return {"scale": Vector3(0.50, 0.06, 0.50), "size": Vector3(0.140, 0.017, 0.140)}
+		_:
+			return {"scale": Vector3(0.72, 0.11, 0.72), "size": Vector3(0.158, 0.016, 0.158)}
+
+
+func pick_drawer_object_at_ray(ray_origin: Vector3, ray_dir: Vector3) -> Dictionary:
+	if _contents_root == null or not is_instance_valid(_contents_root) or not is_inside_tree():
+		return {}
+	var best_area: Node3D = null
+	var best_world_hit := Vector3.ZERO
+	var best_dist_sq: float = INF
+	for child in _contents_root.get_children():
+		if not (child is Area3D):
+			continue
+		var area: Area3D = child as Area3D
+		if not area.has_meta("exact_aabb"):
+			continue
+		var inv: Transform3D = area.global_transform.affine_inverse()
+		var local_orig: Vector3 = inv * ray_origin
+		var local_dir: Vector3 = (inv.basis * ray_dir).normalized()
+		var aabb: AABB = area.get_meta("exact_aabb") as AABB
+		var local_hit: Variant = aabb.intersects_ray(local_orig, local_dir)
+		if not (local_hit is Vector3):
+			continue
+		var world_hit: Vector3 = area.global_transform * (local_hit as Vector3)
+		if not is_briefcase_container and to_local(world_hit).z < 0.34:
+			continue
+		var dist_sq: float = ray_origin.distance_squared_to(world_hit)
+		if dist_sq < best_dist_sq:
+			best_dist_sq = dist_sq
+			best_area = area
+			best_world_hit = world_hit
+	if best_area == null:
+		return {}
+	return {"collider": best_area, "position": best_world_hit}
+
+
 func _rebuild_3d_interior() -> void:
 	if not is_inside_tree():
 		return
@@ -1001,7 +1064,6 @@ func _rebuild_3d_interior() -> void:
 	if _contents_root == null:
 		return
 
-	_lit_bomb_label_3d = null
 	_clutter_area_nodes.clear()
 	for child in _contents_root.get_children():
 		_contents_root.remove_child(child)
@@ -1013,17 +1075,19 @@ func _rebuild_3d_interior() -> void:
 		lip_area.name = "LipSpringTrap"
 		lip_area.collision_layer = DRAWER_CONTENTS_MASK
 		lip_area.collision_mask = 0
-		lip_area.position = Vector3(0.0, 0.065, 0.16)
+		lip_area.position = Vector3(0.0, 0.055, 0.16)
 		lip_area.set_meta("container_role", "lip_spring")
+		var lip_size := Vector3(0.242, 0.059, 0.092)
+		lip_area.set_meta("exact_aabb", AABB(-lip_size * 0.5, lip_size))
 
 		var lip_col := CollisionShape3D.new()
 		var lip_shape := BoxShape3D.new()
-		lip_shape.size = Vector3(0.36, 0.08, 0.11)
+		lip_shape.size = lip_size
 		lip_col.shape = lip_shape
 		lip_area.add_child(lip_col)
 
 		var spring_mesh := PICKUP_SCRIPT.build_item_mesh("SPRING")
-		spring_mesh.scale = Vector3(0.85, 0.45, 0.45)
+		spring_mesh.scale = Vector3(1.10, 0.42, 0.42)
 		var mat: StandardMaterial3D = spring_mesh.material_override as StandardMaterial3D
 		if mat != null:
 			if armed_spring:
@@ -1033,16 +1097,6 @@ func _rebuild_3d_interior() -> void:
 			else:
 				mat.albedo_color = Color(0.95, 0.65, 0.18)
 		lip_area.add_child(spring_mesh)
-
-		var lip_text: String = "ARMED SPRING! (Click to Unlatch)"
-		var lip_tint := Color(1.0, 0.35, 0.30)
-		if spring_unlatched:
-			lip_text = "UNLATCHED SPRING (LMB Steal | RMB Re-Arm)"
-			lip_tint = Color(0.35, 0.95, 0.85)
-		elif staged_spring_on_lip:
-			lip_text = "SPRING STAGED (Arms on Close)"
-			lip_tint = Color(1.0, 0.78, 0.30)
-		lip_area.add_child(_create_drawer_label(lip_text, lip_tint, Vector3(0.0, 0.055, -0.02)))
 		_contents_root.add_child(lip_area)
 
 	# 2. Lit or Planted Time Bomb in Tray
@@ -1051,60 +1105,58 @@ func _rebuild_3d_interior() -> void:
 		bomb_area.name = "TrayTimeBomb"
 		bomb_area.collision_layer = DRAWER_CONTENTS_MASK
 		bomb_area.collision_mask = 0
-		bomb_area.position = Vector3(0.0, -0.01, -0.03)
+		bomb_area.position = Vector3(0.0, -0.015, -0.04)
 		bomb_area.set_meta("container_role", "lit_bomb" if live_bomb_lit else "planted_bomb")
+		var bomb_size := Vector3(0.16, 0.16, 0.16)
+		bomb_area.set_meta("exact_aabb", AABB(-bomb_size * 0.5, bomb_size))
 
 		var bomb_col := CollisionShape3D.new()
 		var bomb_shape := BoxShape3D.new()
-		bomb_shape.size = Vector3(0.26, 0.18, 0.26)
+		bomb_shape.size = bomb_size
 		bomb_col.shape = bomb_shape
 		bomb_area.add_child(bomb_col)
 
 		var bomb_mesh := PICKUP_SCRIPT.build_item_mesh("LIVE_BOMB" if live_bomb_lit else "BOMB")
-		bomb_mesh.scale = Vector3(0.75, 0.75, 0.75)
+		bomb_mesh.scale = Vector3(0.55, 0.55, 0.55)
 		bomb_area.add_child(bomb_mesh)
-
-		var b_text: String = ("LIT BOMB! (%.1fs)\nCLICK TO GRAB!" % live_bomb_fuse_remaining) if live_bomb_lit else "TIME BOMB (Arms on Close)"
-		var b_tint: Color = Color(1.0, 0.35, 0.15) if live_bomb_lit else Color(1.0, 0.70, 0.25)
-		var b_lbl := _create_drawer_label(b_text, b_tint, Vector3(0.0, 0.10, 0.0))
-		if live_bomb_lit:
-			_lit_bomb_label_3d = b_lbl
-		bomb_area.add_child(b_lbl)
 		_contents_root.add_child(bomb_area)
 
-	# 3. Bottom Layer (Layer 0) — Stored Objectives & Gadgets
+	# 3. Bottom Layer (Layer 0) — Stored Objectives & Gadgets (strictly below -0.039)
 	for i in range(stored_items.size()):
 		var item_id: String = str(stored_items[i]).to_upper()
 		var norm: Vector2 = ITEM_TRAY_POSITIONS[i % ITEM_TRAY_POSITIONS.size()]
 		var xz: Vector2 = norm_to_tray_local_xz(norm)
+		var layout: Dictionary = _get_stored_item_tray_layout(item_id)
+		var exact_size: Vector3 = layout["size"] as Vector3
 
 		var item_area := Area3D.new()
 		item_area.name = "TrayItem_%d_%s" % [i, item_id]
 		item_area.collision_layer = DRAWER_CONTENTS_MASK
 		item_area.collision_mask = 0
-		item_area.position = Vector3(xz.x, -0.04, xz.y)
+		item_area.position = Vector3(xz.x, -0.048, xz.y)
 		item_area.set_meta("container_role", "loot_item")
 		item_area.set_meta("item_id", item_id)
+		item_area.set_meta("base_y", -0.048)
+		item_area.set_meta("exact_aabb", AABB(-exact_size * 0.5, exact_size))
 
 		var item_col := CollisionShape3D.new()
 		var item_shape := BoxShape3D.new()
-		item_shape.size = Vector3(0.22, 0.045, 0.18)
+		item_shape.size = exact_size
 		item_col.shape = item_shape
 		item_area.add_child(item_col)
 
 		var item_mesh := PICKUP_SCRIPT.build_item_mesh(item_id)
-		item_mesh.scale = Vector3(0.68, 0.35, 0.68)
+		item_mesh.scale = layout["scale"] as Vector3
 		item_area.add_child(item_mesh)
-
-		var disp: String = PICKUP_SCRIPT.get_display_name(item_id)
-		item_area.add_child(_create_drawer_label(disp, Color(1.0, 0.98, 0.88), Vector3(0.0, 0.032, 0.0)))
 		_contents_root.add_child(item_area)
 
-	# 4. Upper Layers (Layers 1–3) — Multi-Layer Draggable Misc Junk / Clutter
+	# 4. Upper Layers — Strictly Disjoint Vertical Y Strata (Zero Clipping)
 	for i in range(clutter_positions.size()):
+		var spec: Dictionary = CLUTTER_PROP_SPECS[i % CLUTTER_PROP_SPECS.size()]
 		@warning_ignore("integer_division")
-		var layer_idx: int = i / 2
-		var base_y: float = 0.010 + float(layer_idx) * 0.026 + float(i % 2) * 0.008
+		var stack_pass: int = i / CLUTTER_PROP_SPECS.size()
+		var base_y: float = float(spec["base_y"]) + float(stack_pass) * 0.055
+		var c_size: Vector3 = spec["size"] as Vector3
 		var xz: Vector2 = norm_to_tray_local_xz(clutter_positions[i])
 
 		var clutter_area := Area3D.new()
@@ -1117,10 +1169,11 @@ func _rebuild_3d_interior() -> void:
 		clutter_area.set_meta("container_role", "clutter")
 		clutter_area.set_meta("clutter_idx", i)
 		clutter_area.set_meta("base_y", base_y)
+		clutter_area.set_meta("exact_aabb", AABB(-c_size * 0.5, c_size))
 
 		var c_col := CollisionShape3D.new()
 		var c_shape := BoxShape3D.new()
-		c_shape.size = Vector3(0.28, 0.022, 0.21)
+		c_shape.size = c_size
 		c_col.shape = c_shape
 		clutter_area.add_child(c_col)
 
@@ -1130,79 +1183,27 @@ func _rebuild_3d_interior() -> void:
 
 
 func _build_3d_clutter_prop(parent_area: Area3D, idx: int) -> void:
-	var variant: int = idx % 6
+	var spec: Dictionary = CLUTTER_PROP_SPECS[idx % CLUTTER_PROP_SPECS.size()]
 	var main_box := BoxMesh.new()
+	main_box.size = spec["size"] as Vector3
 	var main_mat := StandardMaterial3D.new()
-	var accent_box := BoxMesh.new()
-	var accent_mat := StandardMaterial3D.new()
-	var accent_pos := Vector3.ZERO
-
-	match variant:
-		0: # Manila Folder
-			main_box.size = Vector3(0.27, 0.012, 0.20)
-			main_mat.albedo_color = Color(0.84, 0.72, 0.48)
-			accent_box.size = Vector3(0.08, 0.012, 0.04)
-			accent_mat.albedo_color = Color(0.88, 0.76, 0.52)
-			accent_pos = Vector3(-0.07, 0.0, -0.115)
-		1: # Embassy Ledger
-			main_box.size = Vector3(0.22, 0.020, 0.26)
-			main_mat.albedo_color = Color(0.45, 0.14, 0.16)
-			accent_box.size = Vector3(0.035, 0.022, 0.26)
-			accent_mat.albedo_color = Color(0.85, 0.72, 0.25)
-			accent_pos = Vector3(-0.095, 0.001, 0.0)
-		2: # Classified Envelope
-			main_box.size = Vector3(0.24, 0.011, 0.15)
-			main_mat.albedo_color = Color(0.92, 0.90, 0.82)
-			accent_box.size = Vector3(0.11, 0.003, 0.04)
-			accent_mat.albedo_color = Color(0.82, 0.16, 0.16)
-			accent_pos = Vector3(0.0, 0.007, 0.0)
-		3: # Folded Newspaper
-			main_box.size = Vector3(0.25, 0.015, 0.21)
-			main_mat.albedo_color = Color(0.76, 0.77, 0.75)
-			accent_box.size = Vector3(0.21, 0.003, 0.04)
-			accent_mat.albedo_color = Color(0.18, 0.20, 0.22)
-			accent_pos = Vector3(0.0, 0.009, -0.06)
-		4: # Heavy Stapler
-			main_box.size = Vector3(0.22, 0.024, 0.07)
-			main_mat.albedo_color = Color(0.24, 0.26, 0.30)
-			accent_box.size = Vector3(0.18, 0.012, 0.05)
-			accent_mat.albedo_color = Color(0.78, 0.22, 0.20)
-			accent_pos = Vector3(-0.01, 0.014, 0.0)
-		_: # Wooden Clipboard
-			main_box.size = Vector3(0.20, 0.012, 0.26)
-			main_mat.albedo_color = Color(0.56, 0.38, 0.22)
-			accent_box.size = Vector3(0.16, 0.004, 0.20)
-			accent_mat.albedo_color = Color(0.95, 0.95, 0.92)
-			accent_pos = Vector3(0.0, 0.008, 0.015)
+	main_mat.albedo_color = spec["color"] as Color
 
 	var base_mi := MeshInstance3D.new()
 	base_mi.mesh = main_box
 	base_mi.material_override = main_mat
 	parent_area.add_child(base_mi)
 
+	var accent_box := BoxMesh.new()
+	accent_box.size = spec["acc_size"] as Vector3
+	var accent_mat := StandardMaterial3D.new()
+	accent_mat.albedo_color = spec["acc_color"] as Color
+
 	var acc_mi := MeshInstance3D.new()
 	acc_mi.mesh = accent_box
 	acc_mi.material_override = accent_mat
-	acc_mi.position = accent_pos
+	acc_mi.position = spec["acc_pos"] as Vector3
 	parent_area.add_child(acc_mi)
-
-	var prop_label: String = CLUTTER_PROP_NAMES[variant]
-	var lbl := _create_drawer_label(prop_label, Color(0.96, 0.96, 0.96), Vector3(0.0, main_box.size.y * 0.5 + 0.008, 0.0))
-	lbl.font_size = 14
-	parent_area.add_child(lbl)
-
-
-func _create_drawer_label(text_val: String, tint: Color, local_pos: Vector3) -> Label3D:
-	var lbl := Label3D.new()
-	lbl.text = text_val
-	lbl.modulate = tint
-	lbl.font_size = 17
-	lbl.pixel_size = 0.0022
-	lbl.outline_size = 6
-	lbl.outline_modulate = Color(0.05, 0.05, 0.05, 0.92)
-	lbl.position = local_pos
-	lbl.rotation_degrees = Vector3(-90.0, 0.0, 0.0)
-	return lbl
 
 
 func _find_player_node(peer_id: int) -> Node:

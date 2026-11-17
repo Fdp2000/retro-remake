@@ -1136,13 +1136,17 @@ func _is_point_over_interactive_ui(screen_pos: Vector2) -> bool:
 
 
 func _raycast_container_3d(screen_pos: Vector2) -> Dictionary:
-	if camera == null or get_world_3d() == null:
+	if camera == null or active_container == null or not is_instance_valid(active_container):
+		return {}
+	var ray_origin: Vector3 = camera.project_ray_origin(screen_pos)
+	var ray_dir: Vector3 = camera.project_ray_normal(screen_pos)
+	if active_container.has_method("pick_drawer_object_at_ray"):
+		return active_container.pick_drawer_object_at_ray(ray_origin, ray_dir)
+	if get_world_3d() == null:
 		return {}
 	var space: PhysicsDirectSpaceState3D = get_world_3d().direct_space_state
 	if space == null:
 		return {}
-	var ray_origin: Vector3 = camera.project_ray_origin(screen_pos)
-	var ray_dir: Vector3 = camera.project_ray_normal(screen_pos)
 	var query := PhysicsRayQueryParameters3D.create(ray_origin, ray_origin + ray_dir * 4.0, 32)
 	query.collide_with_areas = true
 	query.collide_with_bodies = false
@@ -1150,7 +1154,7 @@ func _raycast_container_3d(screen_pos: Vector2) -> Dictionary:
 	if hit.is_empty():
 		return {}
 	var collider_node: Node = hit.get("collider") as Node
-	if collider_node == null or active_container == null or not active_container.is_ancestor_of(collider_node):
+	if collider_node == null or not active_container.is_ancestor_of(collider_node):
 		return {}
 	if not bool(active_container.get("is_briefcase_container")) and active_container is Node3D:
 		var local_hit: Vector3 = (active_container as Node3D).to_local(hit["position"])
@@ -1178,9 +1182,9 @@ func _handle_container_3d_mouse_down(screen_pos: Vector2, button_index: int) -> 
 			var local_hit: Vector3 = tray.to_local(hit_pos)
 			_dragging_3d_clutter_idx = int(hit_area.get_meta("clutter_idx", -1))
 			_dragging_3d_clutter_node = hit_area
-			_dragging_3d_plane_y = hit_pos.y
+			_dragging_3d_plane_y = hit_area.global_position.y
 			_dragging_3d_offset_xz = Vector2(hit_area.position.x - local_hit.x, hit_area.position.z - local_hit.z)
-			hit_area.position.y = float(hit_area.get_meta("base_y", hit_area.position.y)) + 0.025
+			hit_area.position.y = float(hit_area.get_meta("base_y", hit_area.position.y))
 			return true
 		"loot_item":
 			if button_index == MOUSE_BUTTON_LEFT and active_container.has_method("request_loot_item"):
