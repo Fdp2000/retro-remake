@@ -100,6 +100,14 @@ func get_hold_interaction_duration() -> float:
 	return GameConfig.door_slow_peek_hold_time if GameConfig != null else 0.60
 
 
+func request_begin_peek(caller_peer_id: int) -> void:
+	var opener_pos: Vector3 = _resolve_opener_position(caller_peer_id)
+	if _is_peer_connected():
+		_server_begin_peek.rpc_id(1, caller_peer_id, opener_pos)
+	else:
+		_execute_begin_peek(caller_peer_id, opener_pos)
+
+
 func request_interaction(caller_peer_id: int) -> void:
 	var opener_pos: Vector3 = _resolve_opener_position(caller_peer_id)
 	if _is_peer_connected():
@@ -147,6 +155,40 @@ func steal_water_bucket(thief_peer_id: int) -> bool:
 	bucket_owner_peer_id = 0
 	_apply_closed_visuals()
 	return true
+
+
+@rpc("any_peer", "call_local", "reliable")
+func _server_begin_peek(caller_peer_id: int, opener_pos: Vector3) -> void:
+	if _is_peer_connected() and not multiplayer.is_server():
+		return
+	var sender_id: int = multiplayer.get_remote_sender_id()
+	if sender_id != 0 and sender_id != caller_peer_id:
+		caller_peer_id = sender_id
+	var player: Node = _find_player_node(caller_peer_id)
+	if player != null and player is Node3D:
+		opener_pos = (player as Node3D).global_position
+		if opener_pos.distance_to(_safe_global_pos()) > 3.5:
+			return
+	_execute_begin_peek(caller_peer_id, opener_pos)
+
+
+func _execute_begin_peek(_peer_id: int, opener_pos: Vector3) -> void:
+	var target_rad: float = 0.0 if is_open else compute_away_angle_rad(opener_pos)
+	var dur: float = GameConfig.door_slow_peek_swing_duration if GameConfig != null else 0.60
+	if _is_peer_connected():
+		_rpc_begin_peek_swing.rpc(target_rad, dur)
+	else:
+		_rpc_begin_peek_swing(target_rad, dur)
+
+
+@rpc("authority", "call_local", "reliable")
+func _rpc_begin_peek_swing(target_angle_rad: float, dur: float) -> void:
+	_ensure_nodes()
+	if _swing_tween != null and _swing_tween.is_valid():
+		_swing_tween.kill()
+	if is_inside_tree() and dur > 0.0:
+		_swing_tween = create_tween()
+		_swing_tween.tween_property(_hinge_pivot, "rotation:y", target_angle_rad, dur).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 
 
 @rpc("any_peer", "call_local", "reliable")
@@ -248,12 +290,16 @@ func _rpc_sync_door(opened: bool, target_angle_rad: float, duration: float, buck
 		var ajar_deg: float = GameConfig.door_bucket_ajar_angle_deg if GameConfig != null else 5.0
 		final_rad = deg_to_rad(ajar_deg)
 
+	var total_span: float = maxf(deg_to_rad(open_angle_deg), 0.1)
+	var remaining_span: float = absf(final_rad - _hinge_pivot.rotation.y)
+	var scaled_dur: float = duration * clampf(remaining_span / total_span, 0.12, 1.0)
+
 	if _swing_tween != null and _swing_tween.is_valid():
 		_swing_tween.kill()
 
-	if is_inside_tree() and duration > 0.0:
+	if is_inside_tree() and scaled_dur > 0.01 and not is_equal_approx(_hinge_pivot.rotation.y, final_rad):
 		_swing_tween = create_tween()
-		_swing_tween.tween_property(_hinge_pivot, "rotation:y", final_rad, duration).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+		_swing_tween.tween_property(_hinge_pivot, "rotation:y", final_rad, scaled_dur).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	else:
 		_hinge_pivot.rotation.y = final_rad
 

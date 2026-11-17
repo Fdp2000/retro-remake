@@ -242,3 +242,45 @@ func test_airport_exit_door_victory_validation() -> void:
 	assert_true(exit_door.try_trigger_exit_victory(p1), "Airport Exit accepts 4/4 Briefcase")
 	assert_eq(MatchManager.match_state, MatchManager.MatchState.ENDED, "Match transitioned to ENDED")
 	assert_eq(MatchManager.winner_peer_id, 1, "Peer 1 declared winner")
+
+
+func test_drawer_3d_interior_layers_and_immediate_preview() -> void:
+	MatchManager.start_new_match([1, 2], 444)
+	var p1: CharacterBody3D = _instantiate_live_player("1")
+	var drawer: StaticBody3D = _instantiate_container()
+	drawer.set("stored_items", ["KEY", "MONEY"] as Array[String])
+	drawer.set("armed_spring", true)
+	var tree: SceneTree = Engine.get_main_loop() as SceneTree
+	if tree != null and tree.root != null:
+		tree.root.add_child(drawer)
+
+	# 1. Coordinate round-trip between normalized drawer plane and 3D local XZ tray space
+	var sample_norm := Vector2(0.75, 0.30)
+	var local_xz: Vector2 = drawer.norm_to_tray_local_xz(sample_norm)
+	var back_norm: Vector2 = drawer.tray_local_xz_to_norm(local_xz.x, local_xz.y)
+	assert_true(sample_norm.is_equal_approx(back_norm), "3D tray XZ round-trips cleanly to normalized coordinates")
+
+	# 2. Immediate begin_open_preview enters DRAWER_LOCK before full commit
+	assert_true(drawer.begin_open_preview(1, p1), "begin_open_preview succeeds on unoccupied drawer")
+	assert_eq(p1.stance_state, GameConfig.Stance.DRAWER_LOCK, "Player immediately enters DRAWER_LOCK on press-down")
+	assert_eq(drawer.occupied_by_peer_id, 0, "Preview does not lock occupied_by_peer_id until tap/hold commits")
+
+	# 3. Verify hollow tray structure & multi-layer 3D clutter/items/spring built inside ContentsRoot
+	drawer._rebuild_3d_interior()
+	var tray: Node3D = drawer.get_tray_node()
+	assert_true(tray != null, "TrayPivot exists in 3D drawer")
+	var contents_root: Node3D = tray.get_node_or_null("ContentsRoot") as Node3D
+	assert_true(contents_root != null, "ContentsRoot built inside TrayPivot")
+	var lip_node: Node3D = contents_root.get_node_or_null("LipSpringTrap") as Node3D
+	assert_true(lip_node != null, "LipSpringTrap 3D Area3D built when spring armed")
+	var item_key: Node3D = contents_root.get_node_or_null("TrayItem_0_KEY") as Node3D
+	var clutter_0: Node3D = drawer.get_clutter_area_node(0)
+	var clutter_5: Node3D = drawer.get_clutter_area_node(5)
+	assert_true(item_key != null, "Bottom-layer 3D KEY item built in ContentsRoot")
+	assert_true(clutter_0 != null and clutter_5 != null, "Multi-layer 3D clutter props built (indices 0..5)")
+	assert_gt(clutter_0.position.y, item_key.position.y, "Clutter Layer 1 sits above bottom-layer items")
+	assert_gt(clutter_5.position.y, clutter_0.position.y, "Clutter Layer 3 sits above Clutter Layer 1")
+
+	drawer.close_container(1, p1)
+	if drawer.get_parent() != null:
+		drawer.get_parent().remove_child(drawer)
