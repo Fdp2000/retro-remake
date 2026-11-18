@@ -350,7 +350,9 @@ func _trigger_spring_trap_ko(_peer_id: int, player: Node) -> void:
 	if AudioBridge != null:
 		AudioBridge.request_world_cue("spring_trigger", _safe_global_pos(), 10.0, owner_id)
 	if player != null and player.has_method("apply_trap_ko"):
-		player.apply_trap_ko("SPRING", owner_id)
+		var spring_dir: Vector3 = global_transform.basis.z.normalized() if is_inside_tree() else Vector3(0.0, 0.0, 1.0)
+		var spring_kick: Vector3 = spring_dir * 13.5 + Vector3(0.0, 6.0, 0.0)
+		player.apply_trap_ko("SPRING", owner_id, spring_kick)
 	elif player != null and player.has_method("force_drop_all_hands"):
 		player.force_drop_all_hands()
 	occupied_by_peer_id = 0

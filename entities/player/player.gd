@@ -17,9 +17,11 @@ const DVD_RETICLE_UI_SCRIPT = preload("res://ui/dvd_dart_reticle_ui.gd")
 const CLUB_QTE_UI_SCRIPT = preload("res://ui/club_qte_bar_ui.gd")
 const WATCH_BLUFF_UI_SCRIPT = preload("res://ui/spy_watch_bluff_ui.gd")
 const CRT_REPLAY_UI_SCRIPT = preload("res://ui/crt_replay_monitor_ui.gd")
+const RAGDOLL_CTRL_SCRIPT = preload("res://entities/player/spy_ragdoll_controller.gd")
 const TRIPWIRE_SCRIPT = preload("res://entities/traps/tripwire_trap.gd")
 const THROWN_BOMB_SCRIPT = preload("res://entities/traps/thrown_time_bomb.gd")
 const TAP_RELEASE_THRESHOLD: float = 0.20
+const PELVIS_SYNC_INTERVAL: float = 0.20
 
 # ==========================================
 # Replicated Properties (MultiplayerSynchronizer — Client Locomotion/Stance Authority)
@@ -153,10 +155,14 @@ var _dvd_reticle_ui: DVDDartReticleUI = null
 var _club_qte_ui: ClubQTEBarUI = null
 var _watch_bluff_ui: SpyWatchBluffUI = null
 var _crt_replay_ui: CRTReplayMonitorUI = null
+var _ragdoll_ctrl: SpyRagdollController = null
 var _camera_tween: Tween = null
 var _bonus_toast_timer: float = 0.0
 var ko_remaining_seconds: float = 0.0
 var wakeup_immunity_remaining: float = 0.0
+var _pelvis_sync_accum: float = 0.0
+var _last_ko_reason: String = ""
+var _last_ko_impulse: Vector3 = Vector3.ZERO
 var _dragging_3d_clutter_idx: int = -1
 var _dragging_3d_clutter_node: Node3D = null
 var _dragging_3d_plane_y: float = 0.0
@@ -516,9 +522,19 @@ func exit_container_view() -> void:
 			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 
-func apply_trap_ko(_reason: String, _attacker_peer_id: int = 0) -> Array[Dictionary]:
+func apply_trap_ko(_reason: String, _attacker_peer_id: int = 0, custom_impulse: Vector3 = Vector3.ZERO) -> Array[Dictionary]:
 	var ko_stance: int = GameConfig.Stance.KO if GameConfig != null else 4
-	if wakeup_immunity_remaining > 0.0 or stance_state == ko_stance:
+	if wakeup_immunity_remaining > 0.0:
+		return [] as Array[Dictionary]
+
+	var kick_impulse: Vector3 = _compute_ko_kick_impulse(_reason, _attacker_peer_id, custom_impulse)
+
+	# Secondary hits on already-KO'd bodies launch the ragdoll without resetting the 15s timer (Decision 5)
+	if stance_state == ko_stance:
+		if _is_peer_connected():
+			_rpc_apply_secondary_ragdoll_hit.rpc(kick_impulse, _reason)
+		else:
+			_rpc_apply_secondary_ragdoll_hit(kick_impulse, _reason)
 		return [] as Array[Dictionary]
 
 	if active_container != null and is_instance_valid(active_container) and active_container.has_method("close_container"):
@@ -555,16 +571,60 @@ func apply_trap_ko(_reason: String, _attacker_peer_id: int = 0) -> Array[Diction
 			)
 
 	var ko_dur: float = GameConfig.ko_ragdoll_duration if GameConfig != null else 15.0
+	var start_pos: Vector3 = _safe_global_pos()
 	if _is_peer_connected():
-		_rpc_apply_ko_state.rpc(ko_dur, 0.0, true)
+		_rpc_apply_ko_state.rpc(ko_dur, 0.0, true, start_pos, rotation.y, kick_impulse, _reason)
 	else:
-		_rpc_apply_ko_state(ko_dur, 0.0, true)
+		_rpc_apply_ko_state(ko_dur, 0.0, true, start_pos, rotation.y, kick_impulse, _reason)
 	_sync_inventory_state_to_peers()
 
 	var victim_id: int = name.to_int()
 	if _attacker_peer_id > 0 and _attacker_peer_id != victim_id and _reason != "CLUB":
 		_dispatch_crt_replay_to_attacker(_attacker_peer_id, _reason, victim_id)
 	return drops
+
+
+func _compute_ko_kick_impulse(reason: String, attacker_peer_id: int, custom_impulse: Vector3 = Vector3.ZERO) -> Vector3:
+	if custom_impulse.length_squared() > 0.01:
+		return custom_impulse
+
+	var my_pos: Vector3 = _safe_global_pos()
+	var away_dir: Vector3 = global_transform.basis.z.normalized() if is_inside_tree() else Vector3(0.0, 0.0, 1.0)
+	if attacker_peer_id > 0 and attacker_peer_id != name.to_int() and is_inside_tree() and get_tree() != null:
+		for p in get_tree().get_nodes_in_group("spy_players"):
+			if p.name.to_int() == attacker_peer_id and p is Node3D:
+				var delta_v: Vector3 = my_pos - (p as Node3D).global_position
+				delta_v.y = 0.0
+				if delta_v.length_squared() > 0.01:
+					away_dir = delta_v.normalized()
+				break
+
+	match reason.to_upper():
+		"DART_GUN":
+			return away_dir * 15.5 + Vector3(0.0, 5.5, 0.0)
+		"BOMB":
+			return away_dir * 16.5 + Vector3(0.0, 7.5, 0.0)
+		"SPRING":
+			return away_dir * 13.5 + Vector3(0.0, 6.0, 0.0)
+		"CLUB":
+			return away_dir * 14.5 + Vector3(0.0, 4.8, 0.0)
+		"TRIPWIRE":
+			var fwd: Vector3 = (-global_transform.basis.z).normalized() if is_inside_tree() else Vector3(0.0, 0.0, -1.0)
+			return fwd * 8.5
+		"BUCKET":
+			return away_dir * 4.5 + Vector3(0.0, -7.0, 0.0)
+		_:
+			return away_dir * 11.0 + Vector3(0.0, 4.5, 0.0)
+
+
+@rpc("any_peer", "call_local", "reliable")
+func _rpc_apply_secondary_ragdoll_hit(kick_impulse: Vector3, reason: String) -> void:
+	if not _is_authorized_state_rpc():
+		return
+	_last_ko_reason = reason
+	_last_ko_impulse = kick_impulse
+	if _ragdoll_ctrl != null and _ragdoll_ctrl.is_ragdoll_active:
+		_ragdoll_ctrl.apply_ragdoll_impulse(kick_impulse, reason)
 
 
 func _dispatch_crt_replay_to_attacker(attacker_id: int, reason: String, victim_id: int) -> void:
@@ -596,34 +656,161 @@ func _is_authorized_state_rpc() -> bool:
 
 
 @rpc("any_peer", "call_local", "reliable")
-func _rpc_apply_ko_state(ko_sec: float, imm_sec: float, enter_ko: bool) -> void:
+func _rpc_apply_ko_state(
+	ko_sec: float,
+	imm_sec: float,
+	enter_ko: bool,
+	sync_pos: Vector3 = Vector3.INF,
+	sync_yaw: float = INF,
+	kick_impulse: Vector3 = Vector3.ZERO,
+	reason: String = ""
+) -> void:
 	if not _is_authorized_state_rpc():
 		return
+	_ensure_ragdoll_controller()
+	var col_node: CollisionShape3D = collision_shape if collision_shape != null else get_node_or_null("CollisionShape3D") as CollisionShape3D
+
 	if enter_ko:
+		if sync_pos != Vector3.INF:
+			if is_inside_tree():
+				global_position = sync_pos
+			else:
+				position = sync_pos
+			_target_position = sync_pos
+		if sync_yaw != INF:
+			rotation.y = sync_yaw
+			_target_yaw = sync_yaw
+		velocity = Vector3.ZERO
 		ko_remaining_seconds = ko_sec
 		wakeup_immunity_remaining = 0.0
+		_pelvis_sync_accum = 0.0
+		_last_ko_reason = reason
+		_last_ko_impulse = kick_impulse
 		stance_state = GameConfig.Stance.KO if GameConfig != null else 4
 		collision_layer = GameConfig.LAYER_RAGDOLL_KO if GameConfig != null else 8
 		collision_mask = GameConfig.LAYER_ENVIRONMENT if GameConfig != null else 1
-		if head != null:
-			head.rotation.z = deg_to_rad(22.0)
+		if col_node != null:
+			col_node.disabled = true
+		if _ragdoll_ctrl != null:
+			_ragdoll_ctrl.start_ragdoll(kick_impulse, reason)
+		if left_hand_socket != null:
+			left_hand_socket.visible = false
+		if right_hand_socket != null:
+			right_hand_socket.visible = false
+		_sync_camera_to_ragdoll_head()
 	else:
+		if _ragdoll_ctrl != null:
+			_ragdoll_ctrl.stop_ragdoll()
+		if sync_pos != Vector3.INF:
+			if is_inside_tree():
+				global_position = sync_pos
+			else:
+				position = sync_pos
+			_target_position = sync_pos
+		velocity = Vector3.ZERO
 		ko_remaining_seconds = 0.0
 		wakeup_immunity_remaining = imm_sec
+		_pelvis_sync_accum = 0.0
 		stance_state = GameConfig.Stance.WALK if GameConfig != null else 0
 		collision_layer = GameConfig.LAYER_PLAYER if GameConfig != null else 4
 		collision_mask = (GameConfig.LAYER_ENVIRONMENT | GameConfig.LAYER_PLAYER) if GameConfig != null else 5
+		if col_node != null:
+			col_node.disabled = false
 		if head != null:
 			head.rotation.z = 0.0
+			head.position.y = GameConfig.standing_neck_y if GameConfig != null else 1.6
+		if camera != null:
+			camera.transform = Transform3D.IDENTITY
+		if left_hand_socket != null:
+			left_hand_socket.visible = true
+		if right_hand_socket != null:
+			right_hand_socket.visible = true
 	_update_hud_status()
 
 
-func wake_up_from_ko() -> void:
+func _sync_camera_to_ragdoll_head() -> void:
+	if camera == null or _ragdoll_ctrl == null:
+		return
+	if is_inside_tree() and _ragdoll_ctrl.skeleton != null:
+		camera.global_transform = _ragdoll_ctrl.get_head_camera_world_transform()
+
+
+func get_ragdoll_pelvis_world_position() -> Vector3:
+	if _ragdoll_ctrl != null:
+		return _ragdoll_ctrl.get_pelvis_world_position()
+	return _safe_global_pos()
+
+
+func _compute_safe_wakeup_position(raw_pelvis_pos: Vector3) -> Vector3:
+	if not is_inside_tree() or get_world_3d() == null or get_world_3d().direct_space_state == null:
+		return Vector3(raw_pelvis_pos.x, maxf(raw_pelvis_pos.y - 0.55, 0.0), raw_pelvis_pos.z)
+
+	var space: PhysicsDirectSpaceState3D = get_world_3d().direct_space_state
+	var env_mask: int = GameConfig.LAYER_ENVIRONMENT if GameConfig != null else 1
+	var interact_mask: int = (GameConfig.LAYER_ENVIRONMENT | GameConfig.LAYER_INTERACTABLE) if GameConfig != null else 3
+
+	var floor_y: float = maxf(raw_pelvis_pos.y - 0.55, 0.0)
+	var down_q := PhysicsRayQueryParameters3D.create(
+		raw_pelvis_pos + Vector3(0.0, 1.2, 0.0),
+		raw_pelvis_pos + Vector3(0.0, -3.5, 0.0),
+		env_mask,
+		[get_rid()]
+	)
+	var down_hit: Dictionary = space.intersect_ray(down_q)
+	if not down_hit.is_empty():
+		floor_y = float((down_hit["position"] as Vector3).y)
+
+	# Radial wall/door clearance push so the standing capsule never wakes up clipped inside geometry
+	var safe_xz := Vector3(raw_pelvis_pos.x, floor_y, raw_pelvis_pos.z)
+	var clearance_radius: float = 0.45
+	for dir_i in range(8):
+		var ang: float = (TAU * float(dir_i)) / 8.0
+		var dir_vec := Vector3(cos(ang), 0.0, sin(ang))
+		var ray_from: Vector3 = safe_xz + Vector3(0.0, 0.75, 0.0)
+		var ray_to: Vector3 = ray_from + dir_vec * clearance_radius
+		var w_q := PhysicsRayQueryParameters3D.create(ray_from, ray_to, interact_mask, [get_rid()])
+		var w_hit: Dictionary = space.intersect_ray(w_q)
+		if not w_hit.is_empty():
+			var hit_pt: Vector3 = w_hit["position"]
+			var dist: float = Vector2(hit_pt.x - safe_xz.x, hit_pt.z - safe_xz.z).length()
+			var push_back: float = maxf(clearance_radius - dist + 0.04, 0.0)
+			safe_xz -= dir_vec * push_back
+
+	return Vector3(safe_xz.x, floor_y, safe_xz.z)
+
+
+@rpc("any_peer", "call_remote", "unreliable_ordered")
+func _rpc_sync_ragdoll_pelvis(pelvis_world_pos: Vector3) -> void:
+	if _ragdoll_ctrl != null and stance_state == (GameConfig.Stance.KO if GameConfig != null else 4):
+		_ragdoll_ctrl.set_remote_pelvis_sync_target(pelvis_world_pos)
+
+
+@rpc("any_peer", "call_local", "reliable")
+func _rpc_request_wakeup_at_pelvis(requested_pelvis_pos: Vector3) -> void:
+	if _is_peer_connected() and not multiplayer.is_server():
+		return
+	var sender_id: int = multiplayer.get_remote_sender_id()
+	if sender_id != 0 and sender_id != 1 and sender_id != name.to_int():
+		return
+	var safe_pos: Vector3 = _compute_safe_wakeup_position(requested_pelvis_pos)
 	var imm_dur: float = GameConfig.ko_wakeup_immunity_duration if GameConfig != null else 2.0
-	if _is_peer_connected() and multiplayer.is_server():
-		_rpc_apply_ko_state.rpc(0.0, imm_dur, false)
+	if _is_peer_connected():
+		_rpc_apply_ko_state.rpc(0.0, imm_dur, false, safe_pos)
 	else:
-		_rpc_apply_ko_state(0.0, imm_dur, false)
+		_rpc_apply_ko_state(0.0, imm_dur, false, safe_pos)
+
+
+func wake_up_from_ko() -> void:
+	var raw_pelvis: Vector3 = get_ragdoll_pelvis_world_position()
+	var safe_pos: Vector3 = _compute_safe_wakeup_position(raw_pelvis)
+	var imm_dur: float = GameConfig.ko_wakeup_immunity_duration if GameConfig != null else 2.0
+	if _is_peer_connected():
+		if multiplayer.is_server():
+			_rpc_apply_ko_state.rpc(0.0, imm_dur, false, safe_pos)
+		elif is_multiplayer_authority():
+			_rpc_request_wakeup_at_pelvis.rpc_id(1, safe_pos)
+	else:
+		_rpc_apply_ko_state(0.0, imm_dur, false, safe_pos)
 	if is_inside_tree() and is_multiplayer_authority() and prompt_label != null:
 		prompt_label.visible = false
 
@@ -635,20 +822,31 @@ func tick_ko_and_immunity(delta: float) -> void:
 		ko_remaining_seconds -= delta
 		var clamped_ko: float = maxf(ko_remaining_seconds, 0.0)
 		if is_local_auth:
+			_sync_camera_to_ragdoll_head()
+			if _is_peer_connected():
+				_pelvis_sync_accum += delta
+				if _pelvis_sync_accum >= PELVIS_SYNC_INTERVAL:
+					_pelvis_sync_accum = 0.0
+					_rpc_sync_ragdoll_pelvis.rpc(get_ragdoll_pelvis_world_position())
 			if stance_label != null:
 				stance_label.text = "KNOCKED OUT! (%.1fs)" % clamped_ko
 			if prompt_label != null:
 				prompt_label.text = "KNOCKED OUT — Waking up in %.1fs..." % clamped_ko
 				prompt_label.visible = true
 		if ko_remaining_seconds <= 0.0:
-			if not _is_peer_connected() or (is_inside_tree() and multiplayer.is_server()) or is_local_auth:
+			if not _is_peer_connected() or is_local_auth or (is_inside_tree() and multiplayer.is_server()):
 				wake_up_from_ko()
 		return
 
 	if wakeup_immunity_remaining > 0.0:
 		wakeup_immunity_remaining = maxf(wakeup_immunity_remaining - delta, 0.0)
-		if mesh_instance != null:
-			mesh_instance.visible = true if wakeup_immunity_remaining <= 0.0 else (int(wakeup_immunity_remaining * 10.0) % 2 == 0)
+		var blink_vis: bool = true if wakeup_immunity_remaining <= 0.0 else (int(wakeup_immunity_remaining * 10.0) % 2 == 0)
+		if _ragdoll_ctrl != null and _ragdoll_ctrl.agent_instance != null:
+			_ragdoll_ctrl.agent_instance.visible = blink_vis
+			if mesh_instance != null:
+				mesh_instance.visible = false
+		elif mesh_instance != null:
+			mesh_instance.visible = blink_vis
 		if is_local_auth and stance_label != null:
 			if wakeup_immunity_remaining > 0.0:
 				stance_label.text = "IMMUNE! (%.1fs)" % wakeup_immunity_remaining
@@ -1098,7 +1296,8 @@ func _execute_dart_shot(ray_origin: Vector3, ray_dir: Vector3) -> bool:
 		var collider: Object = hit.get("collider")
 		if collider is Node and (collider as Node).is_in_group("spy_players"):
 			if collider.has_method("apply_trap_ko"):
-				collider.apply_trap_ko("DART_GUN", shooter_id)
+				var dart_kick: Vector3 = ray_dir.normalized() * 15.5 + Vector3(0.0, 5.5, 0.0)
+				collider.apply_trap_ko("DART_GUN", shooter_id, dart_kick)
 			return true
 		return false
 
@@ -1114,7 +1313,7 @@ func _execute_dart_shot(ray_origin: Vector3, ray_dir: Vector3) -> bool:
 		if p == self or not (p is Node3D):
 			continue
 		var p_stance: int = int(p.get("stance_state"))
-		if p_stance == ko_val or float(p.get("wakeup_immunity_remaining")) > 0.0:
+		if float(p.get("wakeup_immunity_remaining")) > 0.0:
 			continue
 		var p_pos: Vector3 = (p as Node3D).global_position
 		var top_y: float = (GameConfig.crouched_capsule_height if GameConfig != null else 1.0) if p_stance == crouch_val else (GameConfig.standing_capsule_height if GameConfig != null else 1.8)
@@ -1132,7 +1331,8 @@ func _execute_dart_shot(ray_origin: Vector3, ray_dir: Vector3) -> bool:
 				closest_dist_sq = d_sq
 				closest_rival = p
 	if closest_rival != null and closest_rival.has_method("apply_trap_ko"):
-		closest_rival.apply_trap_ko("DART_GUN", shooter_id)
+		var dart_kick: Vector3 = ray_dir.normalized() * 15.5 + Vector3(0.0, 5.5, 0.0)
+		closest_rival.apply_trap_ko("DART_GUN", shooter_id, dart_kick)
 		return true
 	return false
 
@@ -1231,7 +1431,8 @@ func _server_execute_club_slam(cam_origin: Vector3, cam_forward: Vector3) -> voi
 			if not space.intersect_ray(query).is_empty():
 				continue
 		if p.has_method("apply_trap_ko"):
-			p.apply_trap_ko("CLUB", my_id)
+			var club_kick: Vector3 = fwd_flat * 14.5 + Vector3(0.0, 4.8, 0.0)
+			p.apply_trap_ko("CLUB", my_id, club_kick)
 
 
 @rpc("any_peer", "call_local", "reliable")
@@ -1413,12 +1614,42 @@ func _safe_global_pos() -> Vector3:
 # Visual Sockets & HUD Updates
 # ==========================================
 
+func _ensure_ragdoll_controller() -> SpyRagdollController:
+	if _ragdoll_ctrl != null and is_instance_valid(_ragdoll_ctrl):
+		return _ragdoll_ctrl
+	var v_rig: Node3D = visual_rig if visual_rig != null else get_node_or_null("VisualRig") as Node3D
+	if v_rig == null:
+		v_rig = Node3D.new()
+		v_rig.name = "VisualRig"
+		add_child(v_rig)
+		visual_rig = v_rig
+	var existing: Node = v_rig.get_node_or_null("SpyRagdollController")
+	if existing is SpyRagdollController:
+		_ragdoll_ctrl = existing as SpyRagdollController
+	else:
+		_ragdoll_ctrl = RAGDOLL_CTRL_SCRIPT.new() as SpyRagdollController
+		_ragdoll_ctrl.name = "SpyRagdollController"
+		v_rig.add_child(_ragdoll_ctrl)
+	var is_local_fp: bool = is_inside_tree() and not Engine.is_editor_hint() and is_multiplayer_authority()
+	_ragdoll_ctrl.setup_for_role(spy_role, is_local_fp)
+	if mesh_instance != null and _ragdoll_ctrl.agent_instance != null:
+		mesh_instance.visible = false
+	return _ragdoll_ctrl
+
+
 func _update_mesh_color() -> void:
-	if not is_inside_tree() or not mesh_instance:
+	if not is_inside_tree():
 		return
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = COLOR_SPY_BLACK if spy_role == SpyRole.SPY_BLACK else COLOR_SPY_WHITE
-	mesh_instance.material_override = mat
+	if mesh_instance != null:
+		var mat := StandardMaterial3D.new()
+		mat.albedo_color = COLOR_SPY_BLACK if spy_role == SpyRole.SPY_BLACK else COLOR_SPY_WHITE
+		mesh_instance.material_override = mat
+	_ensure_ragdoll_controller()
+	if _ragdoll_ctrl != null:
+		var is_local_fp: bool = not Engine.is_editor_hint() and is_multiplayer_authority()
+		_ragdoll_ctrl.setup_for_role(spy_role, is_local_fp)
+		if mesh_instance != null and _ragdoll_ctrl.agent_instance != null:
+			mesh_instance.visible = false
 
 
 func _setup_wearable_visual() -> void:
@@ -2099,10 +2330,17 @@ func _physics_process(delta: float) -> void:
 
 	tick_ko_and_immunity(delta)
 
+	var ko_val: int = GameConfig.Stance.KO if GameConfig != null else 4
+	var crouch_val: int = GameConfig.Stance.CROUCH if GameConfig != null else 2
+	if stance_state == ko_val:
+		if not is_multiplayer_authority() and _ragdoll_ctrl != null:
+			_ragdoll_ctrl.step_remote_pelvis_pull(delta)
+		elif is_multiplayer_authority():
+			_sync_camera_to_ragdoll_head()
+		return
+
 	var target_neck_y: float = GameConfig.standing_neck_y if GameConfig != null else 1.6
-	if stance_state == (GameConfig.Stance.KO if GameConfig != null else 4):
-		target_neck_y = 0.35
-	elif stance_state == (GameConfig.Stance.CROUCH if GameConfig != null else 2):
+	if stance_state == crouch_val:
 		target_neck_y = GameConfig.crouched_neck_y if GameConfig != null else 0.85
 
 	if head != null:
@@ -2110,12 +2348,16 @@ func _physics_process(delta: float) -> void:
 		head.position.y = lerpf(head.position.y, target_neck_y, clampf(lerp_spd * delta, 0.0, 1.0))
 
 	if not _is_peer_connected() or not is_multiplayer_authority():
+		var prev_pos: Vector3 = position
 		if position.distance_squared_to(_target_position) > 16.0:
 			position = _target_position
 		else:
 			position = position.lerp(_target_position, 20.0 * delta)
 		rotation.y = lerp_angle(rotation.y, _target_yaw, 20.0 * delta)
 		head.rotation.x = lerp_angle(head.rotation.x, head_pitch, 20.0 * delta)
+		if _ragdoll_ctrl != null:
+			var remote_spd: float = Vector2(position.x - prev_pos.x, position.z - prev_pos.z).length() / maxf(delta, 0.001)
+			_ragdoll_ctrl.update_locomotion_pose(delta, remote_spd, stance_state == crouch_val, head.rotation.x, is_charging_club)
 		return
 
 	var wants_crouch: bool = (
@@ -2169,6 +2411,10 @@ func _physics_process(delta: float) -> void:
 		_footstep_timer = 0.0
 
 	move_and_slide()
+
+	if _ragdoll_ctrl != null:
+		var local_horiz_spd: float = Vector2(velocity.x, velocity.z).length()
+		_ragdoll_ctrl.update_locomotion_pose(delta, local_horiz_spd, stance_state == crouch_val, head.rotation.x if head != null else 0.0, is_charging_club)
 
 	if stance_state == (GameConfig.Stance.SPRINT if GameConfig != null else 1) and door_bash_detector != null:
 		for body in door_bash_detector.get_overlapping_bodies():

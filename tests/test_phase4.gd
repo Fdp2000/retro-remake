@@ -304,3 +304,48 @@ func test_match_spawner_deterministic_manifest_and_zero_prearmed() -> void:
 			flat_loot.append(str(item))
 	for req_item in ["KEY", "MONEY", "PASSPORT", "PLANS", "BRIEFCASE", "SPRING", "BOMB", "TRIPWIRE", "DART_GUN"]:
 		assert_true(req_item in flat_loot, "Spawn manifest contains %s" % req_item)
+
+
+func test_ragdoll_skeleton_head_camera_pelvis_sync_and_secondary_hit() -> void:
+	var spy1: CharacterBody3D = _spawn_spy(1, Vector3(0.0, 0.0, 0.0))
+	var spy2: CharacterBody3D = _spawn_spy(2, Vector3(0.0, 0.0, -3.0))
+	spy1._ensure_ragdoll_controller()
+	spy2._ensure_ragdoll_controller()
+
+	assert_true(spy1._ragdoll_ctrl != null and spy1._ragdoll_ctrl.skeleton != null, "Spy 1 mounts AgentGreen Skeleton3D")
+	assert_true(spy2._ragdoll_ctrl != null and spy2._ragdoll_ctrl.skeleton != null, "Spy 2 mounts AgentPurple Skeleton3D")
+	assert_eq(spy2._ragdoll_ctrl.physical_bones.size(), 11, "11 core PhysicalBone3D nodes built on Agent Skeleton3D")
+
+	var pelvis_pb: PhysicalBone3D = spy2._ragdoll_ctrl.physical_bones.get("spine") as PhysicalBone3D
+	var chest_pb: PhysicalBone3D = spy2._ragdoll_ctrl.physical_bones.get("spine.002") as PhysicalBone3D
+	assert_true(pelvis_pb != null and chest_pb != null, "Pelvis (spine) and Chest (spine.002) PhysicalBone3D exist")
+	assert_eq(pelvis_pb.collision_layer, GameConfig.LAYER_RAGDOLL_KO, "PhysicalBone3D uses Layer 4 (Ragdoll_KO)")
+	assert_eq(pelvis_pb.collision_mask, GameConfig.LAYER_ENVIRONMENT, "PhysicalBone3D collides only with Layer 1 (Environment)")
+
+	# Trigger Dart Gun KO with strong kick
+	var dart_kick := Vector3(0.0, 5.5, -15.5)
+	spy2.apply_trap_ko("DART_GUN", 1, dart_kick)
+	assert_true(spy2._ragdoll_ctrl.is_ragdoll_active, "KO activates PhysicalBoneSimulator3D ragdoll")
+	assert_true(chest_pb.linear_velocity.length() > 14.0, "Dart Gun KO applies strong knockback kick to chest bone")
+
+	# Verify camera locks onto spine.006 head bone world transform
+	var expected_cam_xform: Transform3D = spy2._ragdoll_ctrl.get_head_camera_world_transform()
+	var cam_node: Camera3D = spy2.get_node("Head/Camera3D") as Camera3D
+	assert_true(cam_node.global_transform.origin.distance_to(expected_cam_xform.origin) < 0.05, "Victim Camera3D locks onto spine.006 head bone during KO")
+
+	# Verify secondary hit on already-KO'd body kicks ragdoll without resetting 15s timer
+	spy2.ko_remaining_seconds = 9.5
+	spy2.apply_trap_ko("BOMB", 1, Vector3(12.0, 6.0, 0.0))
+	assert_true(is_equal_approx(spy2.ko_remaining_seconds, 9.5), "Secondary hit on KO'd spy does not reset KO timer")
+	assert_eq(spy2._last_ko_reason, "BOMB", "Secondary hit broadcasts new ragdoll impulse")
+
+	# Verify 5 Hz pelvis sync & gentle pull
+	spy2._rpc_sync_ragdoll_pelvis(Vector3(1.2, 0.5, -3.5))
+	assert_true(spy2._ragdoll_ctrl._has_pelvis_sync_target, "Remote pelvis sync target registered")
+	spy2._ragdoll_ctrl.step_remote_pelvis_pull(0.05)
+
+	# Verify wake-up at pelvis position & restoration
+	spy2.wake_up_from_ko()
+	assert_true(not spy2._ragdoll_ctrl.is_ragdoll_active, "Wake-up stops ragdoll simulation")
+	assert_eq(spy2.stance_state, GameConfig.Stance.WALK, "Wake-up restores WALK stance")
+	assert_true(spy2.wakeup_immunity_remaining > 1.5, "Wake-up grants 2.0s blink immunity")

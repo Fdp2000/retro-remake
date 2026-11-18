@@ -15,7 +15,7 @@
   - Clients request world interactions (opening doors/drawers, picking up/dropping items, arming/stealing traps, catching/throwing live bombs, triggering KOs) via `server_interact.rpc_id(1, ...)`.
   - Host (`peer_id == 1`) validates state (single-user drawer lock, item ownership, `2.0s` wake-up immunity) and broadcasts deterministic updates to all peers via `sync_state.rpc(...)`.
 - **Low-Bandwidth Ragdoll & Pelvis-Only Wake-Up Sync:**
-  - Never stream per-bone `PhysicalBone3D` transforms across the network. Broadcast the knockout impulse once so all peers run local `PhysicalBoneSimulator3D` physics simultaneously, and sync only the **pelvis wake-up position** (clamped to valid floor navmesh via `NavigationServer3D.map_get_closest_point()`) when standing up at `15.0s`.
+  - Never stream per-bone `PhysicalBone3D` transforms across the network. Broadcast the knockout impulse once so all peers run local `PhysicalBoneSimulator3D` physics simultaneously on the `AgentGreen` / `AgentPurple` `Skeleton3D`, send lightweight `~5 Hz` victim-authoritative pelvis position hints for gentle remote pull, lock the victim's first-person `Camera3D` onto the `spine.006` head bone, and snap the **pelvis wake-up position** to valid floor with radial wall/prop clearance when standing up at `15.0s`.
 - **Deterministic Match Randomization:**
   - Never use unseeded global `randi()` or `randf()` for level/loot generation.
   - Host generates `match_seed: int` at match start and syncs it via RPC. All peers use a local `RandomNumberGenerator.new()` initialized with `rng.seed = match_seed` to spawn identical room prefabs, drawer loot, and floor buckets.
