@@ -38,14 +38,14 @@ func _ready() -> void:
 		if not MatchManager.match_started.is_connected(_on_match_started):
 			MatchManager.match_started.connect(_on_match_started)
 
-	# Configure local role badge (Host vs Contender)
+	# Configure local role badge (Host = Spy Green vs Contender = Spy Purple)
 	var my_id: int = multiplayer.get_unique_id() if (multiplayer.has_multiplayer_peer() and NetworkManager.is_online()) else 1
 	if my_id == 1:
-		role_label.text = "ROLE: SPY WHITE (HOST)"
-		role_label.modulate = Color(0.95, 0.95, 0.95)
+		role_label.text = "ROLE: SPY GREEN (HOST)"
+		role_label.modulate = Color(0.45, 0.95, 0.55)
 	else:
-		role_label.text = "ROLE: SPY BLACK (CONTENDER)"
-		role_label.modulate = Color(0.7, 0.85, 1.0)
+		role_label.text = "ROLE: SPY PURPLE (CONTENDER)"
+		role_label.modulate = Color(0.78, 0.55, 1.0)
 
 	# ESC Menu buttons & Mouse DPI/Sensitivity controls
 	var esc_vbox: VBoxContainer = get_node_or_null("UI/EscMenu/VBoxContainer")

@@ -56,6 +56,20 @@ func _ready() -> void:
 	# Ensure mouse is visible in lobby
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
+	# Update Lobby Staging Card titles and swatches to Spy Green (Host) vs Spy Purple (Contender)
+	var p1_title_lbl: Label = get_node_or_null("MarginContainer/StagingContainer/CardsContainer/Player1Card/VBoxContainer/P1Title") as Label
+	var p1_swatch_rect: ColorRect = get_node_or_null("MarginContainer/StagingContainer/CardsContainer/Player1Card/VBoxContainer/CenterContainer/P1Swatch") as ColorRect
+	var p2_title_lbl: Label = get_node_or_null("MarginContainer/StagingContainer/CardsContainer/Player2Card/VBoxContainer/P2Title") as Label
+	var p2_swatch_rect: ColorRect = get_node_or_null("MarginContainer/StagingContainer/CardsContainer/Player2Card/VBoxContainer/CenterContainer/P2Swatch") as ColorRect
+	if p1_title_lbl != null:
+		p1_title_lbl.text = "SPY GREEN (HOST)"
+	if p1_swatch_rect != null:
+		p1_swatch_rect.color = Color(0.22, 0.68, 0.32, 1.0)
+	if p2_title_lbl != null:
+		p2_title_lbl.text = "SPY PURPLE (CONTENDER)"
+	if p2_swatch_rect != null:
+		p2_swatch_rect.color = Color(0.52, 0.24, 0.76, 1.0)
+
 	# Attach per-user Mouse DPI & Sensitivity settings widget + Solo Practice button
 	var matchmaking_panel: VBoxContainer = get_node_or_null("MarginContainer/MatchmakingContainer/MatchmakingPanel")
 	if matchmaking_panel != null and matchmaking_panel.get_node_or_null("MouseSettingsWidget") == null:

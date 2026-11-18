@@ -123,6 +123,28 @@ func _apply_first_person_visibility_mode() -> void:
 		if m != null:
 			m.visible = not is_first_person_local
 
+	# Ensure a skinned keep-alive MeshInstance3D stays in the frustum when local meshes are hidden
+	# so Godot's renderer never culls Skeleton3D / PhysicalBoneSimulator3D updates during local KO!
+	var keep_alive: MeshInstance3D = skeleton.get_node_or_null("SkeletonKeepAlive") as MeshInstance3D
+	var body_mesh: MeshInstance3D = skeleton.get_node_or_null("Body") as MeshInstance3D
+	if keep_alive == null and body_mesh != null:
+		keep_alive = MeshInstance3D.new()
+		keep_alive.name = "SkeletonKeepAlive"
+		keep_alive.mesh = body_mesh.mesh
+		keep_alive.skin = body_mesh.skin
+		keep_alive.skeleton = NodePath("..")
+		keep_alive.extra_cull_margin = 16384.0
+		keep_alive.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		var ka_mat := StandardMaterial3D.new()
+		ka_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		ka_mat.albedo_color = Color(0.0, 0.0, 0.0, 0.004)
+		ka_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		ka_mat.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+		keep_alive.material_override = ka_mat
+		skeleton.add_child(keep_alive)
+	if keep_alive != null:
+		keep_alive.visible = is_first_person_local
+
 
 func _build_physical_bone_simulator() -> void:
 	if skeleton == null:
@@ -314,6 +336,10 @@ func get_pelvis_world_position() -> Vector3:
 
 
 func get_head_camera_world_transform() -> Transform3D:
+	if is_ragdoll_active:
+		var head_pb: PhysicalBone3D = physical_bones.get("spine.006") as PhysicalBone3D
+		if head_pb != null and head_pb.is_inside_tree():
+			return head_pb.global_transform * _head_eye_bone_local
 	if skeleton != null and skeleton.is_inside_tree():
 		var head_idx: int = skeleton.find_bone("spine.006")
 		if head_idx != -1:

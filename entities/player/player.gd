@@ -198,6 +198,8 @@ var _drop_counter: int = 0
 
 func _enter_tree() -> void:
 	add_to_group("spy_players")
+	if name.is_valid_int():
+		spy_role = SpyRole.SPY_WHITE if name.to_int() == 1 else SpyRole.SPY_BLACK
 	if Engine.is_editor_hint():
 		return
 	set_multiplayer_authority(name.to_int())
@@ -1851,6 +1853,7 @@ func _process(delta: float) -> void:
 		_reset_interact_hold()
 		if _dvd_reticle_ui != null:
 			_dvd_reticle_ui.set_active(false)
+		_sync_camera_to_ragdoll_head()
 		return
 
 	step_live_bomb_fuse(delta)
