@@ -248,6 +248,9 @@ func _ready() -> void:
 		set_process_unhandled_input(true)
 		set_process(true)
 		hud.visible = true
+		if _ragdoll_ctrl != null:
+			_ragdoll_ctrl.set_first_person_local(true)
+		_sync_camera_to_ragdoll_head()
 		ensure_overlay_uis()
 		if MatchManager != null:
 			if not MatchManager.clock_updated.is_connected(_on_match_clock_updated):
@@ -259,6 +262,8 @@ func _ready() -> void:
 		set_process_unhandled_input(false)
 		set_process(false)
 		hud.visible = false
+		if _ragdoll_ctrl != null:
+			_ragdoll_ctrl.set_first_person_local(false)
 
 
 func ensure_overlay_uis() -> void:
@@ -717,22 +722,26 @@ func _rpc_apply_ko_state(
 		if col_node != null:
 			col_node.disabled = false
 		if head != null:
-			head.rotation.z = 0.0
-			head.position.y = GameConfig.standing_neck_y if GameConfig != null else 1.6
+			head.rotation = Vector3(head_pitch, 0.0, 0.0)
+			head.position = Vector3(0.0, GameConfig.standing_neck_y if GameConfig != null else 1.6, 0.0)
 		if camera != null:
 			camera.transform = Transform3D.IDENTITY
 		if left_hand_socket != null:
 			left_hand_socket.visible = true
 		if right_hand_socket != null:
 			right_hand_socket.visible = true
+		_sync_camera_to_ragdoll_head()
 	_update_hud_status()
 
 
 func _sync_camera_to_ragdoll_head() -> void:
-	if camera == null or _ragdoll_ctrl == null:
+	if head == null or _ragdoll_ctrl == null:
 		return
 	if is_inside_tree() and _ragdoll_ctrl.skeleton != null:
-		camera.global_transform = _ragdoll_ctrl.get_head_camera_world_transform()
+		head.global_transform = _ragdoll_ctrl.get_head_camera_world_transform()
+		var lock_stance: int = GameConfig.Stance.DRAWER_LOCK if GameConfig != null else 3
+		if camera != null and stance_state != lock_stance:
+			camera.transform = Transform3D.IDENTITY
 
 
 func get_ragdoll_pelvis_world_position() -> Vector3:
@@ -2300,9 +2309,12 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		var eff_sens: float = GameConfig.get_effective_mouse_sensitivity() if GameConfig != null else mouse_sensitivity
 		rotate_y(-event.relative.x * eff_sens)
-		head.rotate_x(-event.relative.y * eff_sens)
-		head.rotation.x = clampf(head.rotation.x, deg_to_rad(-89.0), deg_to_rad(89.0))
-		head_pitch = head.rotation.x
+		head_pitch = clampf(head_pitch - event.relative.y * eff_sens, deg_to_rad(-89.0), deg_to_rad(89.0))
+		if head != null:
+			head.rotation.x = head_pitch
+		if _ragdoll_ctrl != null and not _ragdoll_ctrl.is_ragdoll_active:
+			_ragdoll_ctrl._apply_idle_standing_pose(head_pitch, _ragdoll_ctrl._crouch_blend)
+			_sync_camera_to_ragdoll_head()
 
 
 func _trigger_hand_action(action_type: String, slot_arg: int = 0) -> void:
@@ -2339,14 +2351,6 @@ func _physics_process(delta: float) -> void:
 			_sync_camera_to_ragdoll_head()
 		return
 
-	var target_neck_y: float = GameConfig.standing_neck_y if GameConfig != null else 1.6
-	if stance_state == crouch_val:
-		target_neck_y = GameConfig.crouched_neck_y if GameConfig != null else 0.85
-
-	if head != null:
-		var lerp_spd: float = GameConfig.stance_transition_speed if GameConfig != null else 12.0
-		head.position.y = lerpf(head.position.y, target_neck_y, clampf(lerp_spd * delta, 0.0, 1.0))
-
 	if not _is_peer_connected() or not is_multiplayer_authority():
 		var prev_pos: Vector3 = position
 		if position.distance_squared_to(_target_position) > 16.0:
@@ -2354,10 +2358,12 @@ func _physics_process(delta: float) -> void:
 		else:
 			position = position.lerp(_target_position, 20.0 * delta)
 		rotation.y = lerp_angle(rotation.y, _target_yaw, 20.0 * delta)
-		head.rotation.x = lerp_angle(head.rotation.x, head_pitch, 20.0 * delta)
 		if _ragdoll_ctrl != null:
 			var remote_spd: float = Vector2(position.x - prev_pos.x, position.z - prev_pos.z).length() / maxf(delta, 0.001)
-			_ragdoll_ctrl.update_locomotion_pose(delta, remote_spd, stance_state == crouch_val, head.rotation.x, is_charging_club)
+			_ragdoll_ctrl.update_locomotion_pose(delta, remote_spd, stance_state == crouch_val, head_pitch, is_charging_club)
+			_sync_camera_to_ragdoll_head()
+		elif head != null:
+			head.rotation.x = lerp_angle(head.rotation.x, head_pitch, 20.0 * delta)
 		return
 
 	var wants_crouch: bool = (
@@ -2414,7 +2420,8 @@ func _physics_process(delta: float) -> void:
 
 	if _ragdoll_ctrl != null:
 		var local_horiz_spd: float = Vector2(velocity.x, velocity.z).length()
-		_ragdoll_ctrl.update_locomotion_pose(delta, local_horiz_spd, stance_state == crouch_val, head.rotation.x if head != null else 0.0, is_charging_club)
+		_ragdoll_ctrl.update_locomotion_pose(delta, local_horiz_spd, stance_state == crouch_val, head_pitch, is_charging_club)
+		_sync_camera_to_ragdoll_head()
 
 	if stance_state == (GameConfig.Stance.SPRINT if GameConfig != null else 1) and door_bash_detector != null:
 		for body in door_bash_detector.get_overlapping_bodies():

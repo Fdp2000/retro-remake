@@ -114,6 +114,7 @@ const LAYER_TRIGGERS: int = 1 << 4           # Layer 5: RoomZones, DoorBashDetec
 @export var time_bomb_fuse_min: float = 2.5
 @export var time_bomb_fuse_max: float = 4.0
 @export var time_bomb_throw_distance: float = 9.0
+@export var time_bomb_throw_speed: float = 9.5
 @export var time_bomb_blast_radius: float = 5.0
 @export var time_bomb_self_catch_ignore_time: float = 0.25
 @export var dvd_reticle_speed_px: float = 320.0

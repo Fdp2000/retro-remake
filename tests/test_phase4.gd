@@ -314,7 +314,17 @@ func test_ragdoll_skeleton_head_camera_pelvis_sync_and_secondary_hit() -> void:
 
 	assert_true(spy1._ragdoll_ctrl != null and spy1._ragdoll_ctrl.skeleton != null, "Spy 1 mounts AgentGreen Skeleton3D")
 	assert_true(spy2._ragdoll_ctrl != null and spy2._ragdoll_ctrl.skeleton != null, "Spy 2 mounts AgentPurple Skeleton3D")
-	assert_eq(spy2._ragdoll_ctrl.physical_bones.size(), 11, "11 core PhysicalBone3D nodes built on Agent Skeleton3D")
+	assert_eq(spy2._ragdoll_ctrl.physical_bones.size(), 13, "13 continuous PhysicalBone3D nodes built on Agent Skeleton3D")
+
+	# Verify local first-person hides Head, Eyes, and Body meshes so nothing blocks the camera
+	spy1._ragdoll_ctrl.set_first_person_local(true)
+	var fp_head_mesh: MeshInstance3D = spy1._ragdoll_ctrl.skeleton.get_node("Head") as MeshInstance3D
+	var fp_body_mesh: MeshInstance3D = spy1._ragdoll_ctrl.skeleton.get_node("Body") as MeshInstance3D
+	assert_true(not fp_head_mesh.visible and not fp_body_mesh.visible, "Local first-person hides 3D Head and Body meshes so view is never obstructed")
+
+	# Verify permanent head-bone camera starts at exact standing neck position (0, 1.6, -3.0) with zero jump on KO
+	var pre_ko_cam_pos: Vector3 = spy2._ragdoll_ctrl.get_head_camera_world_transform().origin
+	assert_true(pre_ko_cam_pos.distance_to(Vector3(0.0, 1.6, -3.0)) < 0.02, "Permanent spine.006 camera anchor matches standing first-person eye position")
 
 	var pelvis_pb: PhysicalBone3D = spy2._ragdoll_ctrl.physical_bones.get("spine") as PhysicalBone3D
 	var chest_pb: PhysicalBone3D = spy2._ragdoll_ctrl.physical_bones.get("spine.002") as PhysicalBone3D
