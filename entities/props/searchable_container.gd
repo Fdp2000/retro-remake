@@ -15,13 +15,11 @@ const DRAWER_CLOSED_Z: float = 0.08
 const DRAWER_OPEN_Z: float = 0.56
 const SPRING_TRIGGER_VISUAL_RATIO: float = 0.42
 const DRAWER_EASE_EXPONENT: float = 1.85
+const CLUTTER_LAYER_YS: Array[float] = [-0.004, 0.014, 0.034]
 const DEFAULT_CLUTTER_POSITIONS: Array[Vector2] = [
-	Vector2(0.34, 0.40), # Layer 1: Manila Folder
-	Vector2(0.62, 0.42), # Layer 1: Embassy Ledger
-	Vector2(0.38, 0.66), # Layer 2: Classified Envelope
-	Vector2(0.64, 0.66), # Layer 2: Folded Newspaper
-	Vector2(0.48, 0.50), # Layer 3: Heavy Stapler
-	Vector2(0.52, 0.36)  # Layer 3: Wooden Clipboard
+	Vector2(0.34, 0.44), # Layer 1
+	Vector2(0.64, 0.56), # Layer 2
+	Vector2(0.48, 0.46)  # Layer 3
 ]
 const ITEM_TRAY_POSITIONS: Array[Vector2] = [
 	Vector2(0.32, 0.38),
@@ -57,8 +55,9 @@ const CLUTTER_PROP_SPECS: Array[Dictionary] = [
 ]
 
 @export var container_id: String = "Drawer"
+@export var container_seed: int = 0
 @export var is_briefcase_container: bool = false
-@export var clutter_count: int = 6
+@export var clutter_count: int = 3
 @export var stored_items: Array[String] = []
 @export var armed_spring: bool = false
 @export var spring_owner_peer_id: int = 0
@@ -124,23 +123,49 @@ func _process(delta: float) -> void:
 		state_changed.emit()
 
 
+func _get_drawer_mesh_scale() -> float:
+	if GameConfig != null:
+		var v: Variant = GameConfig.get("drawer_interior_mesh_scale")
+		if v is float or v is int:
+			return maxf(float(v), 0.1)
+	return 0.70
+
+
+func _get_max_clutter_layers() -> int:
+	if GameConfig != null:
+		var v: Variant = GameConfig.get("drawer_max_clutter_layers")
+		if v is int or v is float:
+			return maxi(int(v), 0)
+	return 3
+
+
+func _get_effective_clutter_count() -> int:
+	if is_briefcase_container:
+		return 0
+	return clampi(clutter_count, 0, _get_max_clutter_layers())
+
+
 func _init_clutter_if_empty() -> void:
-	if clutter_positions.size() == clutter_count:
+	var target_count: int = _get_effective_clutter_count()
+	if clutter_positions.size() == target_count:
 		return
-	clutter_positions.clear()
-	for i in range(maxi(clutter_count, 0)):
+	if clutter_positions.size() > target_count:
+		clutter_positions.resize(target_count)
+		return
+	for i in range(clutter_positions.size(), target_count):
 		var base_pos: Vector2 = DEFAULT_CLUTTER_POSITIONS[i % DEFAULT_CLUTTER_POSITIONS.size()]
 		clutter_positions.append(base_pos)
 
 
 func _ensure_item_positions() -> void:
 	var next_positions: Dictionary = {}
+	var fallback_list: Array[Vector2] = BRIEFCASE_BUILDER.DEFAULT_ITEM_NORM_POSITIONS if is_briefcase_container else ITEM_TRAY_POSITIONS
 	for i in range(stored_items.size()):
 		var item_id: String = str(stored_items[i]).to_upper()
 		if item_positions.has(item_id) and item_positions[item_id] is Vector2:
-			next_positions[item_id] = BRIEFCASE_BUILDER.clamp_norm(item_positions[item_id] as Vector2)
+			next_positions[item_id] = _clamp_container_norm(item_positions[item_id] as Vector2)
 		else:
-			next_positions[item_id] = BRIEFCASE_BUILDER.DEFAULT_ITEM_NORM_POSITIONS[i % BRIEFCASE_BUILDER.DEFAULT_ITEM_NORM_POSITIONS.size()]
+			next_positions[item_id] = fallback_list[i % fallback_list.size()]
 	item_positions = next_positions
 
 
@@ -253,11 +278,11 @@ func request_deposit_left_hand_item(caller_peer_id: int, norm_pos: Vector2 = Vec
 		deposit_left_hand_item(caller_peer_id, null, norm_pos)
 
 
-func request_deposit_briefcase_item(caller_peer_id: int, obj_id: String) -> void:
+func request_deposit_briefcase_item(caller_peer_id: int, obj_id: String, norm_pos: Vector2 = Vector2(-1.0, -1.0)) -> void:
 	if _is_peer_connected():
-		_server_deposit_briefcase_item.rpc_id(1, caller_peer_id, obj_id)
+		_server_deposit_briefcase_item.rpc_id(1, caller_peer_id, obj_id, norm_pos)
 	else:
-		deposit_briefcase_item(caller_peer_id, obj_id)
+		deposit_briefcase_item(caller_peer_id, obj_id, null, norm_pos)
 
 
 func request_move_stored_item(caller_peer_id: int, item_id: String, norm_pos: Vector2) -> void:
@@ -700,8 +725,8 @@ func deposit_left_hand_item(peer_id: int, player_override: Node = null, norm_pos
 		return false
 
 	stored_items.append(taken)
-	if is_briefcase_container and norm_pos.x >= 0.0 and norm_pos.y >= 0.0:
-		item_positions[taken] = BRIEFCASE_BUILDER.clamp_norm(norm_pos)
+	if norm_pos.x >= 0.0 and norm_pos.y >= 0.0:
+		item_positions[taken] = _clamp_container_norm(norm_pos)
 	_ensure_item_positions()
 	if AudioBridge != null:
 		AudioBridge.request_world_cue("paper_rustle", _safe_global_pos(), 4.0, peer_id)
@@ -710,7 +735,7 @@ func deposit_left_hand_item(peer_id: int, player_override: Node = null, norm_pos
 	return true
 
 
-func deposit_briefcase_item(peer_id: int, obj_id: String, player_override: Node = null) -> bool:
+func deposit_briefcase_item(peer_id: int, obj_id: String, player_override: Node = null, norm_pos: Vector2 = Vector2(-1.0, -1.0)) -> bool:
 	if occupied_by_peer_id != peer_id or is_briefcase_container:
 		return false
 	if drawer_visual_ratio < 0.35:
@@ -727,6 +752,8 @@ func deposit_briefcase_item(peer_id: int, obj_id: String, player_override: Node 
 		return false
 
 	stored_items.append(upper)
+	if norm_pos.x >= 0.0 and norm_pos.y >= 0.0:
+		item_positions[upper] = _clamp_container_norm(norm_pos)
 	_ensure_item_positions()
 	if AudioBridge != null:
 		AudioBridge.request_world_cue("paper_rustle", _safe_global_pos(), 4.0, peer_id)
@@ -740,7 +767,7 @@ func move_stored_item(peer_id: int, item_id: String, new_norm_pos: Vector2) -> b
 	var upper: String = item_id.to_upper()
 	if not (upper in stored_items):
 		return false
-	item_positions[upper] = BRIEFCASE_BUILDER.clamp_norm(new_norm_pos)
+	item_positions[upper] = _clamp_container_norm(new_norm_pos)
 	_ensure_item_positions()
 	if AudioBridge != null:
 		AudioBridge.request_world_cue("paper_rustle", _safe_global_pos(), 4.0, peer_id)
@@ -754,7 +781,7 @@ func move_planted_bomb(peer_id: int, new_norm_pos: Vector2) -> bool:
 		return false
 	if not (staged_bomb_in_tray or armed_bomb or live_bomb_lit):
 		return false
-	bomb_norm_pos = BRIEFCASE_BUILDER.clamp_norm(new_norm_pos)
+	bomb_norm_pos = _clamp_container_norm(new_norm_pos)
 	if AudioBridge != null:
 		AudioBridge.request_world_cue("paper_rustle", _safe_global_pos(), 4.0, peer_id)
 	_sync_back_to_briefcase_pickup()
@@ -797,7 +824,7 @@ func plant_trap_from_jacket(
 		staged_bomb_in_tray = true
 		bomb_owner_peer_id = peer_id
 		if norm_pos.x >= 0.0 and norm_pos.y >= 0.0:
-			bomb_norm_pos = BRIEFCASE_BUILDER.clamp_norm(norm_pos)
+			bomb_norm_pos = _clamp_container_norm(norm_pos)
 		else:
 			bomb_norm_pos = BRIEFCASE_BUILDER.DEFAULT_BOMB_NORM_POS
 		if AudioBridge != null and GameConfig != null:
@@ -1106,13 +1133,13 @@ func _server_deposit_left_hand_item(caller_peer_id: int, norm_pos: Vector2 = Vec
 
 
 @rpc("any_peer", "call_local", "reliable")
-func _server_deposit_briefcase_item(caller_peer_id: int, obj_id: String) -> void:
+func _server_deposit_briefcase_item(caller_peer_id: int, obj_id: String, norm_pos: Vector2 = Vector2(-1.0, -1.0)) -> void:
 	if _is_peer_connected() and not multiplayer.is_server():
 		return
 	var sender: int = multiplayer.get_remote_sender_id() if (_is_peer_connected() and multiplayer != null) else 0
 	if sender != 0:
 		caller_peer_id = sender
-	deposit_briefcase_item(caller_peer_id, obj_id)
+	deposit_briefcase_item(caller_peer_id, obj_id, null, norm_pos)
 
 
 @rpc("any_peer", "call_local", "reliable")
@@ -1193,12 +1220,12 @@ func _rpc_sync_container_state(state_dict: Dictionary) -> void:
 		for k in (raw_positions as Dictionary).keys():
 			var pos_val: Variant = (raw_positions as Dictionary)[k]
 			if pos_val is Vector2:
-				next_positions[str(k).to_upper()] = BRIEFCASE_BUILDER.clamp_norm(pos_val as Vector2)
+				next_positions[str(k).to_upper()] = _clamp_container_norm(pos_val as Vector2)
 	item_positions = next_positions
 	_ensure_item_positions()
 
 	var raw_bpos: Variant = state_dict.get("bomb_norm_pos", BRIEFCASE_BUILDER.DEFAULT_BOMB_NORM_POS)
-	bomb_norm_pos = BRIEFCASE_BUILDER.clamp_norm(raw_bpos as Vector2) if raw_bpos is Vector2 else BRIEFCASE_BUILDER.DEFAULT_BOMB_NORM_POS
+	bomb_norm_pos = _clamp_container_norm(raw_bpos as Vector2) if raw_bpos is Vector2 else BRIEFCASE_BUILDER.DEFAULT_BOMB_NORM_POS
 
 	armed_spring = bool(state_dict.get("armed_spring", false))
 	spring_unlatched = bool(state_dict.get("spring_unlatched", false))
@@ -1214,8 +1241,11 @@ func _rpc_sync_container_state(state_dict: Dictionary) -> void:
 	var raw_clutter: Array = state_dict.get("clutter_positions", [])
 	if not raw_clutter.is_empty():
 		clutter_positions.clear()
+		var max_clutter: int = 0 if is_briefcase_container else _get_max_clutter_layers()
 		for p in raw_clutter:
-			clutter_positions.append(p as Vector2)
+			if clutter_positions.size() >= max_clutter:
+				break
+			clutter_positions.append(_clamp_container_norm(p as Vector2))
 
 	var local_id: int = multiplayer.get_unique_id() if _is_peer_connected() else 1
 	if prev_occ != occupied_by_peer_id:
@@ -1246,6 +1276,29 @@ func _rpc_sync_container_state(state_dict: Dictionary) -> void:
 # Physical 3D Hollow Drawer & Multi-Layer Clutter Interior
 # ==========================================
 
+func get_norm_bounds() -> Vector2:
+	if is_briefcase_container:
+		return Vector2(BRIEFCASE_BUILDER.NORM_MIN, BRIEFCASE_BUILDER.NORM_MAX)
+	return Vector2(0.05, 0.95)
+
+
+func _clamp_container_norm(norm: Vector2) -> Vector2:
+	var b: Vector2 = get_norm_bounds()
+	return Vector2(clampf(norm.x, b.x, b.y), clampf(norm.y, b.x, b.y))
+
+
+func norm_to_container_local_xz(norm: Vector2) -> Vector2:
+	if is_briefcase_container:
+		return BRIEFCASE_BUILDER.norm_to_briefcase_local_xz(norm)
+	return norm_to_tray_local_xz(norm)
+
+
+func container_local_xz_to_norm(local_x: float, local_z: float) -> Vector2:
+	if is_briefcase_container:
+		return BRIEFCASE_BUILDER.briefcase_local_xz_to_norm(local_x, local_z)
+	return tray_local_xz_to_norm(local_x, local_z)
+
+
 func norm_to_tray_local_xz(norm: Vector2) -> Vector2:
 	return Vector2(
 		lerpf(-0.33, 0.33, clampf(norm.x, 0.0, 1.0)),
@@ -1266,6 +1319,22 @@ func get_tray_node() -> Node3D:
 
 func get_clutter_area_node(clutter_idx: int) -> Node3D:
 	return _clutter_area_nodes.get(clutter_idx, null) as Node3D
+
+
+func get_content_area_node(kind: String, key: Variant = "") -> Node3D:
+	if kind == "clutter":
+		return _clutter_area_nodes.get(int(key), null) as Node3D
+	if _contents_root == null or not is_instance_valid(_contents_root):
+		return null
+	if kind == "planted_bomb":
+		return _contents_root.get_node_or_null("TrayTimeBomb") as Node3D
+	if kind == "loot_item":
+		var target_id: String = str(key).to_upper()
+		for child in _contents_root.get_children():
+			if child is Area3D and str(child.get_meta("container_role", "")) == "loot_item":
+				if str(child.get_meta("item_id", "")).to_upper() == target_id:
+					return child as Node3D
+	return null
 
 
 func _ensure_3d_tray_structure() -> void:
@@ -1421,6 +1490,7 @@ func pick_drawer_object_at_ray(ray_origin: Vector3, ray_dir: Vector3) -> Diction
 func _rebuild_3d_interior() -> void:
 	if not is_inside_tree():
 		return
+	_init_clutter_if_empty()
 	_ensure_item_positions()
 	_ensure_3d_tray_structure()
 	if _contents_root == null:
@@ -1431,6 +1501,9 @@ func _rebuild_3d_interior() -> void:
 		_contents_root.remove_child(child)
 		child.queue_free()
 
+	var drawer_scale: float = _get_drawer_mesh_scale()
+	var scale_mult: float = 1.0 if is_briefcase_container else drawer_scale
+
 	# 1. Front-Inside Lip Spring Trap (Both Drawers AND Briefcases!)
 	if armed_spring or spring_unlatched or staged_spring_on_lip:
 		var lip_area := Area3D.new()
@@ -1439,7 +1512,7 @@ func _rebuild_3d_interior() -> void:
 		lip_area.collision_mask = 0
 		lip_area.position = Vector3(0.0, 0.010, 0.145) if is_briefcase_container else Vector3(0.0, 0.055, 0.16)
 		lip_area.set_meta("container_role", "lip_spring")
-		var lip_size := Vector3(0.20, 0.055, 0.080) if is_briefcase_container else Vector3(0.242, 0.059, 0.092)
+		var lip_size := Vector3(0.20, 0.055, 0.080) if is_briefcase_container else Vector3(0.242, 0.059, 0.092) * drawer_scale
 		lip_area.set_meta("exact_aabb", AABB(-lip_size * 0.5, lip_size))
 
 		var lip_col := CollisionShape3D.new()
@@ -1449,7 +1522,7 @@ func _rebuild_3d_interior() -> void:
 		lip_area.add_child(lip_col)
 
 		var spring_mesh := PICKUP_SCRIPT.build_item_mesh("SPRING")
-		spring_mesh.scale = Vector3(0.88, 0.38, 0.36) if is_briefcase_container else Vector3(1.10, 0.42, 0.42)
+		spring_mesh.scale = Vector3(0.88, 0.38, 0.36) if is_briefcase_container else Vector3(1.10, 0.42, 0.42) * drawer_scale
 		var mat: StandardMaterial3D = spring_mesh.material_override as StandardMaterial3D
 		if mat != null:
 			if armed_spring:
@@ -1461,7 +1534,7 @@ func _rebuild_3d_interior() -> void:
 		lip_area.add_child(spring_mesh)
 		_contents_root.add_child(lip_area)
 
-	# 2. Lit or Planted Time Bomb in Tray (Layer 0 in Briefcase so Objectives can layer cleanly above)
+	# 2. Lit or Planted Time Bomb in Tray (Layer 0 in Briefcase & below clutter in Drawers)
 	if live_bomb_lit or armed_bomb or staged_bomb_in_tray:
 		var bomb_area := Area3D.new()
 		bomb_area.name = "TrayTimeBomb"
@@ -1471,10 +1544,11 @@ func _rebuild_3d_interior() -> void:
 			var b_xz: Vector2 = BRIEFCASE_BUILDER.norm_to_briefcase_local_xz(bomb_norm_pos)
 			bomb_area.position = Vector3(b_xz.x, BRIEFCASE_BUILDER.BOMB_LAYER_Y, b_xz.y)
 		else:
-			bomb_area.position = Vector3(0.0, -0.015, -0.04)
+			var d_bxz: Vector2 = norm_to_tray_local_xz(bomb_norm_pos)
+			bomb_area.position = Vector3(d_bxz.x, -0.006, d_bxz.y)
 		bomb_area.set_meta("container_role", "lit_bomb" if live_bomb_lit else "planted_bomb")
 		bomb_area.set_meta("base_y", bomb_area.position.y)
-		var bomb_size := Vector3(0.14, 0.018, 0.14) if is_briefcase_container else Vector3(0.16, 0.16, 0.16)
+		var bomb_size := Vector3(0.14, 0.018, 0.14) if is_briefcase_container else Vector3(0.16, 0.16, 0.16) * drawer_scale
 		bomb_area.set_meta("exact_aabb", AABB(-bomb_size * 0.5, bomb_size))
 
 		var bomb_col := CollisionShape3D.new()
@@ -1484,24 +1558,26 @@ func _rebuild_3d_interior() -> void:
 		bomb_area.add_child(bomb_col)
 
 		var bomb_mesh := PICKUP_SCRIPT.build_item_mesh("LIVE_BOMB" if live_bomb_lit else "BOMB")
-		bomb_mesh.scale = Vector3(0.48, 0.06, 0.48) if is_briefcase_container else Vector3(0.55, 0.55, 0.55)
+		bomb_mesh.scale = Vector3(0.48, 0.06, 0.48) if is_briefcase_container else Vector3(0.55, 0.55, 0.55) * drawer_scale
 		bomb_area.add_child(bomb_mesh)
 		_contents_root.add_child(bomb_area)
 
-	# 3. Stored Objectives & Gadgets — Freeform XZ + Disjoint Vertical Layers in Briefcase
+	# 3. Stored Objectives & Gadgets — Freeform XZ + Disjoint Vertical Layers (0.70x in Drawers)
 	for i in range(stored_items.size()):
 		var item_id: String = str(stored_items[i]).to_upper()
 		var xz := Vector2.ZERO
-		var item_y: float = -0.048
+		var item_y: float = -0.053 + float(i) * 0.012
 		if is_briefcase_container:
 			var fallback_norm: Vector2 = BRIEFCASE_BUILDER.DEFAULT_ITEM_NORM_POSITIONS[i % BRIEFCASE_BUILDER.DEFAULT_ITEM_NORM_POSITIONS.size()]
 			var norm_pos: Vector2 = item_positions.get(item_id, fallback_norm) as Vector2
 			xz = BRIEFCASE_BUILDER.norm_to_briefcase_local_xz(norm_pos)
 			item_y = BRIEFCASE_BUILDER.get_item_layer_y(i)
 		else:
-			xz = norm_to_tray_local_xz(ITEM_TRAY_POSITIONS[i % ITEM_TRAY_POSITIONS.size()])
+			var fallback_drawer_norm: Vector2 = ITEM_TRAY_POSITIONS[i % ITEM_TRAY_POSITIONS.size()]
+			var drawer_norm: Vector2 = item_positions.get(item_id, fallback_drawer_norm) as Vector2
+			xz = norm_to_tray_local_xz(drawer_norm)
 		var layout: Dictionary = _get_stored_item_tray_layout(item_id)
-		var exact_size: Vector3 = layout["size"] as Vector3
+		var exact_size: Vector3 = (layout["size"] as Vector3) * scale_mult
 
 		var item_area := Area3D.new()
 		item_area.name = "TrayItem_%d_%s" % [i, item_id]
@@ -1520,21 +1596,28 @@ func _rebuild_3d_interior() -> void:
 		item_area.add_child(item_col)
 
 		var item_mesh := PICKUP_SCRIPT.build_item_mesh(item_id)
-		item_mesh.scale = layout["scale"] as Vector3
+		item_mesh.scale = (layout["scale"] as Vector3) * scale_mult
 		item_area.add_child(item_mesh)
 		if PICKUP_SCRIPT.is_objective_item(item_id):
 			var glint: CPUParticles3D = PICKUP_SCRIPT.create_objective_glint_particles(true)
+			if not is_briefcase_container:
+				glint.emission_box_extents *= drawer_scale
 			glint.position = Vector3(0.0, 0.007, 0.0)
 			item_area.add_child(glint)
 		_contents_root.add_child(item_area)
 
-	# 4. Upper Layers — Strictly Disjoint Vertical Y Strata (Zero Clipping)
-	for i in range(clutter_positions.size()):
-		var spec: Dictionary = CLUTTER_PROP_SPECS[i % CLUTTER_PROP_SPECS.size()]
-		@warning_ignore("integer_division")
-		var stack_pass: int = i / CLUTTER_PROP_SPECS.size()
-		var base_y: float = float(spec["base_y"]) + float(stack_pass) * 0.055
-		var c_size: Vector3 = spec["size"] as Vector3
+	# 4. Upper Clutter Layers — Capped to 3 Strictly Disjoint Vertical Strata (0.70x scaled)
+	var max_layers: int = _get_max_clutter_layers()
+	var seed_offset: int = absi(container_seed) % CLUTTER_PROP_SPECS.size()
+	for i in range(mini(clutter_positions.size(), max_layers)):
+		var spec_idx: int = (i + seed_offset) % CLUTTER_PROP_SPECS.size()
+		var spec: Dictionary = CLUTTER_PROP_SPECS[spec_idx]
+		var base_y: float = (
+			CLUTTER_LAYER_YS[i]
+			if i < CLUTTER_LAYER_YS.size()
+			else CLUTTER_LAYER_YS[CLUTTER_LAYER_YS.size() - 1] + float(i - CLUTTER_LAYER_YS.size() + 1) * 0.018
+		)
+		var c_size: Vector3 = (spec["size"] as Vector3) * drawer_scale
 		var xz: Vector2 = norm_to_tray_local_xz(clutter_positions[i])
 
 		var clutter_area := Area3D.new()
@@ -1542,7 +1625,7 @@ func _rebuild_3d_interior() -> void:
 		clutter_area.collision_layer = DRAWER_CONTENTS_MASK
 		clutter_area.collision_mask = 0
 		clutter_area.position = Vector3(xz.x, base_y, xz.y)
-		var yaw_deg: float = [-7.0, 6.0, 11.0, -9.0, 4.0, -12.0][i % 6]
+		var yaw_deg: float = [-7.0, 6.0, 11.0, -9.0, 4.0, -12.0][spec_idx % 6]
 		clutter_area.rotation.y = deg_to_rad(yaw_deg)
 		clutter_area.set_meta("container_role", "clutter")
 		clutter_area.set_meta("clutter_idx", i)
@@ -1555,7 +1638,7 @@ func _rebuild_3d_interior() -> void:
 		c_col.shape = c_shape
 		clutter_area.add_child(c_col)
 
-		_build_3d_clutter_prop(clutter_area, i)
+		_build_3d_clutter_prop(clutter_area, spec_idx, drawer_scale)
 		_contents_root.add_child(clutter_area)
 		_clutter_area_nodes[i] = clutter_area
 
@@ -1563,10 +1646,10 @@ func _rebuild_3d_interior() -> void:
 		_apply_briefcase_lid_ratio(drawer_visual_ratio)
 
 
-func _build_3d_clutter_prop(parent_area: Area3D, idx: int) -> void:
+func _build_3d_clutter_prop(parent_area: Area3D, idx: int, scale_factor: float = 1.0) -> void:
 	var spec: Dictionary = CLUTTER_PROP_SPECS[idx % CLUTTER_PROP_SPECS.size()]
 	var main_box := BoxMesh.new()
-	main_box.size = spec["size"] as Vector3
+	main_box.size = (spec["size"] as Vector3) * scale_factor
 	var main_mat := StandardMaterial3D.new()
 	main_mat.albedo_color = spec["color"] as Color
 
@@ -1576,14 +1659,14 @@ func _build_3d_clutter_prop(parent_area: Area3D, idx: int) -> void:
 	parent_area.add_child(base_mi)
 
 	var accent_box := BoxMesh.new()
-	accent_box.size = spec["acc_size"] as Vector3
+	accent_box.size = (spec["acc_size"] as Vector3) * scale_factor
 	var accent_mat := StandardMaterial3D.new()
 	accent_mat.albedo_color = spec["acc_color"] as Color
 
 	var acc_mi := MeshInstance3D.new()
 	acc_mi.mesh = accent_box
 	acc_mi.material_override = accent_mat
-	acc_mi.position = spec["acc_pos"] as Vector3
+	acc_mi.position = (spec["acc_pos"] as Vector3) * scale_factor
 	parent_area.add_child(acc_mi)
 
 

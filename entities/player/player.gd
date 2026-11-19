@@ -13,6 +13,7 @@ const COLOR_SPY_BLACK: Color = Color(0.12, 0.12, 0.12)
 const PICKUP_SCENE: PackedScene = preload("res://entities/props/world_item_pickup.tscn")
 const PICKUP_SCRIPT = preload("res://entities/props/world_item_pickup.gd")
 const BRIEFCASE_BUILDER = preload("res://entities/props/briefcase_visual_builder.gd")
+const SHOVE_PHYSICS = preload("res://entities/props/container_shove_physics.gd")
 const TOP_DOWN_UI_SCRIPT = preload("res://ui/top_down_container_ui.gd")
 const DVD_RETICLE_UI_SCRIPT = preload("res://ui/dvd_dart_reticle_ui.gd")
 const CLUB_QTE_UI_SCRIPT = preload("res://ui/club_qte_bar_ui.gd")
@@ -172,15 +173,17 @@ var wakeup_immunity_remaining: float = 0.0
 var _pelvis_sync_accum: float = 0.0
 var _last_ko_reason: String = ""
 var _last_ko_impulse: Vector3 = Vector3.ZERO
-var _dragging_3d_clutter_idx: int = -1
-var _dragging_3d_clutter_node: Node3D = null
-var _dragging_3d_plane_y: float = 0.0
-var _dragging_3d_offset_xz: Vector2 = Vector2.ZERO
-var _dragging_3d_briefcase_role: String = ""
-var _dragging_3d_briefcase_item_id: String = ""
-var _dragging_3d_briefcase_node: Node3D = null
-var _dragging_3d_briefcase_plane_y: float = 0.0
-var _dragging_3d_briefcase_offset_xz: Vector2 = Vector2.ZERO
+var _drag_3d_active: bool = false
+var _drag_3d_role: String = ""
+var _drag_3d_clutter_idx: int = -1
+var _drag_3d_item_id: String = ""
+var _drag_3d_node: Node3D = null
+var _drag_3d_plane_y: float = 0.0
+var _drag_3d_offset_xz: Vector2 = Vector2.ZERO
+var _drag_3d_start_screen_pos: Vector2 = Vector2.ZERO
+var _drag_3d_moved: bool = false
+var _drag_3d_samples: Array = []
+var _active_3d_slides: Dictionary = {} # key -> {"container": Node, "role": String, "clutter_idx": int, "item_id": String, "pos": Vector2, "vel": Vector2, "bounds_min": float, "bounds_max": float, "bounce_sfx_cd": float}
 var _drawer_focus_just_entered: bool = false
 var _drawer_e_held: bool = false
 var _drawer_e_hold_elapsed: float = 0.0
@@ -723,13 +726,11 @@ func _rpc_server_briefcase_trap_action(action: String, slot_arg: int = 0, norm_p
 
 func enter_container_view(container: Node) -> void:
 	var already_same_container: bool = (active_container == container)
+	if not already_same_container:
+		_flush_active_3d_slides(true)
 	active_container = container
 	stance_state = GameConfig.Stance.DRAWER_LOCK if GameConfig != null else 3
-	_dragging_3d_clutter_idx = -1
-	_dragging_3d_clutter_node = null
-	_dragging_3d_briefcase_role = ""
-	_dragging_3d_briefcase_item_id = ""
-	_dragging_3d_briefcase_node = null
+	_clear_drag_3d_state()
 	_lmb_trap_hold_active = false
 	_lmb_trap_hold_elapsed = 0.0
 	if _dvd_reticle_ui != null:
@@ -764,11 +765,8 @@ func enter_container_view(container: Node) -> void:
 
 func exit_container_view() -> void:
 	active_container = null
-	_dragging_3d_clutter_idx = -1
-	_dragging_3d_clutter_node = null
-	_dragging_3d_briefcase_role = ""
-	_dragging_3d_briefcase_item_id = ""
-	_dragging_3d_briefcase_node = null
+	_clear_drag_3d_state()
+	_active_3d_slides.clear()
 	_drawer_focus_just_entered = false
 	_drawer_e_held = false
 	_drawer_e_hold_elapsed = 0.0
@@ -1169,10 +1167,14 @@ func server_pickup_world_item(
 		return false
 
 	if str(res["dropped_item_id"]) != "NONE":
+		var safe_drop_pos: Vector3 = pickup_pos
+		if is_inside_tree() and get_world_3d() != null:
+			var desired_offset := Vector3(pickup_pos.x - global_position.x, 0.0, pickup_pos.z - global_position.z)
+			safe_drop_pos = _compute_safe_drop_position(desired_offset, true)
 		_server_spawn_floor_drop(
 			str(res["dropped_item_id"]),
 			res["dropped_briefcase_items"],
-			pickup_pos,
+			safe_drop_pos,
 			bool(res.get("dropped_briefcase_armed_bomb", false)),
 			int(res.get("dropped_briefcase_bomb_owner", 0)),
 			bool(res.get("dropped_briefcase_armed_spring", false)),
@@ -1250,7 +1252,7 @@ func server_request_hand_action(action_type: String, slot_arg: int = 0) -> void:
 	_sync_inventory_state_to_peers()
 
 
-func _compute_safe_drop_position(desired_offset: Vector3) -> Vector3:
+func _compute_safe_drop_position(desired_offset: Vector3, ignore_interactables_for_horiz: bool = false) -> Vector3:
 	var origin_base: Vector3 = global_position if is_inside_tree() else position
 	if not is_inside_tree() or get_world_3d() == null:
 		return origin_base + desired_offset
@@ -1262,7 +1264,8 @@ func _compute_safe_drop_position(desired_offset: Vector3) -> Vector3:
 	var ray_start: Vector3 = origin_base + Vector3(0.0, 0.6, 0.0)
 	var safe_xz: Vector3 = origin_base + horiz_offset
 	if horiz_offset.length_squared() > 0.0001:
-		var horiz_mask: int = (GameConfig.LAYER_ENVIRONMENT | GameConfig.LAYER_INTERACTABLE) if GameConfig != null else 3
+		var env_mask: int = GameConfig.LAYER_ENVIRONMENT if GameConfig != null else 1
+		var horiz_mask: int = env_mask if ignore_interactables_for_horiz else ((GameConfig.LAYER_ENVIRONMENT | GameConfig.LAYER_INTERACTABLE) if GameConfig != null else 3)
 		var h_query := PhysicsRayQueryParameters3D.create(ray_start, ray_start + horiz_offset, horiz_mask, [get_rid()])
 		var h_hit: Dictionary = space.intersect_ray(h_query)
 		if not h_hit.is_empty():
@@ -2183,6 +2186,8 @@ func _process(delta: float) -> void:
 		prompt_label.visible = false
 		if _dvd_reticle_ui != null:
 			_dvd_reticle_ui.set_active(false)
+		if not _active_3d_slides.is_empty():
+			_step_active_3d_slides(delta)
 		_tick_drawer_open_input(delta)
 		return
 
@@ -2350,9 +2355,6 @@ func _process_interaction_raycast() -> void:
 
 	var my_peer_id: int = multiplayer.get_unique_id() if _is_peer_connected() else 1
 	if is_interactable and target_collider != null and e_just_pressed and not _interact_key_down:
-		var target_item_id_v: Variant = target_collider.get("item_id")
-		if target_item_id_v is String and PICKUP_SCRIPT.is_objective_item(str(target_item_id_v)) and left_hand_item_id == "BRIEFCASE":
-			return
 		reset_anti_camp()
 		if target_collider.has_method("request_focus_container"):
 			_drawer_focus_just_entered = true
@@ -2402,14 +2404,13 @@ func _input(event: InputEvent) -> void:
 			or (event is InputEventKey and event.pressed and not event.is_echo() and (event.keycode in [KEY_A, KEY_S, KEY_D, KEY_ESCAPE]))
 		)
 		if is_exit_key:
-			if _dragging_3d_clutter_idx != -1:
-				_finish_container_3d_drag()
-			if _dragging_3d_briefcase_node != null:
-				_dragging_3d_briefcase_node = null
-				_dragging_3d_briefcase_role = ""
-				_dragging_3d_briefcase_item_id = ""
-				if _container_ui != null and _container_ui.has_method("clear_external_3d_briefcase_drag"):
-					_container_ui.clear_external_3d_briefcase_drag()
+			if _drag_3d_active and get_viewport() != null:
+				_finish_container_3d_drag(get_viewport().get_mouse_position())
+			else:
+				_clear_drag_3d_state()
+			_flush_active_3d_slides(true)
+			if _container_ui != null and _container_ui.has_method("flush_active_briefcase_slides"):
+				_container_ui.flush_active_briefcase_slides()
 			var my_id: int = multiplayer.get_unique_id() if _is_peer_connected() else name.to_int()
 			if active_container != null and is_instance_valid(active_container) and active_container.has_method("request_close_container"):
 				active_container.request_close_container(my_id)
@@ -2425,18 +2426,12 @@ func _input(event: InputEvent) -> void:
 						if _handle_container_3d_mouse_down(event.position, event.button_index):
 							get_viewport().set_input_as_handled()
 				elif event.button_index == MOUSE_BUTTON_LEFT:
-					if _dragging_3d_clutter_idx != -1:
-						_finish_container_3d_drag()
-						get_viewport().set_input_as_handled()
-					elif _dragging_3d_briefcase_node != null:
-						_finish_briefcase_3d_drag(event.position)
+					if _drag_3d_active:
+						_finish_container_3d_drag(event.position)
 						get_viewport().set_input_as_handled()
 			elif event is InputEventMouseMotion:
-				if _dragging_3d_clutter_idx != -1:
+				if _drag_3d_active:
 					_update_container_3d_drag(event.position)
-					get_viewport().set_input_as_handled()
-				elif _dragging_3d_briefcase_node != null:
-					_update_briefcase_3d_drag(event.position)
 					get_viewport().set_input_as_handled()
 
 
@@ -2480,6 +2475,29 @@ func _raycast_container_3d(screen_pos: Vector2) -> Dictionary:
 	return hit
 
 
+func _clear_drag_3d_state() -> void:
+	_drag_3d_active = false
+	_drag_3d_role = ""
+	_drag_3d_clutter_idx = -1
+	_drag_3d_item_id = ""
+	_drag_3d_node = null
+	_drag_3d_plane_y = 0.0
+	_drag_3d_offset_xz = Vector2.ZERO
+	_drag_3d_start_screen_pos = Vector2.ZERO
+	_drag_3d_moved = false
+	_drag_3d_samples.clear()
+	if _container_ui != null and _container_ui.has_method("clear_external_3d_item_drag"):
+		_container_ui.clear_external_3d_item_drag()
+
+
+func _make_3d_slide_key(role: String, clutter_idx: int, item_id: String) -> String:
+	if role == "clutter":
+		return "clutter:%d" % clutter_idx
+	if role == "planted_bomb":
+		return "planted_bomb:BOMB"
+	return "%s:%s" % [role, item_id.to_upper()]
+
+
 func _handle_container_3d_mouse_down(screen_pos: Vector2, button_index: int) -> bool:
 	var hit: Dictionary = _raycast_container_3d(screen_pos)
 	if hit.is_empty():
@@ -2489,52 +2507,36 @@ func _handle_container_3d_mouse_down(screen_pos: Vector2, button_index: int) -> 
 	var role: String = str(hit_area.get_meta("container_role", ""))
 	var my_id: int = multiplayer.get_unique_id() if _is_peer_connected() else name.to_int()
 
+	if role in ["clutter", "loot_item", "planted_bomb"]:
+		if button_index != MOUSE_BUTTON_LEFT:
+			return false
+		var tray: Node3D = active_container.get_tray_node() if active_container.has_method("get_tray_node") else null
+		if tray == null:
+			return false
+		var local_hit: Vector3 = tray.to_local(hit_pos)
+		var c_idx: int = int(hit_area.get_meta("clutter_idx", -1)) if role == "clutter" else -1
+		var item_id: String = "BOMB" if role == "planted_bomb" else (str(hit_area.get_meta("item_id", "")).to_upper() if role == "loot_item" else "")
+		_active_3d_slides.erase(_make_3d_slide_key(role, c_idx, item_id))
+		_drag_3d_active = true
+		_drag_3d_role = role
+		_drag_3d_clutter_idx = c_idx
+		_drag_3d_item_id = item_id
+		_drag_3d_node = hit_area
+		_drag_3d_plane_y = hit_area.global_position.y
+		_drag_3d_offset_xz = Vector2(hit_area.position.x - local_hit.x, hit_area.position.z - local_hit.z)
+		_drag_3d_start_screen_pos = screen_pos
+		_drag_3d_moved = false
+		_drag_3d_samples.clear()
+		hit_area.position.y = float(hit_area.get_meta("base_y", hit_area.position.y))
+		var start_norm: Vector2 = (
+			active_container.container_local_xz_to_norm(hit_area.position.x, hit_area.position.z)
+			if active_container.has_method("container_local_xz_to_norm")
+			else Vector2(0.5, 0.5)
+		)
+		SHOVE_PHYSICS.record_sample(_drag_3d_samples, start_norm, Time.get_ticks_usec() * 1e-6)
+		return true
+
 	match role:
-		"clutter":
-			if button_index != MOUSE_BUTTON_LEFT:
-				return false
-			var tray: Node3D = active_container.get_tray_node() if active_container.has_method("get_tray_node") else null
-			if tray == null:
-				return false
-			var local_hit: Vector3 = tray.to_local(hit_pos)
-			_dragging_3d_clutter_idx = int(hit_area.get_meta("clutter_idx", -1))
-			_dragging_3d_clutter_node = hit_area
-			_dragging_3d_plane_y = hit_area.global_position.y
-			_dragging_3d_offset_xz = Vector2(hit_area.position.x - local_hit.x, hit_area.position.z - local_hit.z)
-			hit_area.position.y = float(hit_area.get_meta("base_y", hit_area.position.y))
-			return true
-		"loot_item":
-			if button_index == MOUSE_BUTTON_LEFT:
-				var loot_id: String = str(hit_area.get_meta("item_id", ""))
-				if bool(active_container.get("is_briefcase_container")):
-					var b_tray: Node3D = active_container.get_tray_node() if active_container.has_method("get_tray_node") else null
-					if b_tray != null:
-						var local_hit: Vector3 = b_tray.to_local(hit_pos)
-						_dragging_3d_briefcase_role = "loot_item"
-						_dragging_3d_briefcase_item_id = loot_id
-						_dragging_3d_briefcase_node = hit_area
-						_dragging_3d_briefcase_plane_y = hit_area.global_position.y
-						_dragging_3d_briefcase_offset_xz = Vector2(hit_area.position.x - local_hit.x, hit_area.position.z - local_hit.z)
-						hit_area.position.y = float(hit_area.get_meta("base_y", hit_area.position.y))
-						return true
-				if _container_ui != null and _container_ui.has_method("begin_external_drag"):
-					_container_ui.begin_external_drag("CONTAINER_ITEM", loot_id, screen_pos, -1)
-					return true
-				elif active_container.has_method("request_loot_item"):
-					active_container.request_loot_item(my_id, loot_id, -1)
-					return true
-		"planted_bomb":
-			if button_index == MOUSE_BUTTON_LEFT and bool(active_container.get("is_briefcase_container")):
-				var b_tray2: Node3D = active_container.get_tray_node() if active_container.has_method("get_tray_node") else null
-				if b_tray2 != null:
-					var local_hit2: Vector3 = b_tray2.to_local(hit_pos)
-					_dragging_3d_briefcase_role = "planted_bomb"
-					_dragging_3d_briefcase_item_id = "BOMB"
-					_dragging_3d_briefcase_node = hit_area
-					_dragging_3d_briefcase_plane_y = hit_area.global_position.y
-					_dragging_3d_briefcase_offset_xz = Vector2(hit_area.position.x - local_hit2.x, hit_area.position.z - local_hit2.z)
-					hit_area.position.y = float(hit_area.get_meta("base_y", hit_area.position.y))
-					return true
 		"lip_spring":
 			if bool(active_container.get("armed_spring")) and button_index == MOUSE_BUTTON_LEFT:
 				active_container.request_unlatch_spring(my_id)
@@ -2555,40 +2557,237 @@ func _handle_container_3d_mouse_down(screen_pos: Vector2, button_index: int) -> 
 
 
 func _update_container_3d_drag(screen_pos: Vector2) -> void:
-	if active_container == null or not is_instance_valid(active_container) or _dragging_3d_clutter_node == null or not is_instance_valid(_dragging_3d_clutter_node):
-		_dragging_3d_clutter_idx = -1
-		_dragging_3d_clutter_node = null
+	if active_container == null or not is_instance_valid(active_container) or _drag_3d_node == null or not is_instance_valid(_drag_3d_node):
+		_clear_drag_3d_state()
 		return
+	if not _drag_3d_moved and screen_pos.distance_to(_drag_3d_start_screen_pos) >= 12.0:
+		_drag_3d_moved = true
+
+	if _drag_3d_moved and _drag_3d_role == "loot_item" and _container_ui != null:
+		var wants_left: bool = _drag_3d_item_id == "BRIEFCASE" or PICKUP_SCRIPT.is_objective_item(_drag_3d_item_id)
+		var wants_right: bool = PICKUP_SCRIPT.is_gadget_item(_drag_3d_item_id)
+		var over_left: bool = _container_ui.has_method("is_point_over_left_panel") and bool(_container_ui.is_point_over_left_panel(screen_pos))
+		var over_right: bool = _container_ui.has_method("is_point_over_right_panel") and bool(_container_ui.is_point_over_right_panel(screen_pos))
+		if (wants_left and over_left) or (wants_right and over_right):
+			if _container_ui.has_method("update_external_3d_item_drag"):
+				_container_ui.update_external_3d_item_drag(_drag_3d_item_id, screen_pos)
+			return
+		if _container_ui.has_method("clear_external_3d_item_drag"):
+			_container_ui.clear_external_3d_item_drag()
+
 	var tray: Node3D = active_container.get_tray_node() if active_container.has_method("get_tray_node") else null
 	if tray == null or camera == null:
 		return
 	var ray_origin: Vector3 = camera.project_ray_origin(screen_pos)
 	var ray_dir: Vector3 = camera.project_ray_normal(screen_pos)
-	var world_hit: Variant = Plane(Vector3.UP, _dragging_3d_plane_y).intersects_ray(ray_origin, ray_dir)
+	var world_hit: Variant = Plane(Vector3.UP, _drag_3d_plane_y).intersects_ray(ray_origin, ray_dir)
 	if world_hit is Vector3:
 		var local_pt: Vector3 = tray.to_local(world_hit as Vector3)
-		_dragging_3d_clutter_node.position.x = clampf(local_pt.x + _dragging_3d_offset_xz.x, -0.33, 0.33)
-		_dragging_3d_clutter_node.position.z = clampf(local_pt.z + _dragging_3d_offset_xz.y, -0.17, 0.17)
+		var raw_x: float = local_pt.x + _drag_3d_offset_xz.x
+		var raw_z: float = local_pt.z + _drag_3d_offset_xz.y
+		if active_container.has_method("container_local_xz_to_norm") and active_container.has_method("norm_to_container_local_xz"):
+			var norm_pos: Vector2 = active_container.container_local_xz_to_norm(raw_x, raw_z)
+			var clamped_xz: Vector2 = active_container.norm_to_container_local_xz(norm_pos)
+			_drag_3d_node.position.x = clamped_xz.x
+			_drag_3d_node.position.z = clamped_xz.y
+			_drag_3d_node.position.y = float(_drag_3d_node.get_meta("base_y", _drag_3d_node.position.y))
+			SHOVE_PHYSICS.record_sample(_drag_3d_samples, norm_pos, Time.get_ticks_usec() * 1e-6)
+		else:
+			_drag_3d_node.position.x = clampf(raw_x, -0.33, 0.33)
+			_drag_3d_node.position.z = clampf(raw_z, -0.17, 0.17)
+			_drag_3d_node.position.y = float(_drag_3d_node.get_meta("base_y", _drag_3d_node.position.y))
 
 
-func _finish_container_3d_drag() -> void:
-	var idx: int = _dragging_3d_clutter_idx
-	var node: Node3D = _dragging_3d_clutter_node
-	_dragging_3d_clutter_idx = -1
-	_dragging_3d_clutter_node = null
-	_dragging_3d_briefcase_role = ""
-	_dragging_3d_briefcase_item_id = ""
-	_dragging_3d_briefcase_node = null
-	if node == null or not is_instance_valid(node) or active_container == null or not is_instance_valid(active_container):
+func _finish_container_3d_drag(release_pos: Vector2) -> void:
+	var role: String = _drag_3d_role
+	var c_idx: int = _drag_3d_clutter_idx
+	var item_id: String = _drag_3d_item_id
+	var node: Node3D = _drag_3d_node
+	var moved: bool = _drag_3d_moved
+	var samples: Array = _drag_3d_samples.duplicate()
+	var container_ref: Node = active_container
+	_clear_drag_3d_state()
+	if node == null or not is_instance_valid(node) or container_ref == null or not is_instance_valid(container_ref):
 		return
 	node.position.y = float(node.get_meta("base_y", node.position.y))
-	if active_container.has_method("tray_local_xz_to_norm") and active_container.has_method("request_move_clutter"):
-		var norm_pos: Vector2 = active_container.tray_local_xz_to_norm(node.position.x, node.position.z)
-		var my_id: int = multiplayer.get_unique_id() if _is_peer_connected() else name.to_int()
-		active_container.request_move_clutter(my_id, idx, norm_pos)
+	var my_id: int = multiplayer.get_unique_id() if _is_peer_connected() else name.to_int()
+	var is_briefcase: bool = bool(container_ref.get("is_briefcase_container"))
+
+	if role == "loot_item":
+		if _container_ui != null:
+			var over_left: bool = _container_ui.has_method("is_point_over_left_panel") and bool(_container_ui.is_point_over_left_panel(release_pos))
+			if over_left and (item_id == "BRIEFCASE" or PICKUP_SCRIPT.is_objective_item(item_id)):
+				var felt_norm: Vector2 = _container_ui.get_briefcase_canvas_norm_pos_if_over(release_pos) if _container_ui.has_method("get_briefcase_canvas_norm_pos_if_over") else Vector2(-1.0, -1.0)
+				if container_ref.has_method("request_loot_item"):
+					container_ref.request_loot_item(my_id, item_id, -1, felt_norm)
+				return
+			var over_right: bool = _container_ui.has_method("is_point_over_right_panel") and bool(_container_ui.is_point_over_right_panel(release_pos))
+			if over_right and PICKUP_SCRIPT.is_gadget_item(item_id):
+				var coat_slot: int = int(_container_ui.find_coat_slot_at_screen_pos(release_pos)) if _container_ui.has_method("find_coat_slot_at_screen_pos") else -1
+				if container_ref.has_method("request_loot_item"):
+					container_ref.request_loot_item(my_id, item_id, coat_slot)
+				return
+		if not moved and not is_briefcase:
+			var held_left: String = left_hand_item_id.to_upper()
+			var quick_loot_ok: bool = (
+				PICKUP_SCRIPT.is_gadget_item(item_id)
+				or item_id == "BRIEFCASE"
+				or (PICKUP_SCRIPT.is_objective_item(item_id) and (held_left == "NONE" or held_left == "BRIEFCASE"))
+			)
+			if quick_loot_ok and container_ref.has_method("request_loot_item"):
+				container_ref.request_loot_item(my_id, item_id, -1)
+				return
+
+	var norm_pos: Vector2 = (
+		container_ref.container_local_xz_to_norm(node.position.x, node.position.z)
+		if container_ref.has_method("container_local_xz_to_norm")
+		else Vector2(0.5, 0.5)
+	)
+	var vel: Vector2 = SHOVE_PHYSICS.compute_release_velocity(samples, norm_pos, Time.get_ticks_usec() * 1e-6)
+	launch_3d_container_slide(container_ref, role, c_idx, item_id, norm_pos, vel)
 
 
-func project_screen_pos_to_briefcase_norm(screen_pos: Vector2) -> Vector2:
+func launch_3d_container_slide(
+	container: Node,
+	role: String,
+	clutter_idx: int,
+	item_id: String,
+	start_norm: Vector2,
+	vel: Vector2
+) -> void:
+	if container == null or not is_instance_valid(container):
+		return
+	var bounds: Vector2 = container.get_norm_bounds() if container.has_method("get_norm_bounds") else Vector2(0.05, 0.95)
+	var clamped: Vector2 = Vector2(clampf(start_norm.x, bounds.x, bounds.y), clampf(start_norm.y, bounds.x, bounds.y))
+	var key: String = _make_3d_slide_key(role, clutter_idx, item_id)
+	var cfg: Dictionary = SHOVE_PHYSICS.get_config_dict()
+	var stop_speed: float = float(cfg.get("stop_speed", 0.04))
+	_apply_3d_slide_node_xz(container, role, clutter_idx, item_id, clamped)
+	if vel.length() > stop_speed:
+		_active_3d_slides[key] = {
+			"container": container,
+			"role": role,
+			"clutter_idx": clutter_idx,
+			"item_id": item_id.to_upper(),
+			"pos": clamped,
+			"vel": vel,
+			"bounds_min": bounds.x,
+			"bounds_max": bounds.y,
+			"bounce_sfx_cd": 0.0
+		}
+		if vel.length() >= 0.6 and AudioBridge != null:
+			var my_id: int = multiplayer.get_unique_id() if _is_peer_connected() else name.to_int()
+			AudioBridge.request_world_cue("paper_rustle", container.global_position if container is Node3D else _safe_global_pos(), 3.0, my_id)
+	else:
+		_active_3d_slides.erase(key)
+		_commit_3d_slide_position(container, role, clutter_idx, item_id, clamped)
+
+
+func _step_active_3d_slides(delta: float) -> void:
+	if _active_3d_slides.is_empty():
+		return
+	var cfg: Dictionary = SHOVE_PHYSICS.get_config_dict()
+	var to_commit: Array[Dictionary] = []
+	for key in _active_3d_slides.keys():
+		var entry: Dictionary = _active_3d_slides[key] as Dictionary
+		var c: Node = entry.get("container") as Node
+		if c == null or not is_instance_valid(c):
+			to_commit.append({"key": key, "commit": false})
+			continue
+		var res: Dictionary = SHOVE_PHYSICS.step_slide(
+			entry["pos"] as Vector2,
+			entry["vel"] as Vector2,
+			delta,
+			float(entry["bounds_min"]),
+			float(entry["bounds_max"]),
+			cfg
+		)
+		var next_pos: Vector2 = res["pos"] as Vector2
+		entry["pos"] = next_pos
+		entry["vel"] = res["vel"] as Vector2
+		entry["bounce_sfx_cd"] = maxf(float(entry.get("bounce_sfx_cd", 0.0)) - delta, 0.0)
+		_apply_3d_slide_node_xz(c, str(entry["role"]), int(entry["clutter_idx"]), str(entry["item_id"]), next_pos)
+		if bool(res["bounced"]) and float(res["impact_speed"]) >= 0.35 and float(entry["bounce_sfx_cd"]) <= 0.0:
+			entry["bounce_sfx_cd"] = 0.09
+			if AudioBridge != null:
+				var my_id: int = multiplayer.get_unique_id() if _is_peer_connected() else name.to_int()
+				AudioBridge.request_world_cue("paper_rustle", c.global_position if c is Node3D else _safe_global_pos(), 3.0, my_id)
+		if bool(res["settled"]):
+			to_commit.append({
+				"key": key,
+				"commit": true,
+				"container": c,
+				"role": str(entry["role"]),
+				"clutter_idx": int(entry["clutter_idx"]),
+				"item_id": str(entry["item_id"]),
+				"pos": next_pos
+			})
+	for item in to_commit:
+		_active_3d_slides.erase(item["key"])
+		if bool(item.get("commit", false)):
+			_commit_3d_slide_position(
+				item["container"] as Node,
+				str(item["role"]),
+				int(item["clutter_idx"]),
+				str(item["item_id"]),
+				item["pos"] as Vector2
+			)
+	# Re-apply any still-active slides after server state sync/rebuild so concurrent drags stay smooth
+	for key in _active_3d_slides.keys():
+		var rem: Dictionary = _active_3d_slides[key] as Dictionary
+		var rem_c: Node = rem.get("container") as Node
+		if rem_c != null and is_instance_valid(rem_c):
+			_apply_3d_slide_node_xz(rem_c, str(rem["role"]), int(rem["clutter_idx"]), str(rem["item_id"]), rem["pos"] as Vector2)
+
+
+func _flush_active_3d_slides(commit: bool = true) -> void:
+	if _active_3d_slides.is_empty():
+		return
+	var cfg: Dictionary = SHOVE_PHYSICS.get_config_dict()
+	var keys: Array = _active_3d_slides.keys()
+	for key in keys:
+		var entry: Dictionary = _active_3d_slides[key] as Dictionary
+		var c: Node = entry.get("container") as Node
+		var rest_pos: Vector2 = SHOVE_PHYSICS.simulate_to_rest(
+			entry["pos"] as Vector2,
+			entry["vel"] as Vector2,
+			float(entry["bounds_min"]),
+			float(entry["bounds_max"]),
+			cfg
+		)
+		_active_3d_slides.erase(key)
+		if c != null and is_instance_valid(c):
+			_apply_3d_slide_node_xz(c, str(entry["role"]), int(entry["clutter_idx"]), str(entry["item_id"]), rest_pos)
+			if commit:
+				_commit_3d_slide_position(c, str(entry["role"]), int(entry["clutter_idx"]), str(entry["item_id"]), rest_pos)
+
+
+func _apply_3d_slide_node_xz(container: Node, role: String, clutter_idx: int, item_id: String, norm_pos: Vector2) -> void:
+	if container == null or not is_instance_valid(container):
+		return
+	var lookup_key: Variant = clutter_idx if role == "clutter" else item_id
+	var area_node: Node3D = container.get_content_area_node(role, lookup_key) if container.has_method("get_content_area_node") else null
+	if area_node == null or not is_instance_valid(area_node):
+		return
+	var local_xz: Vector2 = container.norm_to_container_local_xz(norm_pos) if container.has_method("norm_to_container_local_xz") else Vector2.ZERO
+	area_node.position.x = local_xz.x
+	area_node.position.z = local_xz.y
+	area_node.position.y = float(area_node.get_meta("base_y", area_node.position.y))
+
+
+func _commit_3d_slide_position(container: Node, role: String, clutter_idx: int, item_id: String, norm_pos: Vector2) -> void:
+	if container == null or not is_instance_valid(container):
+		return
+	var my_id: int = multiplayer.get_unique_id() if _is_peer_connected() else name.to_int()
+	if role == "clutter" and container.has_method("request_move_clutter"):
+		container.request_move_clutter(my_id, clutter_idx, norm_pos)
+	elif role == "loot_item" and container.has_method("request_move_stored_item"):
+		container.request_move_stored_item(my_id, item_id, norm_pos)
+	elif role == "planted_bomb" and container.has_method("request_move_planted_bomb"):
+		container.request_move_planted_bomb(my_id, norm_pos)
+
+
+func project_screen_pos_to_container_norm(screen_pos: Vector2) -> Vector2:
 	if camera == null or active_container == null or not is_instance_valid(active_container):
 		return Vector2(-1.0, -1.0)
 	if not active_container.has_method("get_tray_node"):
@@ -2602,57 +2801,13 @@ func project_screen_pos_to_briefcase_norm(screen_pos: Vector2) -> Vector2:
 	if not (world_hit is Vector3):
 		return Vector2(-1.0, -1.0)
 	var local_pt: Vector3 = tray.to_local(world_hit as Vector3)
+	if active_container.has_method("container_local_xz_to_norm"):
+		return active_container.container_local_xz_to_norm(local_pt.x, local_pt.z)
 	return BRIEFCASE_BUILDER.briefcase_local_xz_to_norm(local_pt.x, local_pt.z)
 
 
-func _update_briefcase_3d_drag(screen_pos: Vector2) -> void:
-	if active_container == null or not is_instance_valid(active_container) or _dragging_3d_briefcase_node == null or not is_instance_valid(_dragging_3d_briefcase_node):
-		_dragging_3d_briefcase_node = null
-		_dragging_3d_briefcase_role = ""
-		_dragging_3d_briefcase_item_id = ""
-		return
-	var over_left: bool = _container_ui != null and _container_ui.has_method("is_point_over_left_panel") and bool(_container_ui.is_point_over_left_panel(screen_pos))
-	if over_left and _dragging_3d_briefcase_role == "loot_item":
-		if _container_ui.has_method("update_external_3d_briefcase_drag"):
-			_container_ui.update_external_3d_briefcase_drag(_dragging_3d_briefcase_item_id, screen_pos)
-		return
-	if _container_ui != null and _container_ui.has_method("clear_external_3d_briefcase_drag"):
-		_container_ui.clear_external_3d_briefcase_drag()
-	var tray: Node3D = active_container.get_tray_node() if active_container.has_method("get_tray_node") else null
-	if tray == null or camera == null:
-		return
-	var ray_origin: Vector3 = camera.project_ray_origin(screen_pos)
-	var ray_dir: Vector3 = camera.project_ray_normal(screen_pos)
-	var world_hit: Variant = Plane(Vector3.UP, _dragging_3d_briefcase_plane_y).intersects_ray(ray_origin, ray_dir)
-	if world_hit is Vector3:
-		var local_pt: Vector3 = tray.to_local(world_hit as Vector3)
-		_dragging_3d_briefcase_node.position.x = clampf(local_pt.x + _dragging_3d_briefcase_offset_xz.x, -BRIEFCASE_BUILDER.INTERIOR_HALF_X, BRIEFCASE_BUILDER.INTERIOR_HALF_X)
-		_dragging_3d_briefcase_node.position.z = clampf(local_pt.z + _dragging_3d_briefcase_offset_xz.y, -BRIEFCASE_BUILDER.INTERIOR_HALF_Z, BRIEFCASE_BUILDER.INTERIOR_HALF_Z)
-		_dragging_3d_briefcase_node.position.y = float(_dragging_3d_briefcase_node.get_meta("base_y", _dragging_3d_briefcase_node.position.y))
-
-
-func _finish_briefcase_3d_drag(release_pos: Vector2) -> void:
-	var role: String = _dragging_3d_briefcase_role
-	var item_id: String = _dragging_3d_briefcase_item_id
-	var node: Node3D = _dragging_3d_briefcase_node
-	_dragging_3d_briefcase_role = ""
-	_dragging_3d_briefcase_item_id = ""
-	_dragging_3d_briefcase_node = null
-	if _container_ui != null and _container_ui.has_method("clear_external_3d_briefcase_drag"):
-		_container_ui.clear_external_3d_briefcase_drag()
-	if node == null or not is_instance_valid(node) or active_container == null or not is_instance_valid(active_container):
-		return
-	node.position.y = float(node.get_meta("base_y", node.position.y))
-	var my_id: int = multiplayer.get_unique_id() if _is_peer_connected() else name.to_int()
-	if role == "loot_item" and _container_ui != null and _container_ui.has_method("is_point_over_left_panel") and bool(_container_ui.is_point_over_left_panel(release_pos)):
-		if active_container.has_method("request_loot_item"):
-			active_container.request_loot_item(my_id, item_id, -1)
-		return
-	var norm_pos: Vector2 = BRIEFCASE_BUILDER.briefcase_local_xz_to_norm(node.position.x, node.position.z)
-	if role == "loot_item" and active_container.has_method("request_move_stored_item"):
-		active_container.request_move_stored_item(my_id, item_id, norm_pos)
-	elif role == "planted_bomb" and active_container.has_method("request_move_planted_bomb"):
-		active_container.request_move_planted_bomb(my_id, norm_pos)
+func project_screen_pos_to_briefcase_norm(screen_pos: Vector2) -> Vector2:
+	return project_screen_pos_to_container_norm(screen_pos)
 
 
 func _unhandled_input(event: InputEvent) -> void:

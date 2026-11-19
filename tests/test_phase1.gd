@@ -119,13 +119,17 @@ func test_left_hand_objectives_and_briefcase_packing() -> void:
 	assert_true("PASSPORT" in p.briefcase_objectives and "MONEY" in p.briefcase_objectives, "Both PASSPORT and MONEY packed")
 	assert_true(is_equal_approx(p.get_current_move_speed(), 4.5 * 0.90), "Briefcase applies 0.90x move speed multiplier")
 
-	# 4. Floor pickup of PLANS while holding BRIEFCASE is blocked (must drop Briefcase or pack in container view)
-	var r4_blocked: Dictionary = p.pickup_item("PLANS")
-	assert_false(bool(r4_blocked["picked"]), "Floor pickup of PLANS rejected while carrying BRIEFCASE")
-	assert_eq(p.briefcase_objectives.size(), 2, "Briefcase count unchanged after blocked floor pickup")
+	# 4. Floor pickup of PLANS while holding BRIEFCASE auto-drops BRIEFCASE cleanly (preserving PASSPORT & MONEY) & equips PLANS
+	var r4: Dictionary = p.pickup_item("PLANS")
+	assert_true(bool(r4["picked"]), "Floor pickup of PLANS succeeds while carrying BRIEFCASE")
+	assert_eq(str(r4["dropped_item_id"]), "BRIEFCASE", "Carrying Briefcase auto-dropped on Left Hand pickup of PLANS")
+	assert_eq((r4["dropped_briefcase_items"] as Array).size(), 2, "Auto-dropped Briefcase preserved PASSPORT + MONEY")
+	assert_eq(p.left_hand_item_id, "PLANS", "Left Hand now holds PLANS")
+	assert_eq(p.briefcase_objectives.size(), 0, "Player briefcase objectives cleared after drop")
 
-	# Packing PLANS inside container view packs it into Briefcase
-	assert_true(p.server_pack_objective_into_briefcase("PLANS"), "PLANS packed into held Briefcase via container packing")
+	# Re-picking dropped BRIEFCASE while holding PLANS packs all 3, and Q drops BRIEFCASE with 3 Objectives
+	var r5: Dictionary = p.pickup_item("BRIEFCASE", r4["dropped_briefcase_items"])
+	assert_true(bool(r5["picked"]), "Re-picked dropped BRIEFCASE while holding PLANS")
 	assert_eq(p.left_hand_item_id, "BRIEFCASE", "Still holding BRIEFCASE")
 	assert_eq(p.briefcase_objectives.size(), 3, "Briefcase now holds 3/4 Objectives")
 

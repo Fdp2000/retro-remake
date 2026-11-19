@@ -153,6 +153,20 @@ func clear_briefcase_trap_state() -> void:
 		briefcase_item_positions.clear()
 
 
+func _extract_briefcase_drop_into_result(result: Dictionary) -> void:
+	result["dropped_item_id"] = "BRIEFCASE"
+	result["dropped_briefcase_items"] = briefcase_objectives.duplicate()
+	result["dropped_briefcase_item_positions"] = briefcase_item_positions.duplicate()
+	result["dropped_briefcase_bomb_pos"] = briefcase_bomb_norm_pos
+	result["dropped_briefcase_armed_spring"] = briefcase_armed_spring or briefcase_staged_spring
+	result["dropped_briefcase_spring_owner"] = briefcase_spring_owner_id
+	result["dropped_briefcase_armed_bomb"] = briefcase_armed_bomb or briefcase_staged_bomb
+	result["dropped_briefcase_bomb_owner"] = briefcase_bomb_owner_id
+	briefcase_objectives = [] as Array[String]
+	briefcase_item_positions.clear()
+	clear_briefcase_trap_state()
+
+
 func pickup_item(
 	new_item_id: String,
 	extra_briefcase_items: Array = [],
@@ -176,8 +190,10 @@ func pickup_item(
 			left_hand_item_id = id
 			result["picked"] = true
 		elif left_hand_item_id == "BRIEFCASE":
-			# Playtest Briefcase rule: cannot pick up floor Objectives while carrying Briefcase
-			# (must drop Briefcase [Q], pick up Objective, open Briefcase, and drag it inside).
+			_extract_briefcase_drop_into_result(result)
+			left_hand_item_id = id
+			result["picked"] = true
+		elif left_hand_item_id == id:
 			result["picked"] = false
 		else:
 			result["dropped_item_id"] = left_hand_item_id
@@ -215,15 +231,7 @@ func pickup_item(
 			ensure_briefcase_item_positions()
 			result["picked"] = true
 		elif left_hand_item_id == "BRIEFCASE":
-			result["dropped_item_id"] = "BRIEFCASE"
-			result["dropped_briefcase_items"] = briefcase_objectives.duplicate()
-			result["dropped_briefcase_item_positions"] = briefcase_item_positions.duplicate()
-			result["dropped_briefcase_bomb_pos"] = briefcase_bomb_norm_pos
-			result["dropped_briefcase_armed_spring"] = briefcase_armed_spring or briefcase_staged_spring
-			result["dropped_briefcase_spring_owner"] = briefcase_spring_owner_id
-			result["dropped_briefcase_armed_bomb"] = briefcase_armed_bomb or briefcase_staged_bomb
-			result["dropped_briefcase_bomb_owner"] = briefcase_bomb_owner_id
-			clear_briefcase_trap_state()
+			_extract_briefcase_drop_into_result(result)
 			briefcase_objectives = merged
 			briefcase_item_positions = incoming_positions
 			left_hand_item_id = "BRIEFCASE"
@@ -313,16 +321,7 @@ func drop_left_hand_item() -> Dictionary:
 
 	result["dropped_item_id"] = left_hand_item_id
 	if left_hand_item_id == "BRIEFCASE":
-		result["dropped_briefcase_items"] = briefcase_objectives.duplicate()
-		result["dropped_briefcase_item_positions"] = briefcase_item_positions.duplicate()
-		result["dropped_briefcase_bomb_pos"] = briefcase_bomb_norm_pos
-		result["dropped_briefcase_armed_spring"] = briefcase_armed_spring or briefcase_staged_spring
-		result["dropped_briefcase_spring_owner"] = briefcase_spring_owner_id
-		result["dropped_briefcase_armed_bomb"] = briefcase_armed_bomb or briefcase_staged_bomb
-		result["dropped_briefcase_bomb_owner"] = briefcase_bomb_owner_id
-		briefcase_objectives = [] as Array[String]
-		briefcase_item_positions.clear()
-		clear_briefcase_trap_state()
+		_extract_briefcase_drop_into_result(result)
 	left_hand_item_id = "NONE"
 	return result
 

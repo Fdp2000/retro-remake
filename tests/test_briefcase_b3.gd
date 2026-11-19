@@ -80,10 +80,20 @@ func test_sync_aliasing_and_duplicate_objective_protection() -> void:
 	assert_eq(p.briefcase_objectives.size(), 2, "Self-aliased apply_sync_state preserves all briefcase objectives")
 	assert_true("KEY" in p.briefcase_objectives and "MONEY" in p.briefcase_objectives, "KEY and MONEY intact after self-aliased sync")
 
-	# Trying to pick up a duplicate KEY must NOT return picked=true (must not delete floor pickup)
-	var dup_res: Dictionary = p.pickup_item("KEY")
-	assert_false(bool(dup_res["picked"]), "Duplicate KEY rejected instead of deleted")
-	assert_eq(p.briefcase_objectives.size(), 2, "Briefcase count unchanged after duplicate attempt")
+	# Packing a duplicate KEY into held Briefcase must fail without touching briefcase contents
+	assert_false(p.server_pack_objective_into_briefcase("KEY"), "Duplicate KEY rejected inside Briefcase packing")
+	assert_eq(p.briefcase_objectives.size(), 2, "Briefcase count unchanged after duplicate pack attempt")
+
+	# Floor pickup of KEY while holding BRIEFCASE drops BRIEFCASE intact (preserving KEY & MONEY) & equips KEY
+	var drop_res: Dictionary = p.pickup_item("KEY")
+	assert_true(bool(drop_res["picked"]), "Floor KEY picked up while carrying Briefcase")
+	assert_eq(str(drop_res["dropped_item_id"]), "BRIEFCASE", "Briefcase auto-dropped when picking up floor KEY")
+	assert_eq((drop_res["dropped_briefcase_items"] as Array).size(), 2, "Auto-dropped Briefcase preserved KEY & MONEY")
+	assert_eq(p.left_hand_item_id, "KEY", "Left Hand now holds KEY")
+
+	# Picking up a duplicate KEY while already holding KEY in Left Hand returns picked=false
+	var self_dup: Dictionary = p.pickup_item("KEY")
+	assert_false(bool(self_dup["picked"]), "Duplicate KEY rejected while already holding KEY in Left Hand")
 
 
 func test_floor_briefcase_focus_deposit_free_hand_and_carry() -> void:
@@ -260,10 +270,11 @@ func test_top_down_ui_three_zone_layout_and_carried_briefcase_lid() -> void:
 	assert_false(ui.visible, "TopDownContainerUI closes cleanly")
 
 
-func test_floor_objective_blocked_while_carrying_briefcase() -> void:
+func test_floor_objective_auto_drops_briefcase_and_swaps_objectives() -> void:
+	MatchManager.start_new_match([1, 2], 7005)
 	var host_root: Node = EditorInterface.get_base_control()
 	var arena := track(Node3D.new()) as Node3D
-	arena.name = "BriefcaseArenaBlockObj"
+	arena.name = "BriefcaseArenaAutoSwap"
 	var players_node := Node3D.new()
 	players_node.name = "Players"
 	arena.add_child(players_node)
@@ -271,7 +282,8 @@ func test_floor_objective_blocked_while_carrying_briefcase() -> void:
 
 	var p1: CharacterBody3D = _instantiate_live_player("1")
 	players_node.add_child(p1)
-	p1.pickup_item("BRIEFCASE", ["KEY"])
+	p1.pickup_item("BRIEFCASE", ["KEY"], {"KEY": Vector2(0.82, 0.24)})
+	p1.set_briefcase_trap_state(true, 2, true, 2, Vector2(0.30, 0.72))
 
 	var money_pickup: StaticBody3D = track(load("res://entities/props/world_item_pickup.gd").new()) as StaticBody3D
 	money_pickup.name = "FloorMoneyPickup"
@@ -279,13 +291,31 @@ func test_floor_objective_blocked_while_carrying_briefcase() -> void:
 	arena.add_child(money_pickup)
 
 	var prompt: String = money_pickup.get_interaction_prompt_for_player(p1)
-	assert_true(prompt.contains("Drop Briefcase"), "Floor Objective prompt instructs player to drop Briefcase [Q]")
+	assert_true(prompt.contains("Drops Briefcase"), "Floor Objective prompt informs player that E drops Briefcase")
 
-	# Attempting to pick up floor MONEY while carrying BRIEFCASE must do nothing & keep pickup intact
+	# Pressing E on floor MONEY while carrying BRIEFCASE auto-drops BRIEFCASE & equips MONEY in Left Hand
 	money_pickup._execute_server_pickup(1)
-	assert_false(money_pickup._is_consumed, "Floor MONEY pickup NOT consumed while carrying Briefcase")
-	assert_eq(p1.left_hand_item_id, "BRIEFCASE", "Player still holds BRIEFCASE")
-	assert_eq(p1.briefcase_objectives.size(), 1, "MONEY was NOT auto-packed from the floor")
+	assert_true(money_pickup._is_consumed, "Floor MONEY pickup consumed on auto-drop pickup")
+	assert_eq(p1.left_hand_item_id, "MONEY", "Player Left Hand now holds MONEY")
+	var dropped_bc: StaticBody3D = arena.get_node_or_null("Dropped_1_BRIEFCASE_1") as StaticBody3D
+	assert_true(dropped_bc != null, "Auto-dropped Briefcase spawned in arena")
+	if dropped_bc != null:
+		assert_true("KEY" in dropped_bc.packed_objectives, "Auto-dropped Briefcase preserved packed KEY")
+		assert_true((dropped_bc.packed_item_positions["KEY"] as Vector2).is_equal_approx(Vector2(0.82, 0.24)), "Auto-dropped Briefcase preserved custom item XY")
+		assert_true(dropped_bc.bomb_norm_pos.is_equal_approx(Vector2(0.30, 0.72)), "Auto-dropped Briefcase preserved custom bomb XY")
+		assert_true(dropped_bc.armed_spring and dropped_bc.armed_bomb, "Auto-dropped Briefcase preserved armed traps")
+
+	# Pressing E on floor PASSPORT while holding MONEY swaps them and drops MONEY
+	var passport_pickup: StaticBody3D = track(load("res://entities/props/world_item_pickup.gd").new()) as StaticBody3D
+	passport_pickup.name = "FloorPassportPickup"
+	passport_pickup.item_id = "PASSPORT"
+	arena.add_child(passport_pickup)
+	assert_true(passport_pickup.get_interaction_prompt_for_player(p1).contains("Swap"), "Prompt indicates swapping Left Hand Objectives")
+	passport_pickup._execute_server_pickup(1)
+	assert_true(passport_pickup._is_consumed, "Floor PASSPORT consumed on swap")
+	assert_eq(p1.left_hand_item_id, "PASSPORT", "Player Left Hand swapped to PASSPORT")
+	var dropped_money: StaticBody3D = arena.get_node_or_null("Dropped_1_MONEY_2") as StaticBody3D
+	assert_true(dropped_money != null and dropped_money.item_id == "MONEY", "Previous MONEY dropped cleanly onto floor")
 
 
 func test_briefcase_freeform_xy_persistence_and_disjoint_layers() -> void:
@@ -346,3 +376,88 @@ func test_briefcase_freeform_xy_persistence_and_disjoint_layers() -> void:
 	var dropped_positions: Dictionary = dropped_container.get("item_positions") as Dictionary
 	assert_true((dropped_positions["KEY"] as Vector2).is_equal_approx(Vector2(0.81, 0.25)), "Re-opened dropped Briefcase preserved KEY pos (0.81, 0.25)")
 	assert_true((dropped_container.get("bomb_norm_pos") as Vector2).is_equal_approx(Vector2(0.79, 0.27)), "Re-opened dropped Briefcase preserved Bomb pos (0.79, 0.27)")
+
+
+func test_container_shove_momentum_wall_bounce_and_persistence() -> void:
+	const SHOVE = preload("res://entities/props/container_shove_physics.gd")
+
+	# 1. Pure physics: release velocity, pause cutoff, wall bounce, friction settling
+	var flick_samples: Array = []
+	SHOVE.record_sample(flick_samples, Vector2(0.30, 0.50), 1.00)
+	SHOVE.record_sample(flick_samples, Vector2(0.45, 0.50), 1.05)
+	var flick_vel: Vector2 = SHOVE.compute_release_velocity(flick_samples, Vector2(0.54, 0.50), 1.07)
+	assert_gt(flick_vel.x, 1.5, "Fast flick produces strong positive X release velocity")
+
+	var pause_vel: Vector2 = SHOVE.compute_release_velocity(flick_samples, Vector2(0.54, 0.50), 1.25)
+	assert_true(pause_vel.is_equal_approx(Vector2.ZERO), "Holding cursor stationary before release yields zero shove momentum")
+
+	var bounce_res: Dictionary = SHOVE.step_slide(Vector2(0.90, 0.50), Vector2(3.0, 0.0), 0.05, 0.08, 0.92)
+	assert_true(bool(bounce_res["bounced"]), "Fast slide reflects off right interior wall")
+	assert_true((bounce_res["vel"] as Vector2).x < 0.0, "Reflected velocity reverses X direction after wall hit")
+	assert_true((bounce_res["pos"] as Vector2).x <= 0.92 and (bounce_res["pos"] as Vector2).x >= 0.08, "Position stays clamped within interior bounds")
+
+	var rest_pos: Vector2 = SHOVE.simulate_to_rest(Vector2(0.85, 0.50), Vector2(3.2, -1.0), 0.08, 0.92)
+	assert_true(rest_pos.x >= 0.08 and rest_pos.x <= 0.92 and rest_pos.y >= 0.08 and rest_pos.y <= 0.92, "Slide rests cleanly inside bounds")
+
+	# 2. Live 3D Drawer Clutter shove preserves Y stratum & persists final resting position
+	MatchManager.start_new_match([1, 2], 7006)
+	var host_root: Node = EditorInterface.get_base_control()
+	var arena := track(Node3D.new()) as Node3D
+	arena.name = "BriefcaseArenaShove"
+	var players_node := Node3D.new()
+	players_node.name = "Players"
+	arena.add_child(players_node)
+	host_root.add_child(arena)
+
+	var p1: CharacterBody3D = _instantiate_live_player("1")
+	players_node.add_child(p1)
+
+	var drawer: StaticBody3D = _instantiate_drawer()
+	arena.add_child(drawer)
+	drawer.open_container(1, false, p1)
+	var c0: Node3D = drawer.get_clutter_area_node(0)
+	var c0_base_y: float = float(c0.get_meta("base_y", c0.position.y))
+
+	p1.launch_3d_container_slide(drawer, "clutter", 0, "", Vector2(0.75, 0.44), Vector2(3.6, -1.2))
+	var steps: int = 0
+	while not p1._active_3d_slides.is_empty() and steps < 200:
+		p1._step_active_3d_slides(0.05)
+		steps += 1
+	assert_true(p1._active_3d_slides.is_empty(), "Drawer clutter slide settled to rest cleanly")
+	var persisted_c0: Vector2 = drawer.clutter_positions[0]
+	assert_false(persisted_c0.is_equal_approx(Vector2(0.75, 0.44)), "Drawer clutter slid away from initial drop point")
+	assert_true(persisted_c0.x >= 0.05 and persisted_c0.x <= 0.95 and persisted_c0.y >= 0.05 and persisted_c0.y <= 0.95, "Settled drawer clutter stayed inside bounds")
+	var c0_after: Node3D = drawer.get_clutter_area_node(0)
+	assert_true(is_equal_approx(c0_after.position.y, c0_base_y), "Clutter vertical layer height preserved after shove slide")
+	drawer.close_container(1, p1)
+
+	# 3. Live 3D Floor Briefcase item shove persists & preserves disjoint layer
+	var briefcase_pickup: StaticBody3D = _instantiate_floor_briefcase(arena, ["KEY", "MONEY"])
+	var bc_container: Node = briefcase_pickup.get_briefcase_container()
+	bc_container.open_container(1, false, p1)
+	var bc_key_node: Node3D = bc_container.get_content_area_node("loot_item", "KEY")
+	var bc_key_y: float = float(bc_key_node.get_meta("base_y", bc_key_node.position.y))
+	p1.launch_3d_container_slide(bc_container, "loot_item", -1, "KEY", Vector2(0.70, 0.50), Vector2(2.8, 0.5))
+	steps = 0
+	while not p1._active_3d_slides.is_empty() and steps < 200:
+		p1._step_active_3d_slides(0.05)
+		steps += 1
+	var bc_rest: Vector2 = (bc_container.get("item_positions") as Dictionary)["KEY"] as Vector2
+	assert_false(bc_rest.is_equal_approx(Vector2(0.70, 0.50)), "Floor Briefcase item slid with shove momentum")
+	assert_true(bc_rest.x >= 0.08 and bc_rest.x <= 0.92 and bc_rest.y >= 0.08 and bc_rest.y <= 0.92, "Floor Briefcase item stayed inside bounds")
+	assert_true(is_equal_approx(bc_container.get_content_area_node("loot_item", "KEY").position.y, bc_key_y), "Floor Briefcase item kept disjoint Y layer")
+	bc_container.close_container(1, p1)
+
+	# 4. Left-Side Carried Briefcase UI shove persists to player inventory
+	p1.pickup_item("BRIEFCASE", ["KEY"], {"KEY": Vector2(0.30, 0.45)})
+	var ui: TopDownContainerUI = track(load("res://ui/top_down_container_ui.gd").new()) as TopDownContainerUI
+	host_root.add_child(ui)
+	drawer.open_container(1, false, p1)
+	ui.open_for_container(p1, drawer, 1)
+	ui.launch_carried_briefcase_slide("KEY", Vector2(0.30, 0.45), Vector2(2.4, -0.8))
+	ui.step_carried_briefcase_slides(0.05)
+	ui.flush_active_briefcase_slides()
+	var ui_rest: Vector2 = p1.briefcase_item_positions["KEY"]
+	assert_true(ui_rest.x > 0.35 and ui_rest.x <= 0.92 and ui_rest.y >= 0.08 and ui_rest.y <= 0.92, "Carried Briefcase UI slide persisted shoved coordinates")
+	ui.close_view()
+	drawer.close_container(1, p1)

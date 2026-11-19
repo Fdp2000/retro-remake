@@ -103,6 +103,13 @@ const LAYER_TRIGGERS: int = 1 << 4           # Layer 5: RoomZones, DoorBashDetec
 @export var drawer_slow_peek_hold_time: float = 2.80
 @export var drawer_close_duration: float = 0.30
 @export var top_down_cam_lerp_duration: float = 0.65
+@export var drawer_interior_mesh_scale: float = 0.70
+@export var drawer_max_clutter_layers: int = 3
+@export var container_drag_momentum_scale: float = 1.00
+@export var container_drag_friction: float = 6.5
+@export var container_drag_wall_bounce: float = 0.42
+@export var container_drag_max_speed: float = 4.5
+@export var container_drag_stop_speed: float = 0.04
 
 # ==========================================
 # Doc 4: The 5-Trap & Gadget Ecosystem [TUNABLE]

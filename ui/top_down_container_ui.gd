@@ -9,6 +9,7 @@ extends Control
 
 const PICKUP_SCRIPT = preload("res://entities/props/world_item_pickup.gd")
 const BRIEFCASE_BUILDER = preload("res://entities/props/briefcase_visual_builder.gd")
+const SHOVE_PHYSICS = preload("res://entities/props/container_shove_physics.gd")
 const DRAG_THRESHOLD_PX: float = 12.0
 
 var _player: Node = null
@@ -41,10 +42,12 @@ var _drag_ghost_label: Label = null
 # Active drag payload
 var _drag_active: bool = false
 var _drag_moved: bool = false
-var _drag_source: String = ""      # LEFT_HAND | CARRIED_BRIEFCASE_OBJ | CARRIED_BRIEFCASE_SPRING | COAT_SLOT | CONTAINER_ITEM | CONTAINER_SPRING
+var _drag_source: String = ""      # LEFT_HAND | CARRIED_BRIEFCASE_OBJ | CARRIED_BRIEFCASE_BOMB | CARRIED_BRIEFCASE_SPRING | COAT_SLOT | CONTAINER_ITEM | CONTAINER_SPRING
 var _drag_item_id: String = ""
 var _drag_slot_index: int = -1
 var _drag_start_pos: Vector2 = Vector2.ZERO
+var _ui_drag_samples: Array = []
+var _active_briefcase_slides: Dictionary = {} # key -> {"item_id": String, "pos": Vector2, "vel": Vector2}
 
 
 func _ready() -> void:
@@ -54,9 +57,12 @@ func _ready() -> void:
 	_build_layout()
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	if not visible or _container == null or not is_instance_valid(_container):
 		return
+
+	if not _active_briefcase_slides.is_empty():
+		step_carried_briefcase_slides(delta)
 
 	if _container_status_label != null and bool(_container.get("live_bomb_lit")):
 		var rem: float = float(_container.get("live_bomb_fuse_remaining"))
@@ -86,7 +92,23 @@ func _input(event: InputEvent) -> void:
 			_drag_moved = true
 			_show_drag_ghost(mpos)
 		if _drag_moved:
-			_drag_ghost.position = mpos + Vector2(14.0, -18.0)
+			if (
+				_drag_source in ["CARRIED_BRIEFCASE_OBJ", "CARRIED_BRIEFCASE_BOMB"]
+				and _briefcase_felt_canvas != null
+				and is_instance_valid(_briefcase_felt_canvas)
+				and _briefcase_felt_canvas.is_visible_in_tree()
+				and _briefcase_felt_canvas.get_global_rect().has_point(mpos)
+			):
+				var canvas_norm: Vector2 = _get_briefcase_canvas_norm_pos(mpos)
+				var live_id: String = "BOMB" if _drag_source == "CARRIED_BRIEFCASE_BOMB" else _drag_item_id
+				_apply_card_norm_pos(live_id, canvas_norm)
+				SHOVE_PHYSICS.record_sample(_ui_drag_samples, canvas_norm, Time.get_ticks_usec() * 1e-6)
+				if _drag_ghost != null:
+					_drag_ghost.visible = false
+			elif _drag_ghost != null:
+				_show_drag_ghost(mpos)
+			if _drag_ghost != null and _drag_ghost.visible:
+				_drag_ghost.position = mpos + Vector2(14.0, -18.0)
 			_update_drop_zone_highlights(mpos)
 		get_viewport().set_input_as_handled()
 	elif event is InputEventMouseButton and (event as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT and not (event as InputEventMouseButton).pressed:
@@ -113,6 +135,7 @@ func open_for_container(player_node: Node, container_node: Node, peer_id: int) -
 
 
 func close_view() -> void:
+	flush_active_briefcase_slides()
 	cancel_drag()
 	if _container != null and is_instance_valid(_container) and _container.has_signal("state_changed"):
 		if _container.state_changed.is_connected(refresh_view):
@@ -136,23 +159,144 @@ func is_point_over_left_panel(screen_pos: Vector2) -> bool:
 	return _left_panel != null and _left_panel.is_visible_in_tree() and _left_panel.get_global_rect().has_point(screen_pos)
 
 
-func update_external_3d_briefcase_drag(item_id: String, screen_pos: Vector2) -> void:
+func is_point_over_right_panel(screen_pos: Vector2) -> bool:
+	return _right_panel != null and _right_panel.is_visible_in_tree() and _right_panel.get_global_rect().has_point(screen_pos)
+
+
+func find_coat_slot_at_screen_pos(screen_pos: Vector2) -> int:
+	return _find_coat_slot_at_pos(screen_pos)
+
+
+func get_briefcase_canvas_norm_pos_if_over(screen_pos: Vector2) -> Vector2:
+	if _briefcase_felt_canvas != null and is_instance_valid(_briefcase_felt_canvas) and _briefcase_felt_canvas.is_visible_in_tree() and _briefcase_felt_canvas.get_global_rect().has_point(screen_pos):
+		return _get_briefcase_canvas_norm_pos(screen_pos)
+	return Vector2(-1.0, -1.0)
+
+
+func update_external_3d_item_drag(item_id: String, screen_pos: Vector2) -> void:
+	var upper: String = item_id.to_upper()
 	if _drag_ghost != null and _drag_ghost_label != null:
-		var upper: String = item_id.to_upper()
 		var col: Color = PICKUP_SCRIPT.ITEM_COLORS.get(upper, Color(0.95, 0.85, 0.35))
 		_apply_panel_style(_drag_ghost, Color(0.12, 0.14, 0.18, 0.96), col)
 		_drag_ghost_label.text = PICKUP_SCRIPT.get_display_name(upper)
 		_drag_ghost.position = screen_pos + Vector2(14.0, -18.0)
 		_drag_ghost.visible = true
-	if _left_panel != null:
-		_apply_panel_style(_left_panel, Color(0.14, 0.22, 0.16, 0.95), Color(0.35, 1.0, 0.55, 1.0))
+	_reset_panel_highlights()
+	if PICKUP_SCRIPT.is_gadget_item(upper):
+		if _right_panel != null:
+			var over_right: bool = is_point_over_right_panel(screen_pos)
+			var r_border: Color = Color(0.35, 1.0, 0.55, 1.0) if over_right else Color(0.45, 0.78, 1.0, 0.90)
+			_apply_panel_style(_right_panel, Color(0.12, 0.16, 0.22, 0.94), r_border)
+			for p in _coat_slot_panels:
+				if p != null and is_instance_valid(p) and p.get_global_rect().has_point(screen_pos):
+					_apply_panel_style(p, Color(0.18, 0.30, 0.24, 0.98), Color(0.35, 1.0, 0.55, 1.0))
+	else:
+		var over_left: bool = is_point_over_left_panel(screen_pos)
+		var l_border: Color = Color(0.35, 1.0, 0.55, 1.0) if over_left else Color(0.95, 0.82, 0.30, 0.90)
+		if _left_panel != null:
+			_apply_panel_style(_left_panel, Color(0.14, 0.22, 0.16, 0.95), l_border)
+		if _briefcase_felt_panel != null and is_instance_valid(_briefcase_felt_panel):
+			var over_felt: bool = _briefcase_felt_canvas != null and is_instance_valid(_briefcase_felt_canvas) and _briefcase_felt_canvas.is_visible_in_tree() and _briefcase_felt_canvas.get_global_rect().has_point(screen_pos)
+			var f_border: Color = Color(0.35, 1.0, 0.55, 1.0) if over_felt else Color(0.95, 0.82, 0.30, 0.90)
+			_apply_panel_style(_briefcase_felt_panel, Color(0.16, 0.24, 0.20, 0.98), f_border)
 
 
-func clear_external_3d_briefcase_drag() -> void:
+func clear_external_3d_item_drag() -> void:
 	if not _drag_active and _drag_ghost != null:
 		_drag_ghost.visible = false
 	if not _drag_active:
 		_reset_panel_highlights()
+
+
+func update_external_3d_briefcase_drag(item_id: String, screen_pos: Vector2) -> void:
+	update_external_3d_item_drag(item_id, screen_pos)
+
+
+func clear_external_3d_briefcase_drag() -> void:
+	clear_external_3d_item_drag()
+
+
+func launch_carried_briefcase_slide(item_id: String, start_norm: Vector2, vel: Vector2) -> void:
+	var upper: String = item_id.to_upper()
+	var norm: Vector2 = BRIEFCASE_BUILDER.clamp_norm(start_norm)
+	var cfg: Dictionary = SHOVE_PHYSICS.get_config_dict()
+	var stop_speed: float = float(cfg.get("stop_speed", 0.04))
+	_apply_card_norm_pos(upper, norm)
+	if vel.length() > stop_speed:
+		_active_briefcase_slides[upper] = {
+			"item_id": upper,
+			"pos": norm,
+			"vel": vel
+		}
+	else:
+		_active_briefcase_slides.erase(upper)
+		if _player != null and _player.has_method("request_move_briefcase_item"):
+			_player.request_move_briefcase_item(upper, norm)
+
+
+func step_carried_briefcase_slides(delta: float) -> void:
+	if _active_briefcase_slides.is_empty():
+		return
+	var cfg: Dictionary = SHOVE_PHYSICS.get_config_dict()
+	var to_commit: Array[Dictionary] = []
+	for key in _active_briefcase_slides.keys():
+		var entry: Dictionary = _active_briefcase_slides[key] as Dictionary
+		var res: Dictionary = SHOVE_PHYSICS.step_slide(
+			entry["pos"] as Vector2,
+			entry["vel"] as Vector2,
+			delta,
+			BRIEFCASE_BUILDER.NORM_MIN,
+			BRIEFCASE_BUILDER.NORM_MAX,
+			cfg
+		)
+		var next_pos: Vector2 = res["pos"] as Vector2
+		var next_vel: Vector2 = res["vel"] as Vector2
+		entry["pos"] = next_pos
+		entry["vel"] = next_vel
+		_apply_card_norm_pos(str(entry["item_id"]), next_pos)
+		if bool(res["bounced"]) and float(res["impact_speed"]) >= 0.35 and AudioBridge != null and _player != null:
+			var ppos: Vector3 = (_player as Node3D).global_position if _player is Node3D else Vector3.ZERO
+			AudioBridge.request_world_cue("paper_rustle", ppos, 3.0, _local_peer_id)
+		if bool(res["settled"]):
+			to_commit.append({"key": key, "item_id": str(entry["item_id"]), "pos": next_pos})
+	for c in to_commit:
+		_active_briefcase_slides.erase(c["key"])
+		if _player != null and _player.has_method("request_move_briefcase_item"):
+			_player.request_move_briefcase_item(str(c["item_id"]), c["pos"] as Vector2)
+
+
+func flush_active_briefcase_slides() -> void:
+	if _active_briefcase_slides.is_empty():
+		return
+	var cfg: Dictionary = SHOVE_PHYSICS.get_config_dict()
+	var keys: Array = _active_briefcase_slides.keys()
+	for key in keys:
+		var entry: Dictionary = _active_briefcase_slides[key] as Dictionary
+		var rest_pos: Vector2 = SHOVE_PHYSICS.simulate_to_rest(
+			entry["pos"] as Vector2,
+			entry["vel"] as Vector2,
+			BRIEFCASE_BUILDER.NORM_MIN,
+			BRIEFCASE_BUILDER.NORM_MAX,
+			cfg
+		)
+		_apply_card_norm_pos(str(entry["item_id"]), rest_pos)
+		_active_briefcase_slides.erase(key)
+		if _player != null and _player.has_method("request_move_briefcase_item"):
+			_player.request_move_briefcase_item(str(entry["item_id"]), rest_pos)
+
+
+func _apply_card_norm_pos(item_id: String, norm_pos: Vector2) -> void:
+	if _briefcase_felt_canvas == null or not is_instance_valid(_briefcase_felt_canvas):
+		return
+	var target_name: String = "BriefcaseBombCard" if item_id.to_upper() == "BOMB" else "BriefcaseItemCard_%s" % item_id.to_upper()
+	for child in _briefcase_felt_canvas.get_children():
+		if child is Control and not child.is_queued_for_deletion() and child.name == target_name:
+			var ctrl: Control = child as Control
+			var p: Vector2 = BRIEFCASE_BUILDER.clamp_norm(norm_pos)
+			ctrl.anchor_left = p.x
+			ctrl.anchor_right = p.x
+			ctrl.anchor_top = p.y
+			ctrl.anchor_bottom = p.y
 
 
 func begin_external_drag(source: String, item_id: String, screen_pos: Vector2, slot_idx: int = -1) -> void:
@@ -165,6 +309,7 @@ func cancel_drag() -> void:
 	_drag_source = ""
 	_drag_item_id = ""
 	_drag_slot_index = -1
+	_ui_drag_samples.clear()
 	if _drag_ghost != null:
 		_drag_ghost.visible = false
 	if _center_drop_frame != null:
@@ -441,6 +586,8 @@ func _refresh_left_panel(is_briefcase: bool, vis_ratio: float) -> void:
 		var b_fuse: float = float(trap_state.get("live_bomb_fuse", 0.0))
 		var raw_bomb_pos: Variant = trap_state.get("bomb_norm_pos", BRIEFCASE_BUILDER.DEFAULT_BOMB_NORM_POS)
 		var b_bomb_pos: Vector2 = BRIEFCASE_BUILDER.clamp_norm(raw_bomb_pos as Vector2) if raw_bomb_pos is Vector2 else BRIEFCASE_BUILDER.DEFAULT_BOMB_NORM_POS
+		if _active_briefcase_slides.has("BOMB"):
+			b_bomb_pos = (_active_briefcase_slides["BOMB"] as Dictionary).get("pos", b_bomb_pos) as Vector2
 
 		_left_title_label.text = "BRIEFCASE [%d/4] (LEFT)" % objs.size()
 
@@ -483,6 +630,7 @@ func _refresh_left_panel(is_briefcase: bool, vis_ratio: float) -> void:
 		# Bottom Layer (Layer 0): Bomb inside Carried Briefcase (can be covered by Objectives layered on top!)
 		if b_lit_bomb:
 			var bomb_btn := Button.new()
+			bomb_btn.name = "BriefcaseBombCard"
 			bomb_btn.focus_mode = Control.FOCUS_NONE
 			bomb_btn.modulate = Color(1.0, 0.38, 0.22)
 			bomb_btn.text = "LIT BOMB (%.1fs)!" % b_fuse
@@ -502,6 +650,7 @@ func _refresh_left_panel(is_briefcase: bool, vis_ratio: float) -> void:
 			_carried_briefcase_bomb_btn = bomb_btn
 		elif b_staged_bomb or b_armed_bomb:
 			var bomb_card := PanelContainer.new()
+			bomb_card.name = "BriefcaseBombCard"
 			bomb_card.anchor_left = b_bomb_pos.x
 			bomb_card.anchor_right = b_bomb_pos.x
 			bomb_card.anchor_top = b_bomb_pos.y
@@ -532,6 +681,8 @@ func _refresh_left_panel(is_briefcase: bool, vis_ratio: float) -> void:
 			var fallback_pos: Vector2 = BRIEFCASE_BUILDER.DEFAULT_ITEM_NORM_POSITIONS[i % BRIEFCASE_BUILDER.DEFAULT_ITEM_NORM_POSITIONS.size()]
 			var raw_p: Variant = item_positions.get(obj_id, fallback_pos)
 			var norm_pos: Vector2 = BRIEFCASE_BUILDER.clamp_norm(raw_p as Vector2) if raw_p is Vector2 else fallback_pos
+			if _active_briefcase_slides.has(obj_id):
+				norm_pos = (_active_briefcase_slides[obj_id] as Dictionary).get("pos", norm_pos) as Vector2
 			var col: Color = PICKUP_SCRIPT.ITEM_COLORS.get(obj_id, Color(0.85, 0.75, 0.35))
 
 			var item_card := PanelContainer.new()
@@ -918,6 +1069,12 @@ func _start_drag(source: String, item_id: String, screen_pos: Vector2, slot_idx:
 	_drag_item_id = item_id.to_upper()
 	_drag_slot_index = slot_idx
 	_drag_start_pos = screen_pos
+	_ui_drag_samples.clear()
+	if source in ["CARRIED_BRIEFCASE_OBJ", "CARRIED_BRIEFCASE_BOMB"]:
+		var live_key: String = "BOMB" if source == "CARRIED_BRIEFCASE_BOMB" else _drag_item_id
+		_active_briefcase_slides.erase(live_key)
+		if _briefcase_felt_canvas != null and is_instance_valid(_briefcase_felt_canvas) and _briefcase_felt_canvas.is_visible_in_tree():
+			SHOVE_PHYSICS.record_sample(_ui_drag_samples, _get_briefcase_canvas_norm_pos(screen_pos), Time.get_ticks_usec() * 1e-6)
 
 
 func _show_drag_ghost(screen_pos: Vector2) -> void:
@@ -1017,6 +1174,7 @@ func _finish_drag(release_pos: Vector2) -> void:
 	var item_id: String = _drag_item_id
 	var slot_idx: int = _drag_slot_index
 	var was_dragged: bool = _drag_moved
+	var drag_samples: Array = _ui_drag_samples.duplicate()
 	var over_felt: bool = _briefcase_felt_canvas != null and is_instance_valid(_briefcase_felt_canvas) and _briefcase_felt_canvas.is_visible_in_tree() and _briefcase_felt_canvas.get_global_rect().has_point(release_pos)
 	var felt_norm: Vector2 = _get_briefcase_canvas_norm_pos(release_pos) if over_felt else Vector2(-1.0, -1.0)
 	cancel_drag()
@@ -1037,20 +1195,27 @@ func _finish_drag(release_pos: Vector2) -> void:
 			# Dragging held loose Objective -> drop onto exact spot inside 3D Briefcase / Drawer!
 			if over_center and _container.has_method("request_deposit_left_hand_item"):
 				var drop_norm := Vector2(-1.0, -1.0)
-				if is_briefcase and _player.has_method("project_screen_pos_to_briefcase_norm"):
+				if _player.has_method("project_screen_pos_to_container_norm"):
+					drop_norm = _player.project_screen_pos_to_container_norm(release_pos)
+				elif is_briefcase and _player.has_method("project_screen_pos_to_briefcase_norm"):
 					drop_norm = _player.project_screen_pos_to_briefcase_norm(release_pos)
 				_container.request_deposit_left_hand_item(_local_peer_id, drop_norm)
 
 		"CARRIED_BRIEFCASE_OBJ":
-			# Dragging packed Objective inside Left Briefcase -> freeform move; or drop into Center 3D Drawer to stash
-			if over_felt and was_dragged and _player.has_method("request_move_briefcase_item"):
-				_player.request_move_briefcase_item(item_id, felt_norm)
+			# Dragging packed Objective inside Left Briefcase -> shove-momentum freeform move; or drop into Center 3D Drawer to stash
+			if over_felt and was_dragged:
+				var vel: Vector2 = SHOVE_PHYSICS.compute_release_velocity(drag_samples, felt_norm, Time.get_ticks_usec() * 1e-6)
+				launch_carried_briefcase_slide(item_id, felt_norm, vel)
 			elif over_center and not is_briefcase and _container.has_method("request_deposit_briefcase_item"):
-				_container.request_deposit_briefcase_item(_local_peer_id, item_id)
+				var drawer_norm := Vector2(-1.0, -1.0)
+				if _player.has_method("project_screen_pos_to_container_norm"):
+					drawer_norm = _player.project_screen_pos_to_container_norm(release_pos)
+				_container.request_deposit_briefcase_item(_local_peer_id, item_id, drawer_norm)
 
 		"CARRIED_BRIEFCASE_BOMB":
-			if over_felt and was_dragged and _player.has_method("request_move_briefcase_item"):
-				_player.request_move_briefcase_item("BOMB", felt_norm)
+			if over_felt and was_dragged:
+				var b_vel: Vector2 = SHOVE_PHYSICS.compute_release_velocity(drag_samples, felt_norm, Time.get_ticks_usec() * 1e-6)
+				launch_carried_briefcase_slide("BOMB", felt_norm, b_vel)
 
 		"CARRIED_BRIEFCASE_SPRING":
 			# Dragging unlatched Spring out of Left Open Briefcase -> steal into Right Inner Coat!
@@ -1063,7 +1228,9 @@ func _finish_drag(release_pos: Vector2) -> void:
 					_container.request_plant_trap(_local_peer_id, slot_idx, "LIP")
 				elif item_id == "BOMB":
 					var bomb_norm := Vector2(-1.0, -1.0)
-					if is_briefcase and _player.has_method("project_screen_pos_to_briefcase_norm"):
+					if _player.has_method("project_screen_pos_to_container_norm"):
+						bomb_norm = _player.project_screen_pos_to_container_norm(release_pos)
+					elif is_briefcase and _player.has_method("project_screen_pos_to_briefcase_norm"):
 						bomb_norm = _player.project_screen_pos_to_briefcase_norm(release_pos)
 					_container.request_plant_trap(_local_peer_id, slot_idx, "TRAY", bomb_norm)
 			elif over_left and holding_briefcase and not is_briefcase and _player.has_method("request_briefcase_trap_action"):

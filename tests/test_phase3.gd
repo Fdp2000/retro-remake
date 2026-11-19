@@ -248,7 +248,6 @@ func test_airport_exit_door_victory_validation() -> void:
 	assert_eq(MatchManager.match_state, MatchManager.MatchState.IN_PROGRESS, "Match remains IN_PROGRESS")
 
 	# Pack 4th Objective via container packing -> instant victory
-	assert_false(bool(p1.pickup_item("PLANS")["picked"]), "Floor PLANS blocked while carrying Briefcase")
 	assert_true(p1.server_pack_objective_into_briefcase("PLANS"), "Packed 4th Objective inside Briefcase")
 	assert_eq(p1.briefcase_objectives.size(), 4, "Briefcase holds 4/4 Objectives")
 	assert_true(exit_door.try_trigger_exit_victory(p1), "Airport Exit accepts 4/4 Briefcase")
@@ -290,12 +289,30 @@ func test_drawer_3d_interior_layers_and_immediate_preview() -> void:
 	assert_true(is_equal_approx(lip_node.position.z, 0.16), "LipSpringTrap sits near front inside of drawer (z=0.16)")
 	var item_key: Node3D = contents_root.get_node_or_null("TrayItem_0_KEY") as Node3D
 	var clutter_0: Node3D = drawer.get_clutter_area_node(0)
-	var clutter_5: Node3D = drawer.get_clutter_area_node(5)
+	var clutter_1: Node3D = drawer.get_clutter_area_node(1)
+	var clutter_2: Node3D = drawer.get_clutter_area_node(2)
+	var clutter_3: Node3D = drawer.get_clutter_area_node(3)
 	assert_true(item_key != null, "Bottom-layer 3D KEY item built in ContentsRoot")
-	assert_true(clutter_0 != null and clutter_5 != null, "Multi-layer 3D clutter props built (indices 0..5)")
+	assert_true(clutter_0 != null and clutter_1 != null and clutter_2 != null, "Drawer builds max 3 clutter layers (indices 0..2)")
+	assert_true(clutter_3 == null, "Drawer clutter capped at 3 layers (no index 3)")
 	assert_gt(clutter_0.position.y, item_key.position.y, "Clutter Layer 1 sits above bottom-layer items")
-	assert_gt(clutter_5.position.y, clutter_0.position.y, "Clutter Layer 3 sits above Clutter Layer 1")
+	assert_gt(clutter_1.position.y, clutter_0.position.y, "Clutter Layer 2 sits above Clutter Layer 1")
+	assert_gt(clutter_2.position.y, clutter_1.position.y, "Clutter Layer 3 sits above Clutter Layer 2")
 	assert_eq(contents_root.find_children("*", "Label3D", true, false).size(), 0, "Drawer objects have zero Label3D name tags")
+
+	# Verify ~30% drawer interior mesh scale (0.70x) on items, lip spring, and clutter
+	var key_aabb: AABB = item_key.get_meta("exact_aabb") as AABB
+	assert_true(key_aabb.size.is_equal_approx(Vector3(0.126, 0.015, 0.165) * 0.70), "Drawer item AABB scaled by 0.70x")
+	var lip_aabb: AABB = lip_node.get_meta("exact_aabb") as AABB
+	assert_true(lip_aabb.size.is_equal_approx(Vector3(0.242, 0.059, 0.092) * 0.70), "Drawer lip spring AABB scaled by 0.70x")
+	var c0_aabb: AABB = clutter_0.get_meta("exact_aabb") as AABB
+	assert_true(c0_aabb.size.x < 0.20, "Drawer clutter prop size scaled down by 0.70x")
+	drawer.set("clutter_count", 6)
+	drawer._rebuild_3d_interior()
+	assert_eq(drawer.clutter_positions.size(), 3, "clutter_count > 3 still capped to 3 layers")
+	assert_true(drawer.get_clutter_area_node(3) == null, "Layer cap enforced after rebuild")
+	lip_node = contents_root.get_node_or_null("LipSpringTrap") as Node3D
+	assert_true(lip_node != null, "LipSpringTrap rebuilt intact after clutter cap check")
 
 	# 4. Slow Ease-In pull: 1.4s of 2.8s moves less than 35% visually, safely revealing front spring without triggering KO
 	drawer.step_open_drawer(1, 1.4, p1)

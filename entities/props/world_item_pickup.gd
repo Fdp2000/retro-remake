@@ -205,7 +205,11 @@ func get_interaction_prompt_for_player(player: Node) -> String:
 	if is_objective_item(item_id):
 		var held_left: String = str(player.get("left_hand_item_id")).to_upper() if player != null else "NONE"
 		if held_left == "BRIEFCASE":
-			return "[Hands Full] Drop Briefcase [Q] to pick up %s" % disp
+			return "[E] Pick Up %s (Drops Briefcase)" % disp
+		if is_objective_item(held_left):
+			if held_left == item_id.to_upper():
+				return "[Holding %s]" % disp
+			return "[E] Swap %s ↔ %s" % [get_display_name(held_left), disp]
 		return "[E] Pick Up %s (Left Hand)" % disp
 	if item_id.to_upper() == "LIVE_BOMB":
 		return "[E] Grab %s (Active Hand!)" % disp
@@ -301,10 +305,6 @@ func _execute_server_pickup(peer_id: int) -> void:
 
 	var player: Node = _find_player_node(peer_id)
 	if player == null or not player.has_method("server_pickup_world_item"):
-		return
-
-	# Playtest Briefcase rule: cannot pick up a floor Objective while carrying the Briefcase
-	if is_objective_item(item_id) and str(player.get("left_hand_item_id")).to_upper() == "BRIEFCASE":
 		return
 
 	if is_briefcase_item(item_id):
