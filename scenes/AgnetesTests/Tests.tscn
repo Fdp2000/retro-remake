@@ -1,3 +1,31 @@
 [gd_scene format=3 uid="uid://s84dt6i0p0if"]
 
+[ext_resource type="PackedScene" uid="uid://o0fgut2ti0ea" path="res://Assets/Models/Agents/Agent.glb" id="1_8fpnf"]
+[ext_resource type="PackedScene" uid="uid://bqrfp432eabru" path="res://Assets/Models/Import/Interiors_A/Scenes/Walls/wall_1m_1_side.tscn" id="2_cxwu4"]
+[ext_resource type="PackedScene" uid="uid://caeeuc473xv33" path="res://Assets/Models/Import/Interiors_A/Scenes/Walls/wall_2m_1_side.tscn" id="3_bi6jp"]
+[ext_resource type="PackedScene" uid="uid://1081g1d8f2ni" path="res://Assets/Models/Import/Interiors_A/Scenes/Walls/wall_3m.tscn" id="4_1tgj1"]
+[ext_resource type="Texture2D" uid="uid://luvxynyr0pca" path="res://Assets/Models/Import/Interiors_A/texture/Updated_Textures/Wall/Texture_Wall_Red.png" id="5_esp8q"]
+
+[sub_resource type="PlaneMesh" id="PlaneMesh_iixl8"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_6fnjy"]
+albedo_texture = ExtResource("5_esp8q")
+
 [node name="Tests" type="Node3D" unique_id=598251910]
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="." unique_id=1911842724]
+transform = Transform3D(4.17, 0, 0, 0, 4.17, 0, 0, 0, 4.17, 0, 0, 0)
+mesh = SubResource("PlaneMesh_iixl8")
+
+[node name="Agent" parent="." unique_id=1359979186 instance=ExtResource("1_8fpnf")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.7821436, 0, -0.7056105)
+
+[node name="Wall_1m_1Side" parent="." unique_id=877473236 instance=ExtResource("2_cxwu4")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.6382213, 0, 1.3697196)
+
+[node name="Wall_2m_1Side" parent="." unique_id=943886098 instance=ExtResource("3_bi6jp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.8776563, 0, 1.088482)
+
+[node name="Wall_3m" parent="." unique_id=1350542964 instance=ExtResource("4_1tgj1")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.1654735, 0, -2.792861)
+material_override = SubResource("StandardMaterial3D_6fnjy")
