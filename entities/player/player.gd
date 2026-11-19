@@ -170,6 +170,7 @@ var _crt_body_visual_layer: int = 1
 var _camera_tween: Tween = null
 var _bonus_toast_timer: float = 0.0
 var ko_remaining_seconds: float = 0.0
+var is_clock_eliminated: bool = false
 var wakeup_immunity_remaining: float = 0.0
 var _pelvis_sync_accum: float = 0.0
 var _last_ko_reason: String = ""
@@ -248,6 +249,9 @@ func _ready() -> void:
 		speed = GameConfig.walk_speed
 		jump_velocity = GameConfig.jump_velocity
 		mouse_sensitivity = GameConfig.get_effective_mouse_sensitivity()
+
+	if MatchManager != null and not MatchManager.spy_eliminated_by_clock.is_connected(_on_match_spy_eliminated_by_clock):
+		MatchManager.spy_eliminated_by_clock.connect(_on_match_spy_eliminated_by_clock)
 
 	# Never capture mouse or enable HUD/camera when instantiated inside the Godot Editor (e.g. during MCP tests)!
 	if Engine.is_editor_hint():
@@ -968,7 +972,7 @@ func _rpc_apply_ko_state(
 			rotation.y = sync_yaw
 			_target_yaw = sync_yaw
 		velocity = Vector3.ZERO
-		ko_remaining_seconds = ko_sec
+		ko_remaining_seconds = 9999.0 if is_clock_eliminated else ko_sec
 		wakeup_immunity_remaining = 0.0
 		_pelvis_sync_accum = 0.0
 		_last_ko_reason = reason
@@ -1091,6 +1095,102 @@ func _rpc_request_wakeup_at_pelvis(requested_pelvis_pos: Vector3) -> void:
 		_rpc_apply_ko_state(0.0, imm_dur, false, safe_pos)
 
 
+func _on_match_spy_eliminated_by_clock(eliminated_peer_id: int) -> void:
+	var my_peer_id: int = name.to_int() if name.is_valid_int() else 1
+	if eliminated_peer_id != my_peer_id:
+		return
+	apply_clock_elimination()
+
+
+func apply_clock_elimination() -> Array[Dictionary]:
+	if is_clock_eliminated:
+		return [] as Array[Dictionary]
+	is_clock_eliminated = true
+	wakeup_immunity_remaining = 0.0
+	var drops: Array[Dictionary] = []
+	var ko_stance: int = GameConfig.Stance.KO if GameConfig != null else 4
+	if stance_state != ko_stance and (not _is_peer_connected() or multiplayer.is_server()):
+		drops = apply_trap_ko("CLOCK_EXPIRED", 0, Vector3(0.0, -4.0, 0.0))
+	ko_remaining_seconds = 9999.0
+	if is_inside_tree() and is_multiplayer_authority():
+		if stance_label != null:
+			stance_label.text = "ELIMINATED (00:00)"
+		if prompt_label != null:
+			prompt_label.text = "CLOCK EXPIRED — ELIMINATED! Waiting for rival..."
+			prompt_label.visible = true
+		if clock_label != null:
+			clock_label.text = "CLOCK: 00:00 [OUT]"
+			clock_label.modulate = Color(1.0, 0.25, 0.25)
+	return drops
+
+
+func reset_for_rematch(spawn_local_pos: Vector3, spawn_yaw: float = 0.0) -> void:
+	is_clock_eliminated = false
+	ko_remaining_seconds = 0.0
+	wakeup_immunity_remaining = 0.0
+	live_bomb_remaining = 0.0
+	live_bomb_owner_peer_id = 0
+	club_overcharge_stumble_remaining = 0.0
+	_club_feint_cooldown = 0.0
+	_club_whiff_recovery = 0.0
+	_lmb_trap_hold_active = false
+	_lmb_trap_hold_elapsed = 0.0
+	anti_camp_timer = 0.0
+	anti_camp_sniffle_warned = false
+	head_pitch = 0.0
+
+	if active_container != null and is_instance_valid(active_container) and active_container.has_method("close_container"):
+		active_container.close_container(name.to_int(), self)
+	elif stance_state == (GameConfig.Stance.DRAWER_LOCK if GameConfig != null else 3):
+		exit_container_view()
+
+	if _dvd_reticle_ui != null:
+		_dvd_reticle_ui.set_active(false)
+	if _club_qte_ui != null:
+		_club_qte_ui.cancel_charge()
+	if _watch_bluff_ui != null and _watch_bluff_ui.is_map_open:
+		_watch_bluff_ui.set_map_open(false)
+	if _crt_replay_ui != null:
+		_crt_replay_ui.stop_replay(false)
+
+	force_drop_all_hands()
+	_sync_inventory_state_to_peers()
+
+	if _ragdoll_ctrl != null:
+		_ragdoll_ctrl.stop_ragdoll()
+		if _ragdoll_ctrl.agent_instance != null:
+			_ragdoll_ctrl.agent_instance.visible = true
+
+	position = spawn_local_pos
+	_target_position = spawn_local_pos
+	rotation.y = spawn_yaw
+	_target_yaw = spawn_yaw
+	velocity = Vector3.ZERO
+	stance_state = GameConfig.Stance.WALK if GameConfig != null else 0
+	collision_layer = GameConfig.LAYER_PLAYER if GameConfig != null else 4
+	collision_mask = (GameConfig.LAYER_ENVIRONMENT | GameConfig.LAYER_PLAYER) if GameConfig != null else 5
+	var col_node: CollisionShape3D = collision_shape if collision_shape != null else get_node_or_null("CollisionShape3D") as CollisionShape3D
+	if col_node != null:
+		col_node.disabled = false
+	if head != null:
+		head.rotation = Vector3.ZERO
+		head.position = Vector3(0.0, GameConfig.standing_neck_y if GameConfig != null else 1.6, 0.0)
+	if camera != null:
+		camera.transform = Transform3D.IDENTITY
+	if left_hand_socket != null:
+		left_hand_socket.visible = true
+	if right_hand_socket != null:
+		right_hand_socket.visible = true
+	if prompt_label != null:
+		prompt_label.visible = false
+	if clock_label != null:
+		clock_label.modulate = Color(1.0, 1.0, 1.0)
+	_refresh_hand_and_back_sockets()
+	_apply_stance_collision_and_visuals()
+	_sync_camera_to_ragdoll_head()
+	_update_hud_status()
+
+
 func wake_up_from_ko() -> void:
 	var raw_pelvis: Vector3 = get_ragdoll_pelvis_world_position()
 	var safe_pos: Vector3 = _compute_safe_wakeup_position(raw_pelvis)
@@ -1110,6 +1210,21 @@ func tick_ko_and_immunity(delta: float) -> void:
 	var is_local_auth: bool = is_inside_tree() and is_multiplayer_authority()
 	var ko_stance: int = GameConfig.Stance.KO if GameConfig != null else 4
 	if stance_state == ko_stance:
+		if is_clock_eliminated:
+			ko_remaining_seconds = 9999.0
+			if is_local_auth:
+				_sync_camera_to_ragdoll_head()
+				if _is_peer_connected():
+					_pelvis_sync_accum += delta
+					if _pelvis_sync_accum >= PELVIS_SYNC_INTERVAL:
+						_pelvis_sync_accum = 0.0
+						_rpc_sync_ragdoll_pelvis.rpc(get_ragdoll_pelvis_world_position())
+				if stance_label != null:
+					stance_label.text = "ELIMINATED (00:00)"
+				if prompt_label != null:
+					prompt_label.text = "CLOCK EXPIRED — ELIMINATED! Waiting for rival..."
+					prompt_label.visible = true
+			return
 		ko_remaining_seconds -= delta
 		var clamped_ko: float = maxf(ko_remaining_seconds, 0.0)
 		if is_local_auth:
@@ -3046,11 +3161,16 @@ func _physics_process(delta: float) -> void:
 			head.rotation.x = lerp_angle(head.rotation.x, head_pitch, 20.0 * delta)
 		return
 
-	var wants_crouch: bool = (
+	var controls_captured: bool = (
+		Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
+		and (MatchManager == null or MatchManager.match_state != MatchManager.MatchState.ENDED)
+		and not is_clock_eliminated
+	)
+	var wants_crouch: bool = controls_captured and (
 		(InputMap.has_action("crouch") and Input.is_action_pressed("crouch"))
 		or Input.is_key_pressed(KEY_CTRL)
 	)
-	var wants_sprint: bool = (
+	var wants_sprint: bool = controls_captured and (
 		(InputMap.has_action("sprint") and Input.is_action_pressed("sprint"))
 		or Input.is_key_pressed(KEY_SHIFT)
 	)
@@ -3065,7 +3185,8 @@ func _physics_process(delta: float) -> void:
 	_was_on_floor = on_floor_now
 
 	var can_jump: bool = (
-		on_floor_now
+		controls_captured
+		and on_floor_now
 		and stance_state != (GameConfig.Stance.CROUCH if GameConfig != null else 2)
 		and stance_state != (GameConfig.Stance.DRAWER_LOCK if GameConfig != null else 3)
 		and stance_state != (GameConfig.Stance.KO if GameConfig != null else 4)
@@ -3076,14 +3197,15 @@ func _physics_process(delta: float) -> void:
 		velocity.y = GameConfig.jump_velocity if GameConfig != null else jump_velocity
 
 	var input_dir: Vector2 = Vector2.ZERO
-	if InputMap.has_action("move_forward") and InputMap.has_action("move_left"):
-		input_dir = Input.get_vector("move_left", "move_right", "move_forward", "move_back")
-	else:
-		if Input.is_key_pressed(KEY_W): input_dir.y -= 1.0
-		if Input.is_key_pressed(KEY_S): input_dir.y += 1.0
-		if Input.is_key_pressed(KEY_A): input_dir.x -= 1.0
-		if Input.is_key_pressed(KEY_D): input_dir.x += 1.0
-		input_dir = input_dir.normalized()
+	if controls_captured:
+		if InputMap.has_action("move_forward") and InputMap.has_action("move_left"):
+			input_dir = Input.get_vector("move_left", "move_right", "move_forward", "move_back")
+		else:
+			if Input.is_key_pressed(KEY_W): input_dir.y -= 1.0
+			if Input.is_key_pressed(KEY_S): input_dir.y += 1.0
+			if Input.is_key_pressed(KEY_A): input_dir.x -= 1.0
+			if Input.is_key_pressed(KEY_D): input_dir.x += 1.0
+			input_dir = input_dir.normalized()
 
 	var active_speed: float = get_current_move_speed()
 	var direction: Vector3 = (transform.basis * Vector3(input_dir.x, 0.0, input_dir.y)).normalized()

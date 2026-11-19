@@ -70,13 +70,27 @@ func _ready() -> void:
 	if p2_swatch_rect != null:
 		p2_swatch_rect.color = Color(0.52, 0.24, 0.76, 1.0)
 
-	# Attach per-user Mouse DPI & Sensitivity settings widget + Solo Practice button
+	# Attach per-user Mouse DPI & Sensitivity settings widget + Solo Full Match / Sandbox Gym buttons
 	var matchmaking_panel: VBoxContainer = get_node_or_null("MarginContainer/MatchmakingContainer/MatchmakingPanel")
 	if matchmaking_panel != null and matchmaking_panel.get_node_or_null("MouseSettingsWidget") == null:
+		var solo_match_btn := Button.new()
+		solo_match_btn.name = "SoloFullMatchButton"
+		solo_match_btn.text = "Solo Full Match (1P Seeded Embassy Round)"
+		solo_match_btn.pressed.connect(func():
+			if GameConfig != null:
+				GameConfig.sandbox_gym_mode = false
+			NetworkManager.current_mode = NetworkManager.NetworkMode.ENET_LOCAL
+			if NetworkManager.start_host() == OK:
+				get_tree().change_scene_to_file(TEST_GYM_SCENE_PATH)
+		)
+		matchmaking_panel.add_child(solo_match_btn)
+
 		var solo_btn := Button.new()
 		solo_btn.name = "SoloTestGymButton"
-		solo_btn.text = "Solo Test Gym (1P Quick Playtest)"
+		solo_btn.text = "Solo Test Gym (1P Sandbox Bench — All Items)"
 		solo_btn.pressed.connect(func():
+			if GameConfig != null:
+				GameConfig.sandbox_gym_mode = true
 			NetworkManager.current_mode = NetworkManager.NetworkMode.ENET_LOCAL
 			if NetworkManager.start_host() == OK:
 				get_tree().change_scene_to_file(TEST_GYM_SCENE_PATH)
@@ -544,6 +558,8 @@ func _on_start_pressed() -> void:
 	if not (p1_ready and p2_ready):
 		return
 
+	if GameConfig != null:
+		GameConfig.sandbox_gym_mode = false
 	print("Lobby: Both players ready. Launching match into arena...")
 	rpc_load_arena.rpc(TEST_GYM_SCENE_PATH)
 

@@ -9,6 +9,23 @@ func _ready() -> void:
 	if not Engine.is_editor_hint():
 		call_deferred("populate")
 
+func reset_and_populate(new_seed: int) -> void:
+	layout_seed = new_seed
+	spawned_count = 0
+	var rooms: Node = get_parent().get_node_or_null("Rooms") if get_parent() != null else null
+	if rooms != null:
+		for room in rooms.get_children():
+			var markers: Node = room.get_node_or_null("FurnitureSpawnPoints")
+			if markers == null:
+				continue
+			for marker in markers.get_children():
+				if marker is Marker3D:
+					for child in marker.get_children():
+						marker.remove_child(child)
+						child.queue_free()
+	populate()
+
+
 func populate() -> void:
 	if spawned_count > 0:
 		return
@@ -41,6 +58,8 @@ func populate() -> void:
 			continue
 		for marker in markers.get_children():
 			if not marker is Marker3D:
+				continue
+			if bool(marker.get_meta("occupied_by_match_drawer", false)):
 				continue
 			var anchor := Node3D.new()
 			anchor.name = "PlacedFurniture"

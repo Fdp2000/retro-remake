@@ -76,11 +76,20 @@ func populate_level(
 		}
 
 	var f_spawner: Node = level_root.get_node_or_null("BuildingComplex2/FurnitureSpawner")
-	if f_spawner != null:
-		f_spawner.set("layout_seed", int(manifest["seed"]))
+
+	var rooms_root_all: Node = level_root.get_node_or_null("BuildingComplex2/Rooms")
+	if rooms_root_all != null:
+		for r_node in rooms_root_all.get_children():
+			var pts_all: Node = r_node.get_node_or_null("FurnitureSpawnPoints")
+			if pts_all == null:
+				continue
+			for m_child in pts_all.get_children():
+				if m_child is Marker3D:
+					(m_child as Marker3D).set_meta("occupied_by_match_drawer", false)
 
 	var existing_root: Node = level_root.get_node_or_null("MatchSpawnedProps")
 	if existing_root != null:
+		level_root.remove_child(existing_root)
 		existing_root.queue_free()
 
 	var spawn_root := Node3D.new()
@@ -114,7 +123,9 @@ func populate_level(
 
 	for i in range(used_marker_count):
 		var marker: Marker3D = markers[i]
+		marker.set_meta("occupied_by_match_drawer", true)
 		for old_child in marker.get_children():
+			marker.remove_child(old_child)
 			old_child.queue_free()
 		var drawer: Node = resolved_drawer_scene.instantiate()
 		drawer.name = "MatchDrawer_%02d" % i
@@ -129,6 +140,12 @@ func populate_level(
 		if drawer is Node3D and marker.is_inside_tree():
 			(drawer as Node3D).global_transform = marker.global_transform
 		drawers_spawned += 1
+
+	if f_spawner != null:
+		if f_spawner.has_method("reset_and_populate") and not Engine.is_editor_hint():
+			f_spawner.call("reset_and_populate", int(manifest["seed"]))
+		else:
+			f_spawner.set("layout_seed", int(manifest["seed"]))
 
 	var buckets_spawned: int = 0
 	if not rooms.is_empty():

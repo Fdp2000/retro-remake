@@ -6,11 +6,20 @@ const EMBASSY_DOOR_SCENE: PackedScene = preload("res://entities/props/embassy_do
 const DRAWER_SCENE: PackedScene = preload("res://entities/props/searchable_drawer.tscn")
 const AIRPORT_EXIT_SCENE: PackedScene = preload("res://entities/props/airport_exit_door.tscn")
 const MATCH_SPAWNER_SCRIPT = preload("res://core/match_spawner.gd")
+const MATCH_END_UI_SCRIPT = preload("res://ui/match_end_overlay_ui.gd")
 const LOBBY_SCENE_PATH: String = "res://scenes/lobby.tscn"
 
 const SPAWN_POINTS: Dictionary = {
 	1: Vector3(-3.0, 1.0, 0.0),
 	2: Vector3(3.0, 1.0, 0.0)
+}
+const FULL_MATCH_SPAWN_POINTS: Dictionary = {
+	1: Vector3(-12.0, 1.0, -9.0), # Room_1_1 (NW Corner — Spy Green)
+	2: Vector3(15.0, 1.0, 18.0)   # Room_4_4 (SE Corner — Spy Purple)
+}
+const FULL_MATCH_SPAWN_YAWS: Dictionary = {
+	1: PI,
+	2: 0.0
 }
 
 @onready var players_container: Node3D = $Players
@@ -24,13 +33,17 @@ var peers_in_arena: Dictionary = {} # peer_id -> bool
 var client_peer_id: int = 0
 var has_spawned_all: bool = false
 var is_terminating: bool = false
+var is_sandbox_mode: bool = false
+var _match_end_ui: MatchEndOverlayUI = null
+var _esc_rematch_button: Button = null
+var _esc_switch_mode_button: Button = null
 
 
 func _ready() -> void:
+	is_sandbox_mode = GameConfig.sandbox_gym_mode if GameConfig != null else false
 	_clear_playtest_room_furniture()
 	_setup_interactive_doors()
-	_spawn_test_pickups()
-	_spawn_test_props()
+	_configure_level_props_for_mode(is_sandbox_mode)
 
 	if MatchManager != null:
 		if not MatchManager.match_ended.is_connected(_on_match_ended):
@@ -38,33 +51,48 @@ func _ready() -> void:
 		if not MatchManager.match_started.is_connected(_on_match_started):
 			MatchManager.match_started.connect(_on_match_started)
 
-	# Configure local role badge (Host = Spy Green vs Contender = Spy Purple)
-	var my_id: int = multiplayer.get_unique_id() if (multiplayer.has_multiplayer_peer() and NetworkManager.is_online()) else 1
-	if my_id == 1:
-		role_label.text = "ROLE: SPY GREEN (HOST)"
-		role_label.modulate = Color(0.45, 0.95, 0.55)
-	else:
-		role_label.text = "ROLE: SPY PURPLE (CONTENDER)"
-		role_label.modulate = Color(0.78, 0.55, 1.0)
+	_ensure_match_end_ui()
+	_refresh_role_badge()
 
 	# ESC Menu buttons & Mouse DPI/Sensitivity controls
 	var esc_vbox: VBoxContainer = get_node_or_null("UI/EscMenu/VBoxContainer")
-	if esc_vbox != null and esc_vbox.get_node_or_null("MouseSettingsWidget") == null:
-		var mouse_widget: VBoxContainer = preload("res://ui/mouse_settings_widget.gd").new()
-		mouse_widget.name = "MouseSettingsWidget"
-		esc_vbox.add_child(mouse_widget)
-		esc_vbox.move_child(mouse_widget, 1)
+	if esc_vbox != null:
+		if esc_vbox.get_node_or_null("MouseSettingsWidget") == null:
+			var mouse_widget: VBoxContainer = preload("res://ui/mouse_settings_widget.gd").new()
+			mouse_widget.name = "MouseSettingsWidget"
+			esc_vbox.add_child(mouse_widget)
+			esc_vbox.move_child(mouse_widget, 1)
+
+		var is_host_or_offline: bool = (not _is_network_active()) or multiplayer.is_server()
+		if _esc_rematch_button == null and esc_vbox.get_node_or_null("RestartRoundButton") == null:
+			_esc_rematch_button = Button.new()
+			_esc_rematch_button.name = "RestartRoundButton"
+			_esc_rematch_button.text = "Restart Round (New Seed)"
+			_esc_rematch_button.visible = is_host_or_offline
+			_esc_rematch_button.pressed.connect(func() -> void: trigger_rematch(is_sandbox_mode))
+			esc_vbox.add_child(_esc_rematch_button)
+
+		if _esc_switch_mode_button == null and esc_vbox.get_node_or_null("SwitchModeButton") == null:
+			_esc_switch_mode_button = Button.new()
+			_esc_switch_mode_button.name = "SwitchModeButton"
+			_esc_switch_mode_button.visible = is_host_or_offline
+			_esc_switch_mode_button.pressed.connect(_on_switch_mode_rematch_pressed)
+			esc_vbox.add_child(_esc_switch_mode_button)
+		_refresh_esc_mode_button_text()
+
 	resume_button.pressed.connect(_on_resume_pressed)
 	leave_button.pressed.connect(_on_leave_button_pressed)
 
 	# Network lifecycle bindings
-	NetworkManager.player_disconnected.connect(_on_player_disconnected)
-	NetworkManager.server_disconnected.connect(_on_server_disconnected)
+	if not Engine.is_editor_hint() and NetworkManager != null:
+		NetworkManager.player_disconnected.connect(_on_player_disconnected)
+		NetworkManager.server_disconnected.connect(_on_server_disconnected)
 
 	# Spawning debug / diagnostic logs
 	players_container.child_entered_tree.connect(func(node: Node):
-		var is_srv: bool = multiplayer.is_server() if NetworkManager.is_online() else false
-		var is_auth: bool = node.is_multiplayer_authority() if NetworkManager.is_online() else false
+		var online_now: bool = not Engine.is_editor_hint() and NetworkManager != null and NetworkManager.is_online()
+		var is_srv: bool = multiplayer.is_server() if online_now else false
+		var is_auth: bool = node.is_multiplayer_authority() if online_now else false
 		print("TestGym [%s]: Child entered Players: %s (auth: %d, is_auth: %s)" % [
 			"Server" if is_srv else "Client",
 			node.name,
@@ -74,7 +102,8 @@ func _ready() -> void:
 	)
 
 	players_container.child_exiting_tree.connect(func(node: Node):
-		var is_srv: bool = multiplayer.is_server() if NetworkManager.is_online() else false
+		var online_now: bool = not Engine.is_editor_hint() and NetworkManager != null and NetworkManager.is_online()
+		var is_srv: bool = multiplayer.is_server() if online_now else false
 		print("TestGym [%s]: Child exited Players: %s" % [
 			"Server" if is_srv else "Client",
 			node.name
@@ -84,8 +113,8 @@ func _ready() -> void:
 	# Arena loading handshake
 	if multiplayer.is_server():
 		_on_peer_arena_loaded(1)
-		# If launched via Solo Test Gym (0 remote peers connected), mark slot 2 ready so Peer 1 spawns immediately
-		if NetworkManager.is_online() and multiplayer.get_peers().is_empty():
+		# If launched via Solo Playtest (0 remote peers connected), mark slot 2 ready so Peer 1 spawns immediately
+		if not Engine.is_editor_hint() and NetworkManager != null and NetworkManager.is_online() and multiplayer.get_peers().is_empty():
 			_on_peer_arena_loaded(2)
 	else:
 		notify_arena_ready.rpc_id(1)
@@ -97,6 +126,49 @@ func _ready() -> void:
 		)
 
 
+func _ensure_match_end_ui() -> void:
+	if _match_end_ui != null and is_instance_valid(_match_end_ui):
+		return
+	var target_ui: CanvasLayer = ui_layer if ui_layer != null else get_node_or_null("UI") as CanvasLayer
+	if target_ui == null:
+		return
+	var existing: Node = target_ui.get_node_or_null("MatchEndOverlayUI")
+	if existing is MatchEndOverlayUI:
+		_match_end_ui = existing as MatchEndOverlayUI
+	else:
+		_match_end_ui = MATCH_END_UI_SCRIPT.new() as MatchEndOverlayUI
+		_match_end_ui.name = "MatchEndOverlayUI"
+		target_ui.add_child(_match_end_ui)
+	if not _match_end_ui.rematch_requested.is_connected(_on_rematch_requested):
+		_match_end_ui.rematch_requested.connect(_on_rematch_requested)
+	if not _match_end_ui.switch_mode_requested.is_connected(_on_switch_mode_rematch_pressed):
+		_match_end_ui.switch_mode_requested.connect(_on_switch_mode_rematch_pressed)
+	if not _match_end_ui.return_to_lobby_requested.is_connected(_on_leave_button_pressed):
+		_match_end_ui.return_to_lobby_requested.connect(_on_leave_button_pressed)
+
+
+func _refresh_role_badge() -> void:
+	if role_label == null:
+		return
+	var my_id: int = multiplayer.get_unique_id() if _is_network_active() else 1
+	var mode_tag: String = "SANDBOX GYM" if is_sandbox_mode else "FULL MATCH"
+	if my_id == 1:
+		role_label.text = "ROLE: SPY GREEN (HOST) — %s" % mode_tag
+		role_label.modulate = Color(0.45, 0.95, 0.55)
+	else:
+		role_label.text = "ROLE: SPY PURPLE (CONTENDER) — %s" % mode_tag
+		role_label.modulate = Color(0.78, 0.55, 1.0)
+
+
+func _refresh_esc_mode_button_text() -> void:
+	if _esc_switch_mode_button != null:
+		_esc_switch_mode_button.text = (
+			"Switch to Full Match (New Seed)"
+			if is_sandbox_mode
+			else "Switch to Dev Sandbox Gym"
+		)
+
+
 func _clear_playtest_room_furniture() -> void:
 	var room_2_2: Node = get_node_or_null("BuildingComplex2/Rooms/Room_2_2")
 	if room_2_2 == null:
@@ -105,6 +177,32 @@ func _clear_playtest_room_furniture() -> void:
 	if spawn_pts != null:
 		room_2_2.remove_child(spawn_pts)
 		spawn_pts.queue_free()
+
+
+func _ensure_shared_airport_exit() -> void:
+	if get_node_or_null("SharedAirportExit") != null:
+		return
+	var exit_door := AIRPORT_EXIT_SCENE.instantiate() as StaticBody3D
+	exit_door.name = "SharedAirportExit"
+	add_child(exit_door)
+	exit_door.position = Vector3(-6.2, 0.0, -4.5)
+	exit_door.rotation.y = deg_to_rad(90.0)
+
+
+func _configure_level_props_for_mode(sandbox: bool) -> void:
+	_ensure_shared_airport_exit()
+	if sandbox:
+		_spawn_test_pickups()
+		_spawn_test_props()
+	else:
+		var pickups_node: Node = get_node_or_null("TestPickups")
+		if pickups_node != null:
+			remove_child(pickups_node)
+			pickups_node.queue_free()
+		var props_node: Node = get_node_or_null("TestStep1Props")
+		if props_node != null:
+			remove_child(props_node)
+			props_node.queue_free()
 
 
 func _spawn_test_pickups() -> void:
@@ -164,11 +262,17 @@ func _spawn_test_props() -> void:
 	props_root.add_child(door)
 	door.position = Vector3(-2.5, 0.0, -6.5)
 
-	var exit_door := AIRPORT_EXIT_SCENE.instantiate() as StaticBody3D
-	exit_door.name = "TestAirportExit"
-	props_root.add_child(exit_door)
-	exit_door.position = Vector3(-6.2, 0.0, -4.5)
-	exit_door.rotation.y = deg_to_rad(90.0)
+
+func _resolve_spawn_point(slot: int) -> Vector3:
+	if not is_inside_tree() or is_sandbox_mode:
+		return SPAWN_POINTS.get(slot, Vector3.ZERO)
+	return FULL_MATCH_SPAWN_POINTS.get(slot, SPAWN_POINTS.get(slot, Vector3.ZERO))
+
+
+func _resolve_spawn_yaw(slot: int) -> float:
+	if not is_inside_tree() or is_sandbox_mode:
+		return 0.0
+	return float(FULL_MATCH_SPAWN_YAWS.get(slot, 0.0))
 
 
 func _on_match_started(seed_value: int) -> void:
@@ -176,13 +280,30 @@ func _on_match_started(seed_value: int) -> void:
 	spawner.populate_level(self, seed_value, DRAWER_SCENE, PICKUP_SCENE, ["Room_2_2"])
 
 
-func _on_match_ended(_winner_peer_id: int, reason: String) -> void:
+func _on_match_ended(winner_peer_id: int, reason: String) -> void:
 	if role_label != null:
 		role_label.text = reason
 		role_label.modulate = Color(0.35, 1.0, 0.45)
+	if players_container != null:
+		for child in players_container.get_children():
+			var container: Variant = child.get("active_container")
+			if container != null and is_instance_valid(container) and container.has_method("close_container"):
+				container.call("close_container", child.name.to_int(), child)
+	if esc_menu != null:
+		esc_menu.visible = false
+	if not Engine.is_editor_hint():
+		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	_ensure_match_end_ui()
+	if _match_end_ui != null:
+		var my_id: int = multiplayer.get_unique_id() if _is_network_active() else 1
+		var is_srv: bool = (not _is_network_active()) or multiplayer.is_server()
+		var active_seed: int = MatchManager.match_seed if MatchManager != null else 0
+		_match_end_ui.show_match_result(winner_peer_id, my_id, reason, is_srv, is_sandbox_mode, active_seed)
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if MatchManager != null and MatchManager.match_state == MatchManager.MatchState.ENDED:
+		return
 	if event.is_action_pressed("ui_cancel") or (event is InputEventKey and event.pressed and not event.is_echo() and event.keycode == KEY_ESCAPE):
 		toggle_esc_menu()
 		get_viewport().set_input_as_handled()
@@ -191,6 +312,7 @@ func _unhandled_input(event: InputEvent) -> void:
 func toggle_esc_menu() -> void:
 	esc_menu.visible = not esc_menu.visible
 	if esc_menu.visible:
+		_refresh_esc_mode_button_text()
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	else:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
@@ -203,6 +325,103 @@ func _on_resume_pressed() -> void:
 
 func _on_leave_button_pressed() -> void:
 	_terminate_match("Local player selected Leave to Lobby")
+
+
+func _on_rematch_requested() -> void:
+	trigger_rematch(is_sandbox_mode)
+
+
+func _on_switch_mode_rematch_pressed() -> void:
+	trigger_rematch(not is_sandbox_mode)
+
+
+func trigger_rematch(next_sandbox_mode: bool, custom_seed: int = 0) -> void:
+	if _is_network_active() and not multiplayer.is_server():
+		return
+	if _is_network_active() and is_inside_tree():
+		_rpc_prepare_arena_round.rpc(next_sandbox_mode)
+	else:
+		_rpc_prepare_arena_round(next_sandbox_mode)
+
+	var c_id: int = client_peer_id if client_peer_id != 0 else 2
+	if MatchManager != null and is_inside_tree():
+		MatchManager.start_new_match([1, c_id], custom_seed)
+
+
+@rpc("authority", "call_local", "reliable")
+func _rpc_prepare_arena_round(next_sandbox_mode: bool) -> void:
+	is_sandbox_mode = next_sandbox_mode
+	if GameConfig != null:
+		GameConfig.sandbox_gym_mode = next_sandbox_mode
+
+	_ensure_match_end_ui()
+	if _match_end_ui != null:
+		_match_end_ui.hide_overlay()
+	if esc_menu != null:
+		esc_menu.visible = false
+	_refresh_esc_mode_button_text()
+	_refresh_role_badge()
+
+	_clear_dynamic_round_entities()
+	_reset_all_doors_for_round()
+	_configure_level_props_for_mode(is_sandbox_mode)
+
+	var p_root: Node = players_container if players_container != null else get_node_or_null("Players")
+	if p_root != null:
+		for child in p_root.get_children():
+			var pid: int = child.name.to_int()
+			var slot: int = 1 if pid == 1 else 2
+			if child.has_method("reset_for_rematch"):
+				child.call("reset_for_rematch", _resolve_spawn_point(slot), _resolve_spawn_yaw(slot))
+
+	if not Engine.is_editor_hint():
+		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+
+
+func _clear_dynamic_round_entities() -> void:
+	for child in get_children():
+		var c_name: String = String(child.name)
+		if (
+			c_name.begins_with("Dropped_")
+			or c_name.begins_with("Tripwire_")
+			or c_name.begins_with("ThrownBomb_")
+			or (child is StaticBody3D and child.has_method("get_briefcase_container"))
+		):
+			remove_child(child)
+			child.queue_free()
+
+
+func _reset_all_doors_for_round() -> void:
+	for node in find_children("*", "", true, false):
+		if node.has_method("rig_water_bucket") and node.get("is_open") != null:
+			node.set("has_rigged_bucket", false)
+			node.set("bucket_owner_peer_id", 0)
+			node.set("is_open", false)
+			if node.get("_swing_tween") != null:
+				var tw: Variant = node.get("_swing_tween")
+				if tw is Tween and (tw as Tween).is_valid():
+					(tw as Tween).kill()
+			if node.get("_swing") != null:
+				var sw: Variant = node.get("_swing")
+				if sw is Tween and (sw as Tween).is_valid():
+					(sw as Tween).kill()
+			var bv: Variant = node.get("_bucket_visual")
+			if bv is CanvasItem:
+				(bv as CanvasItem).visible = false
+			elif bv is Node3D:
+				(bv as Node3D).visible = false
+			if node.get("open_fraction") != null:
+				node.set("open_fraction", 0.0)
+				node.set("current_target_angle_rad", 0.0)
+				var hp: Variant = node.get("_hinge_pivot")
+				if hp is Node3D:
+					(hp as Node3D).rotation.y = 0.0
+			elif node.get("_open_fraction") != null and node is Node3D:
+				node.set("_busy", false)
+				node.set("_open_fraction", 0.0)
+				var closed_rot: Variant = node.get("_closed_rotation")
+				if closed_rot != null:
+					(node as Node3D).rotation.y = float(closed_rot)
 
 
 # ==========================================
@@ -235,26 +454,45 @@ func _spawn_all_players() -> void:
 	if has_spawned_all:
 		return
 	has_spawned_all = true
+	if is_inside_tree() and GameConfig != null:
+		is_sandbox_mode = GameConfig.sandbox_gym_mode
 
-	print("TestGym: Both peers confirmed arena loaded. Instantiating 1v1 Spies...")
+	print("TestGym: Both peers confirmed arena loaded. Instantiating 1v1 Spies (mode=%s)..." % (
+		"Sandbox" if is_sandbox_mode else "FullMatch"
+	))
 
-	# 1. Host (Peer 1 - Spy White)
+	# 1. Host (Peer 1 - Spy Green)
 	var host_player: CharacterBody3D = PLAYER_SCENE.instantiate()
 	host_player.name = "1"
 	host_player.spy_role = 1
-	host_player.position = SPAWN_POINTS[1]
+	host_player.position = _resolve_spawn_point(1)
+	host_player.rotation.y = _resolve_spawn_yaw(1)
 	players_container.add_child(host_player)
 
-	# 2. Client (Contender - Spy Black)
+	# 2. Client (Peer 2 / Contender - Spy Purple)
 	var c_id: int = client_peer_id if client_peer_id != 0 else 2
 	var client_player: CharacterBody3D = PLAYER_SCENE.instantiate()
 	client_player.name = str(c_id)
 	client_player.spy_role = 2
-	client_player.position = SPAWN_POINTS[2]
+	client_player.position = _resolve_spawn_point(2)
+	client_player.rotation.y = _resolve_spawn_yaw(2)
 	players_container.add_child(client_player)
+
+	if is_inside_tree() and _is_network_active():
+		_rpc_prepare_arena_round.rpc(is_sandbox_mode)
+	elif is_inside_tree():
+		_refresh_role_badge()
 
 	if MatchManager != null and is_inside_tree():
 		MatchManager.start_new_match([1, c_id])
+
+
+func _is_network_active() -> bool:
+	if Engine.is_editor_hint() or multiplayer == null or not multiplayer.has_multiplayer_peer():
+		return false
+	if multiplayer.multiplayer_peer is OfflineMultiplayerPeer:
+		return false
+	return multiplayer.multiplayer_peer.get_connection_status() == MultiplayerPeer.CONNECTION_CONNECTED
 
 
 # ==========================================
@@ -277,7 +515,8 @@ func _terminate_match(reason: String = "") -> void:
 	is_terminating = true
 
 	print("TestGym: Terminating match (%s) -> Returning to lobby." % reason)
-	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	if not Engine.is_editor_hint():
+		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
 	# Cleanup network peer and EOS session
 	NetworkManager.disconnect_session()

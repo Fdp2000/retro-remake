@@ -29,6 +29,8 @@ func setup() -> void:
 
 func teardown() -> void:
 	_restore_game_config()
+	if MatchManager != null:
+		MatchManager.match_state = MatchManager.MatchState.INACTIVE
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
 
@@ -440,3 +442,121 @@ func test_crt_trap_cam_rival_subviewport_layers_and_post_hit_tail() -> void:
 			saw_click_off = true
 			break
 	assert_true(saw_click_off, "Closing CRT replay emits crt_click_off local audio cue")
+
+
+func test_full_round_loop_drawer_furniture_non_overlap_clock_elimination_and_rematch() -> void:
+	var host_root: Node = EditorInterface.get_base_control()
+	GameConfig.sandbox_gym_mode = false
+
+	var gym: Node3D = _instantiate_live_scene("res://scenes/test_gym.tscn", "res://scenes/test_gym.gd") as Node3D
+	assert_true(gym != null, "Live TestGym instantiated")
+	host_root.add_child(gym)
+
+	# Full Match Mode omits dev floor pickup row while keeping SharedAirportExit
+	assert_true(gym.get_node_or_null("TestPickups") == null, "Full Match Mode skips dev TestPickups table in Room_2_2")
+	assert_true(gym.get_node_or_null("TestStep1Props") == null, "Full Match Mode skips dev TestStep1Props in Room_2_2")
+	assert_true(gym.get_node_or_null("SharedAirportExit") != null, "SharedAirportExit exists in Room_2_2")
+
+	# Complete simulated 2-player handshake to spawn corner spies and seeded match props
+	gym.peers_in_arena[1] = true
+	gym.peers_in_arena[2] = true
+	gym._spawn_all_players()
+
+	var players_node: Node = gym.get_node("Players")
+	var p1_raw: Node3D = players_node.get_node_or_null("1") as Node3D
+	var p2_raw: Node3D = players_node.get_node_or_null("2") as Node3D
+	assert_true(p1_raw != null and p2_raw != null, "Both Spy 1 and Spy 2 spawned")
+	assert_true(p1_raw.position.is_equal_approx(Vector3(-12.0, 1.0, -9.0)), "Full Match spawns Spy 1 in Room_1_1 (NW corner)")
+	assert_true(p2_raw.position.is_equal_approx(Vector3(15.0, 1.0, 18.0)), "Full Match spawns Spy 2 in Room_4_4 (SE corner)")
+
+	# Replace editor-placeholder players instantiated from PackedScene with live player.gd instances at identical transforms
+	var p1_pos: Vector3 = p1_raw.position
+	var p2_pos: Vector3 = p2_raw.position
+	players_node.remove_child(p1_raw)
+	p1_raw.free()
+	players_node.remove_child(p2_raw)
+	p2_raw.free()
+
+	var p1: CharacterBody3D = _instantiate_live_scene("res://entities/player/player.tscn", "res://entities/player/player.gd") as CharacterBody3D
+	p1.name = "1"
+	p1.spy_role = 1
+	p1.position = p1_pos
+	players_node.add_child(p1)
+	p1.wakeup_immunity_remaining = 0.0
+
+	var p2: CharacterBody3D = _instantiate_live_scene("res://entities/player/player.tscn", "res://entities/player/player.gd") as CharacterBody3D
+	p2.name = "2"
+	p2.spy_role = 2
+	p2.position = p2_pos
+	players_node.add_child(p2)
+	p2.wakeup_immunity_remaining = 0.0
+
+	# Verify MatchSpawner created 12 drawers + 3 floor buckets and FurnitureSpawner never overlaps occupied drawer markers
+	var match_props: Node = gym.get_node_or_null("MatchSpawnedProps")
+	assert_true(match_props != null, "MatchSpawnedProps spawned on match start")
+	var drawer_count: int = 0
+	var bucket_count: int = 0
+	for child in match_props.get_children():
+		if String(child.name).begins_with("MatchDrawer_"):
+			drawer_count += 1
+		elif String(child.name).begins_with("MatchFloorBucket_"):
+			bucket_count += 1
+	assert_eq(drawer_count, 12, "Full Match spawns 12 searchable drawers")
+	assert_eq(bucket_count, 3, "Full Match spawns 3 floor Water Buckets")
+
+	var f_spawner: Node = gym.get_node_or_null("BuildingComplex2/FurnitureSpawner")
+	assert_true(f_spawner != null, "FurnitureSpawner exists on BuildingComplex2")
+	if f_spawner != null:
+		f_spawner.call("reset_and_populate", MatchManager.match_seed)
+		var rooms_root: Node = gym.get_node("BuildingComplex2/Rooms")
+		var occupied_markers: int = 0
+		var occupied_with_furniture: int = 0
+		var free_with_furniture: int = 0
+		for room in rooms_root.get_children():
+			var pts: Node = room.get_node_or_null("FurnitureSpawnPoints")
+			if pts == null:
+				continue
+			for marker in pts.get_children():
+				if not (marker is Marker3D):
+					continue
+				if bool(marker.get_meta("occupied_by_match_drawer", false)):
+					occupied_markers += 1
+					if marker.get_child_count() > 0:
+						occupied_with_furniture += 1
+				elif marker.get_child_count() > 0:
+					free_with_furniture += 1
+		assert_eq(occupied_markers, 12, "All 12 drawer markers are tagged occupied_by_match_drawer")
+		assert_eq(occupied_with_furniture, 0, "FurnitureSpawner skips all 12 occupied drawer markers (zero overlap)")
+		assert_gt(free_with_furniture, 0, "FurnitureSpawner still populates unoccupied markers")
+
+	# J2 Clock Elimination: Spy 1 expires at 00:00 while Spy 2 retains time -> Spy 1 scatters items and locks KO
+	p1.pickup_item("KEY")
+	p1.pickup_item("BUCKET")
+	MatchManager.peer_clocks[2] = 200.0
+	MatchManager.tick_match_clocks(181.0)
+	assert_true(MatchManager.is_peer_eliminated(1), "MatchManager marks Peer 1 eliminated at 00:00")
+	assert_true(p1.is_clock_eliminated, "Player 1 sets is_clock_eliminated=true")
+	assert_eq(p1.stance_state, GameConfig.Stance.KO, "Eliminated Spy 1 enters locked KO stance")
+	assert_eq(p1.left_hand_item_id, "NONE", "Eliminated Spy 1 drops Left Hand Objective onto floor")
+	assert_eq(p1.jacket_slots[0], "NONE", "Eliminated Spy 1 drops Jacket Gadget onto floor")
+	p1.tick_ko_and_immunity(20.0)
+	assert_eq(p1.stance_state, GameConfig.Stance.KO, "Clock-eliminated Spy cannot wake up after 15s")
+
+	# J1 / J5 Escape Victory & Match-End Overlay
+	p2.pickup_item("BRIEFCASE", ["KEY", "MONEY", "PASSPORT", "PLANS"])
+	assert_true(MatchManager.report_airport_exit_reached(2, 4), "Surviving Spy 2 escapes with 4/4 Briefcase")
+	assert_eq(MatchManager.match_state, MatchManager.MatchState.ENDED, "Match transitions to ENDED on exit")
+	var end_ui: Control = gym.get("_match_end_ui") as Control
+	assert_true(end_ui != null and end_ui.visible, "MatchEndOverlayUI opens automatically on match_ended")
+	assert_eq(int(end_ui.get("last_winner_peer_id")), 2, "MatchEndOverlayUI records Spy 2 victory")
+
+	# J5 Instant In-Game Rematch (New Seed)
+	gym.call("trigger_rematch", false, 42424)
+	assert_false(end_ui.visible, "Rematch hides MatchEndOverlayUI")
+	assert_eq(MatchManager.match_state, MatchManager.MatchState.IN_PROGRESS, "Rematch resets MatchManager to IN_PROGRESS")
+	assert_eq(MatchManager.match_seed, 42424, "Rematch applies new deterministic match_seed")
+	assert_false(p1.is_clock_eliminated, "Rematch clears clock elimination flag on Spy 1")
+	assert_eq(p1.stance_state, GameConfig.Stance.WALK, "Rematch restores Spy 1 to WALK stance")
+	assert_true(p1.position.is_equal_approx(Vector3(-12.0, 1.0, -9.0)), "Rematch returns Spy 1 to NW corner spawn")
+	assert_true(p2.position.is_equal_approx(Vector3(15.0, 1.0, 18.0)), "Rematch returns Spy 2 to SE corner spawn")
+	assert_eq(p2.left_hand_item_id, "NONE", "Rematch clears player inventories")

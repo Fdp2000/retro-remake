@@ -205,6 +205,9 @@ static func get_remote_spy_visual_layer(slot_index: int) -> int:
 @export var spawner_searchable_drawers_count: int = 12
 @export var spawner_cover_props_count: int = 6
 @export var spawner_floor_buckets_count: int = 3
+## When false (default), launches a real seeded round (corner room spawns, no free pickup table in Room_2_2).
+## When true, spawns the Room_2_2 dev test bench with all pickups/traps/drawers laid out for quick testing.
+@export var sandbox_gym_mode: bool = false
 
 
 func _ready() -> void:
