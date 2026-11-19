@@ -443,6 +443,9 @@ func _build_layout() -> void:
 	close_btn.focus_mode = Control.FOCUS_NONE
 	close_btn.text = "Close [S]"
 	close_btn.pressed.connect(func():
+		if _player != null and _player.has_method("flush_active_3d_slides"):
+			_player.flush_active_3d_slides(true)
+		flush_active_briefcase_slides()
 		if _container != null and is_instance_valid(_container) and _container.has_method("request_close_container"):
 			_container.request_close_container(_local_peer_id)
 	)

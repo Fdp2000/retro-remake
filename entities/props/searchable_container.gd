@@ -95,6 +95,9 @@ var _clutter_area_nodes: Dictionary = {}
 var _briefcase_lid_pivot: Node3D = null
 var _briefcase_interior_light: OmniLight3D = null
 var _lid_tween: Tween = null
+var _clutter_yaws: Array[float] = []
+var _layout_randomized: bool = false
+var _has_player_modified_layout: bool = false
 
 
 func _ready() -> void:
@@ -103,11 +106,19 @@ func _ready() -> void:
 	else:
 		collision_layer = 0
 	collision_mask = 0
-	_init_clutter_if_empty()
+	if not is_briefcase_container:
+		if clutter_positions.is_empty() and not _layout_randomized:
+			_randomize_initial_drawer_layout()
+		else:
+			_init_clutter_if_empty()
+	else:
+		_init_clutter_if_empty()
 	_ensure_item_positions()
 	_tray_drawer_node = get_node_or_null("TrayPivot") as Node3D
 	_top_down_vantage = get_node_or_null("TopDownVantage") as Marker3D
 	if not Engine.is_editor_hint():
+		if MatchManager != null and not is_briefcase_container and not MatchManager.match_started.is_connected(_on_match_started_reseed):
+			MatchManager.match_started.connect(_on_match_started_reseed)
 		_ensure_3d_tray_structure()
 		_rebuild_3d_interior()
 
@@ -149,19 +160,186 @@ func _get_effective_clutter_count() -> int:
 	return maxi(clutter_count, 0)
 
 
+func _stable_hash(text: String) -> int:
+	var h: int = 17
+	for b in text.to_utf8_buffer():
+		h = int((h * 31 + int(b)) & 0x7FFFFFFF)
+	return h if h != 0 else 1
+
+
+func _compute_layout_seed(override_match_seed: int = 0) -> int:
+	if container_seed != 0:
+		return container_seed
+	var m_seed: int = override_match_seed if override_match_seed != 0 else (MatchManager.match_seed if MatchManager != null else 0)
+	var name_hash: int = _stable_hash(String(name) + "|" + container_id)
+	var combined: int = ((m_seed ^ name_hash) if m_seed != 0 else (name_hash ^ 0x5A17)) & 0x7FFFFFFF
+	return combined if combined != 0 else 7321
+
+
+func _on_match_started_reseed(seed_value: int) -> void:
+	if is_briefcase_container or container_seed != 0 or _has_player_modified_layout:
+		return
+	if occupied_by_peer_id != 0 or not searched_by_peers.is_empty():
+		return
+	_randomize_initial_drawer_layout(seed_value)
+	_ensure_item_positions()
+	_rebuild_3d_interior()
+	state_changed.emit()
+
+
+func _pick_spaced_norm(rng: RandomNumberGenerator, existing: Array[Vector2], min_x: float, max_x: float, min_y: float, max_y: float, min_dist: float, attempts: int) -> Vector2:
+	var best := Vector2(rng.randf_range(min_x, max_x), rng.randf_range(min_y, max_y))
+	var best_min_d: float = -1.0
+	for _a in range(attempts):
+		var cand := Vector2(rng.randf_range(min_x, max_x), rng.randf_range(min_y, max_y))
+		var nearest: float = 999.0
+		for prev in existing:
+			nearest = minf(nearest, cand.distance_to(prev))
+		if nearest >= min_dist:
+			return cand
+		if nearest > best_min_d:
+			best_min_d = nearest
+			best = cand
+	return best
+
+
+func _shuffle_int_array(arr: Array[int], rng: RandomNumberGenerator) -> void:
+	for i in range(arr.size() - 1, 0, -1):
+		var j: int = rng.randi_range(0, i)
+		var tmp: int = arr[i]
+		arr[i] = arr[j]
+		arr[j] = tmp
+
+
+func _randomize_initial_drawer_layout(override_match_seed: int = 0) -> void:
+	if is_briefcase_container:
+		return
+	var rng := RandomNumberGenerator.new()
+	rng.seed = _compute_layout_seed(override_match_seed)
+
+	# 1. Place important items & drawer traps FIRST on the bottom layer
+	item_positions.clear()
+	var placed_items: Array[Vector2] = []
+	for i in range(stored_items.size()):
+		var item_id: String = str(stored_items[i]).to_upper()
+		var item_pos: Vector2 = _pick_spaced_norm(rng, placed_items, 0.16, 0.84, 0.22, 0.78, 0.22, 8)
+		var clamped_item_pos: Vector2 = _clamp_container_norm(item_pos)
+		item_positions[item_id] = clamped_item_pos
+		placed_items.append(clamped_item_pos)
+
+	bomb_norm_pos = _clamp_container_norm(_pick_spaced_norm(rng, placed_items, 0.18, 0.82, 0.22, 0.78, 0.20, 6))
+
+	var important_targets: Array[Vector2] = placed_items.duplicate()
+	if armed_bomb or staged_bomb_in_tray or live_bomb_lit:
+		important_targets.append(bomb_norm_pos)
+
+	# 2. Place junk clutter ABOVE important items across max 3 vertical strata,
+	#    ensuring each important item is buried under 1-2 overlapping junk pieces.
+	var target_count: int = _get_effective_clutter_count()
+	var max_layers: int = maxi(_get_max_clutter_layers(), 1)
+	var items_per_layer: int = maxi(int(ceilf(float(maxi(target_count, 1)) / float(max_layers))), 1)
+	clutter_positions.clear()
+	_clutter_yaws.clear()
+	for _k in range(target_count):
+		clutter_positions.append(Vector2(-1.0, -1.0))
+		_clutter_yaws.append(0.0)
+
+	var seed_offset: int = absi(container_seed) % CLUTTER_PROP_SPECS.size()
+	var wide_slots: Array[int] = []
+	var narrow_slots: Array[int] = []
+	for i in range(target_count):
+		var spec_idx: int = (i + seed_offset) % CLUTTER_PROP_SPECS.size()
+		if spec_idx == 5:
+			narrow_slots.append(i)
+		else:
+			wide_slots.append(i)
+	_shuffle_int_array(wide_slots, rng)
+	_shuffle_int_array(narrow_slots, rng)
+
+	var available_slots: Array[int] = []
+	available_slots.append_array(wide_slots)
+	available_slots.append_array(narrow_slots)
+
+	var used_layers_per_target: Array = []
+	for _t in range(important_targets.size()):
+		used_layers_per_target.append([] as Array[int])
+
+	# Pass 1: Guarantee primary covering junk over each important item
+	for t_idx in range(important_targets.size()):
+		if available_slots.is_empty():
+			break
+		var slot_i: int = int(available_slots[0])
+		available_slots.remove_at(0)
+		@warning_ignore("integer_division")
+		var layer_idx: int = mini(slot_i / items_per_layer, max_layers - 1)
+		var off := Vector2(rng.randf_range(-0.042, 0.042), rng.randf_range(-0.052, 0.052))
+		clutter_positions[slot_i] = _clamp_container_norm(important_targets[t_idx] + off)
+		_clutter_yaws[slot_i] = rng.randf_range(-20.0, 20.0)
+		(used_layers_per_target[t_idx] as Array[int]).append(layer_idx)
+
+	# Pass 2: Add a 2nd overlapping junk cover on a different layer when slots remain
+	for t_idx in range(important_targets.size()):
+		if available_slots.is_empty():
+			break
+		var used_layers: Array[int] = used_layers_per_target[t_idx] as Array[int]
+		var pick_idx: int = 0
+		for a_idx in range(available_slots.size()):
+			var cand_slot: int = int(available_slots[a_idx])
+			@warning_ignore("integer_division")
+			var cand_layer: int = mini(cand_slot / items_per_layer, max_layers - 1)
+			if not (cand_layer in used_layers):
+				pick_idx = a_idx
+				break
+		var slot_i2: int = int(available_slots[pick_idx])
+		available_slots.remove_at(pick_idx)
+		var off2 := Vector2(rng.randf_range(-0.065, 0.065), rng.randf_range(-0.075, 0.075))
+		clutter_positions[slot_i2] = _clamp_container_norm(important_targets[t_idx] + off2)
+		_clutter_yaws[slot_i2] = rng.randf_range(-26.0, 26.0)
+
+	# Pass 3: Scatter any remaining junk randomly across the drawer
+	for remaining_slot in available_slots:
+		var slot_r: int = int(remaining_slot)
+		@warning_ignore("integer_division")
+		var r_layer: int = mini(slot_r / items_per_layer, max_layers - 1)
+		var same_layer_pts: Array[Vector2] = []
+		for j in range(target_count):
+			if (clutter_positions[j] as Vector2).x < 0.0:
+				continue
+			@warning_ignore("integer_division")
+			var other_layer: int = mini(j / items_per_layer, max_layers - 1)
+			if other_layer == r_layer:
+				same_layer_pts.append(clutter_positions[j])
+		var scatter_pos: Vector2 = _pick_spaced_norm(rng, same_layer_pts, 0.16, 0.84, 0.20, 0.80, 0.24, 6)
+		clutter_positions[slot_r] = _clamp_container_norm(scatter_pos)
+		_clutter_yaws[slot_r] = rng.randf_range(-22.0, 22.0)
+
+	_layout_randomized = true
+
+
 func _init_clutter_if_empty() -> void:
 	var target_count: int = _get_effective_clutter_count()
+	if not is_briefcase_container and clutter_positions.is_empty() and not _layout_randomized and target_count > 0:
+		_randomize_initial_drawer_layout()
+		return
 	if clutter_positions.size() == target_count:
 		return
 	if clutter_positions.size() > target_count:
 		clutter_positions.resize(target_count)
+		_clutter_yaws.resize(mini(_clutter_yaws.size(), target_count))
 		return
+	var rng := RandomNumberGenerator.new()
+	rng.seed = _compute_layout_seed() + clutter_positions.size() * 97 + 13
 	for i in range(clutter_positions.size(), target_count):
-		var base_pos: Vector2 = DEFAULT_CLUTTER_POSITIONS[i % DEFAULT_CLUTTER_POSITIONS.size()]
-		clutter_positions.append(base_pos)
+		var same_layer_pts: Array[Vector2] = []
+		if clutter_positions.size() > 0:
+			same_layer_pts.append(clutter_positions[clutter_positions.size() - 1])
+		clutter_positions.append(_clamp_container_norm(_pick_spaced_norm(rng, same_layer_pts, 0.16, 0.84, 0.20, 0.80, 0.22, 5)))
+		_clutter_yaws.append(rng.randf_range(-22.0, 22.0))
 
 
 func _ensure_item_positions() -> void:
+	if not is_briefcase_container and not _layout_randomized and not stored_items.is_empty() and item_positions.is_empty():
+		_randomize_initial_drawer_layout()
 	var next_positions: Dictionary = {}
 	var fallback_list: Array[Vector2] = BRIEFCASE_BUILDER.DEFAULT_ITEM_NORM_POSITIONS if is_briefcase_container else ITEM_TRAY_POSITIONS
 	for i in range(stored_items.size()):
@@ -193,9 +371,15 @@ func get_top_down_camera_transform() -> Transform3D:
 	up_dir.y = 0.0
 	up_dir = Vector3.FORWARD if up_dir.length_squared() < 0.0001 else up_dir.normalized()
 	if is_briefcase_container:
-		var b_origin: Vector3 = xform.origin + Vector3(0.0, 0.96, 0.02)
-		var b_target: Vector3 = xform.origin + Vector3(0.0, 0.04, 0.0)
-		return Transform3D(Basis.looking_at((b_target - b_origin).normalized(), up_dir), b_origin)
+		var cam_h: float = float(GameConfig.get("briefcase_camera_height")) if (GameConfig != null and GameConfig.get("briefcase_camera_height") != null) else 0.88
+		var cam_front: float = float(GameConfig.get("briefcase_camera_front_offset")) if (GameConfig != null and GameConfig.get("briefcase_camera_front_offset") != null) else 0.30
+		var tgt_y: float = float(GameConfig.get("briefcase_camera_target_y")) if (GameConfig != null and GameConfig.get("briefcase_camera_target_y") != null) else 0.04
+		var tgt_z: float = float(GameConfig.get("briefcase_camera_target_z")) if (GameConfig != null and GameConfig.get("briefcase_camera_target_z") != null) else -0.02
+		var b_origin: Vector3 = xform * Vector3(0.0, cam_h, cam_front)
+		var b_target: Vector3 = xform * Vector3(0.0, tgt_y, tgt_z)
+		var look_dir: Vector3 = (b_target - b_origin).normalized()
+		var cam_up: Vector3 = Vector3.UP if absf(look_dir.dot(Vector3.UP)) < 0.98 else up_dir
+		return Transform3D(Basis.looking_at(look_dir, cam_up), b_origin)
 	var origin: Vector3 = xform * Vector3(0.0, 1.42, 0.52)
 	var look_target: Vector3 = xform * Vector3(0.0, 0.55, 0.52)
 	return Transform3D(Basis.looking_at((look_target - origin).normalized(), up_dir), origin)
@@ -586,6 +770,7 @@ func move_clutter(peer_id: int, clutter_idx: int, new_norm_pos: Vector2) -> bool
 	_init_clutter_if_empty()
 	if clutter_idx < 0 or clutter_idx >= clutter_positions.size():
 		return false
+	_has_player_modified_layout = true
 	clutter_positions[clutter_idx] = Vector2(
 		clampf(new_norm_pos.x, 0.05, 0.95),
 		clampf(new_norm_pos.y, 0.05, 0.95)
@@ -666,6 +851,7 @@ func loot_item_to_player(
 				return false
 			stored_items.remove_at(idx)
 			item_positions.erase(upper)
+			_has_player_modified_layout = true
 			_ensure_item_positions()
 			_sync_back_to_briefcase_pickup()
 			_sync_state_to_peers()
@@ -684,6 +870,7 @@ func loot_item_to_player(
 					stored_items.append(prev_obj)
 					if prev_pos is Vector2:
 						item_positions[prev_obj] = prev_pos as Vector2
+				_has_player_modified_layout = true
 				_ensure_item_positions()
 				_sync_back_to_briefcase_pickup()
 				_sync_state_to_peers()
@@ -694,6 +881,7 @@ func loot_item_to_player(
 
 	stored_items.remove_at(idx)
 	item_positions.erase(upper)
+	_has_player_modified_layout = true
 	_ensure_item_positions()
 	_sync_back_to_briefcase_pickup()
 	_sync_state_to_peers()
@@ -731,6 +919,7 @@ func deposit_left_hand_item(peer_id: int, player_override: Node = null, norm_pos
 	stored_items.append(taken)
 	if norm_pos.x >= 0.0 and norm_pos.y >= 0.0:
 		item_positions[taken] = _clamp_container_norm(norm_pos)
+	_has_player_modified_layout = true
 	_ensure_item_positions()
 	if AudioBridge != null:
 		AudioBridge.request_world_cue("paper_rustle", _safe_global_pos(), 4.0, peer_id)
@@ -758,6 +947,7 @@ func deposit_briefcase_item(peer_id: int, obj_id: String, player_override: Node 
 	stored_items.append(upper)
 	if norm_pos.x >= 0.0 and norm_pos.y >= 0.0:
 		item_positions[upper] = _clamp_container_norm(norm_pos)
+	_has_player_modified_layout = true
 	_ensure_item_positions()
 	if AudioBridge != null:
 		AudioBridge.request_world_cue("paper_rustle", _safe_global_pos(), 4.0, peer_id)
@@ -772,6 +962,7 @@ func move_stored_item(peer_id: int, item_id: String, new_norm_pos: Vector2) -> b
 	if not (upper in stored_items):
 		return false
 	item_positions[upper] = _clamp_container_norm(new_norm_pos)
+	_has_player_modified_layout = true
 	_ensure_item_positions()
 	if AudioBridge != null:
 		AudioBridge.request_world_cue("paper_rustle", _safe_global_pos(), 4.0, peer_id)
@@ -786,6 +977,7 @@ func move_planted_bomb(peer_id: int, new_norm_pos: Vector2) -> bool:
 	if not (staged_bomb_in_tray or armed_bomb or live_bomb_lit):
 		return false
 	bomb_norm_pos = _clamp_container_norm(new_norm_pos)
+	_has_player_modified_layout = true
 	if AudioBridge != null:
 		AudioBridge.request_world_cue("paper_rustle", _safe_global_pos(), 4.0, peer_id)
 	_sync_back_to_briefcase_pickup()
@@ -829,8 +1021,9 @@ func plant_trap_from_jacket(
 		bomb_owner_peer_id = peer_id
 		if norm_pos.x >= 0.0 and norm_pos.y >= 0.0:
 			bomb_norm_pos = _clamp_container_norm(norm_pos)
-		else:
+		elif is_briefcase_container:
 			bomb_norm_pos = BRIEFCASE_BUILDER.DEFAULT_BOMB_NORM_POS
+		_has_player_modified_layout = true
 		if AudioBridge != null and GameConfig != null:
 			AudioBridge.request_world_cue("trap_arm", _safe_global_pos(), GameConfig.audio_radius_trap_setup, peer_id)
 		_sync_back_to_briefcase_pickup()
@@ -1249,6 +1442,7 @@ func _rpc_sync_container_state(state_dict: Dictionary) -> void:
 		clutter_positions.clear()
 		for p in raw_clutter:
 			clutter_positions.append(_clamp_container_norm(p as Vector2))
+	_has_player_modified_layout = true
 
 	var local_id: int = multiplayer.get_unique_id() if _is_peer_connected() else 1
 	if prev_occ != occupied_by_peer_id:
@@ -1548,10 +1742,10 @@ func _rebuild_3d_interior() -> void:
 			bomb_area.position = Vector3(b_xz.x, BRIEFCASE_BUILDER.BOMB_LAYER_Y, b_xz.y)
 		else:
 			var d_bxz: Vector2 = norm_to_tray_local_xz(bomb_norm_pos)
-			bomb_area.position = Vector3(d_bxz.x, -0.006, d_bxz.y)
+			bomb_area.position = Vector3(d_bxz.x, -0.048, d_bxz.y)
 		bomb_area.set_meta("container_role", "lit_bomb" if live_bomb_lit else "planted_bomb")
 		bomb_area.set_meta("base_y", bomb_area.position.y)
-		var bomb_size := Vector3(0.14, 0.018, 0.14) if is_briefcase_container else Vector3(0.16, 0.16, 0.16) * drawer_scale
+		var bomb_size := Vector3(0.14, 0.018, 0.14) if is_briefcase_container else Vector3(0.16, 0.034, 0.16) * drawer_scale
 		bomb_area.set_meta("exact_aabb", AABB(-bomb_size * 0.5, bomb_size))
 
 		var bomb_col := CollisionShape3D.new()
@@ -1561,7 +1755,7 @@ func _rebuild_3d_interior() -> void:
 		bomb_area.add_child(bomb_col)
 
 		var bomb_mesh := PICKUP_SCRIPT.build_item_mesh("LIVE_BOMB" if live_bomb_lit else "BOMB")
-		bomb_mesh.scale = Vector3(0.48, 0.06, 0.48) if is_briefcase_container else Vector3(0.55, 0.55, 0.55) * drawer_scale
+		bomb_mesh.scale = Vector3(0.48, 0.06, 0.48) if is_briefcase_container else Vector3(0.55, 0.12, 0.55) * drawer_scale
 		bomb_area.add_child(bomb_mesh)
 		_contents_root.add_child(bomb_area)
 
@@ -1635,7 +1829,8 @@ func _rebuild_3d_interior() -> void:
 		clutter_area.collision_layer = DRAWER_CONTENTS_MASK
 		clutter_area.collision_mask = 0
 		clutter_area.position = Vector3(xz.x, base_y, xz.y)
-		var yaw_deg: float = [-7.0, 6.0, 11.0, -9.0, 4.0, -12.0][spec_idx % 6]
+		var fallback_yaw: float = [-7.0, 6.0, 11.0, -9.0, 4.0, -12.0][spec_idx % 6]
+		var yaw_deg: float = _clutter_yaws[i] if i < _clutter_yaws.size() else fallback_yaw
 		clutter_area.rotation.y = deg_to_rad(yaw_deg)
 		clutter_area.set_meta("container_role", "clutter")
 		clutter_area.set_meta("clutter_idx", i)

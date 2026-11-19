@@ -110,6 +110,10 @@ const LAYER_TRIGGERS: int = 1 << 4           # Layer 5: RoomZones, DoorBashDetec
 @export var container_drag_wall_bounce: float = 0.42
 @export var container_drag_max_speed: float = 4.5
 @export var container_drag_stop_speed: float = 0.04
+@export var briefcase_camera_height: float = 0.88
+@export var briefcase_camera_front_offset: float = 0.30
+@export var briefcase_camera_target_y: float = 0.04
+@export var briefcase_camera_target_z: float = -0.02
 
 # ==========================================
 # Doc 4: The 5-Trap & Gadget Ecosystem [TUNABLE]

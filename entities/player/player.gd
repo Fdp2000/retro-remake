@@ -2523,6 +2523,12 @@ func _handle_container_3d_mouse_down(screen_pos: Vector2, button_index: int) -> 
 		if tray == null:
 			return false
 		var local_hit: Vector3 = tray.to_local(hit_pos)
+		if camera != null:
+			var drag_orig: Vector3 = camera.project_ray_origin(screen_pos)
+			var drag_dir: Vector3 = camera.project_ray_normal(screen_pos)
+			var plane_hit: Variant = Plane(Vector3.UP, hit_area.global_position.y).intersects_ray(drag_orig, drag_dir)
+			if plane_hit is Vector3:
+				local_hit = tray.to_local(plane_hit as Vector3)
 		var c_idx: int = int(hit_area.get_meta("clutter_idx", -1)) if role == "clutter" else -1
 		var item_id: String = "BOMB" if role == "planted_bomb" else (str(hit_area.get_meta("item_id", "")).to_upper() if role == "loot_item" else "")
 		_active_3d_slides.erase(_make_3d_slide_key(role, c_idx, item_id))
@@ -2749,6 +2755,10 @@ func _step_active_3d_slides(delta: float) -> void:
 			_apply_3d_slide_node_xz(rem_c, str(rem["role"]), int(rem["clutter_idx"]), str(rem["item_id"]), rem["pos"] as Vector2)
 
 
+func flush_active_3d_slides(commit: bool = true) -> void:
+	_flush_active_3d_slides(commit)
+
+
 func _flush_active_3d_slides(commit: bool = true) -> void:
 	if _active_3d_slides.is_empty():
 		return
@@ -2806,7 +2816,9 @@ func project_screen_pos_to_container_norm(screen_pos: Vector2) -> Vector2:
 		return Vector2(-1.0, -1.0)
 	var ray_origin: Vector3 = camera.project_ray_origin(screen_pos)
 	var ray_dir: Vector3 = camera.project_ray_normal(screen_pos)
-	var world_hit: Variant = Plane(Vector3.UP, tray.global_position.y).intersects_ray(ray_origin, ray_dir)
+	var is_briefcase: bool = bool(active_container.get("is_briefcase_container"))
+	var plane_y: float = tray.global_position.y + (BRIEFCASE_BUILDER.ITEM_LAYER_BASE_Y if is_briefcase else -0.030)
+	var world_hit: Variant = Plane(Vector3.UP, plane_y).intersects_ray(ray_origin, ray_dir)
 	if not (world_hit is Vector3):
 		return Vector2(-1.0, -1.0)
 	var local_pt: Vector3 = tray.to_local(world_hit as Vector3)
