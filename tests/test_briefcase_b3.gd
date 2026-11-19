@@ -305,17 +305,38 @@ func test_floor_objective_auto_drops_briefcase_and_swaps_objectives() -> void:
 		assert_true(dropped_bc.bomb_norm_pos.is_equal_approx(Vector2(0.30, 0.72)), "Auto-dropped Briefcase preserved custom bomb XY")
 		assert_true(dropped_bc.armed_spring and dropped_bc.armed_bomb, "Auto-dropped Briefcase preserved armed traps")
 
-	# Pressing E on floor PASSPORT while holding MONEY swaps them and drops MONEY
+	# Pressing E via player raycast interact dispatch on floor PASSPORT while holding MONEY swaps them and drops MONEY
 	var passport_pickup: StaticBody3D = track(load("res://entities/props/world_item_pickup.gd").new()) as StaticBody3D
 	passport_pickup.name = "FloorPassportPickup"
 	passport_pickup.item_id = "PASSPORT"
 	arena.add_child(passport_pickup)
 	assert_true(passport_pickup.get_interaction_prompt_for_player(p1).contains("Swap"), "Prompt indicates swapping Left Hand Objectives")
-	passport_pickup._execute_server_pickup(1)
-	assert_true(passport_pickup._is_consumed, "Floor PASSPORT consumed on swap")
+	assert_true(p1._try_trigger_interact_target(passport_pickup, false, 1), "Client E interact dispatch triggers Objective-to-Objective pickup")
+	p1._reset_interact_hold()
+	assert_true(passport_pickup._is_consumed, "Floor PASSPORT consumed on E swap")
 	assert_eq(p1.left_hand_item_id, "PASSPORT", "Player Left Hand swapped to PASSPORT")
 	var dropped_money: StaticBody3D = arena.get_node_or_null("Dropped_1_MONEY_2") as StaticBody3D
 	assert_true(dropped_money != null and dropped_money.item_id == "MONEY", "Previous MONEY dropped cleanly onto floor")
+
+	# Pressing E on a floor Gadget while holding a loose Objective STILL picks up the Gadget cleanly
+	var spring_pickup: StaticBody3D = track(load("res://entities/props/world_item_pickup.gd").new()) as StaticBody3D
+	spring_pickup.name = "FloorSpringPickup"
+	spring_pickup.item_id = "SPRING"
+	arena.add_child(spring_pickup)
+	assert_true(p1._try_trigger_interact_target(spring_pickup, false, 1), "Client E interact dispatch picks up floor SPRING while holding PASSPORT")
+	p1._reset_interact_hold()
+	assert_true(spring_pickup._is_consumed, "Floor SPRING consumed while holding PASSPORT")
+	assert_eq(p1.jacket_slots[0], "SPRING", "SPRING stowed into Jacket Slot 1")
+
+	# Pressing E on a floor BRIEFCASE while holding PASSPORT STILL enters Briefcase Focus Mode
+	if dropped_bc != null:
+		assert_true(p1._try_trigger_interact_target(dropped_bc, false, 1), "Client E interact dispatch focuses Briefcase while holding PASSPORT")
+		p1._reset_interact_hold()
+		assert_eq(p1.left_hand_item_id, "PASSPORT", "PASSPORT kept in Left Hand on Briefcase Focus Mode")
+		var dropped_bc_c: Node = dropped_bc.get_briefcase_container()
+		assert_eq(int(dropped_bc_c.get("occupied_by_peer_id")), 1, "Floor Briefcase entered Focus Mode instead of picking up")
+		assert_eq(p1.stance_state, GameConfig.Stance.DRAWER_LOCK, "Player entered DRAWER_LOCK on floor Briefcase")
+		dropped_bc_c.close_container(1, p1)
 
 
 func test_briefcase_freeform_xy_persistence_and_disjoint_layers() -> void:

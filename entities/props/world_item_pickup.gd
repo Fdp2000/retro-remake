@@ -355,16 +355,24 @@ func _rpc_consume_pickup() -> void:
 
 
 func _find_player_node(peer_id: int) -> Node:
-	var scene: Node = get_tree().current_scene
-	if scene != null:
-		var p: Node = scene.get_node_or_null("Players/" + str(peer_id))
-		if p != null:
-			return p
+	if is_inside_tree() and get_tree() != null:
+		var scene: Node = get_tree().current_scene
+		if scene != null:
+			var p: Node = scene.get_node_or_null("Players/" + str(peer_id))
+			if p != null:
+				return p
+		for candidate in get_tree().get_nodes_in_group("spy_players"):
+			if candidate.name == str(peer_id):
+				return candidate
 	var parent: Node = get_parent()
-	if parent != null:
+	while parent != null:
 		var p2: Node = parent.get_node_or_null("Players/" + str(peer_id))
 		if p2 != null:
 			return p2
+		var p3: Node = parent.get_node_or_null(str(peer_id))
+		if p3 != null and p3.has_method("pickup_item"):
+			return p3
+		parent = parent.get_parent()
 	return null
 
 

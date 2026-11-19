@@ -2355,29 +2355,38 @@ func _process_interaction_raycast() -> void:
 
 	var my_peer_id: int = multiplayer.get_unique_id() if _is_peer_connected() else 1
 	if is_interactable and target_collider != null and e_just_pressed and not _interact_key_down:
-		reset_anti_camp()
-		if target_collider.has_method("request_focus_container"):
-			_drawer_focus_just_entered = true
-			target_collider.request_focus_container(my_peer_id)
-			return
-		# Playtest Briefcase rule: if holding a loose Objective in Left Hand, pressing E on a floor Briefcase
-		# enters two-stage Briefcase Focus/Search Mode instead of picking it up!
-		if target_collider.has_method("request_focus_briefcase") and PICKUP_SCRIPT.is_objective_item(left_hand_item_id):
-			_drawer_focus_just_entered = true
-			target_collider.request_focus_briefcase(my_peer_id)
-			return
-		var supports_hold: bool = aiming_bucket_steal or (
-			target_collider.has_method("request_hold_interaction")
-			and (not target_collider.has_method("supports_hold_interaction") or bool(target_collider.supports_hold_interaction()))
-		)
-		_interact_key_down = true
-		_interact_hold_elapsed = 0.0
-		_interact_hold_triggered = false
-		_interact_target = target_collider
-		_interact_steal_bucket = aiming_bucket_steal
-		if not supports_hold:
-			_interact_hold_triggered = true
-			target_collider.request_interaction(my_peer_id)
+		_try_trigger_interact_target(target_collider, aiming_bucket_steal, my_peer_id)
+
+
+func _try_trigger_interact_target(target_collider: Object, aiming_bucket_steal: bool, my_peer_id: int) -> bool:
+	if target_collider == null or not is_instance_valid(target_collider):
+		return false
+	reset_anti_camp()
+	if target_collider.has_method("request_focus_container"):
+		_drawer_focus_just_entered = true
+		target_collider.request_focus_container(my_peer_id)
+		return true
+	# Playtest Briefcase rule: ONLY when target pickup IS a floor Briefcase and player holds a loose Objective,
+	# pressing E enters two-stage Briefcase Focus/Search Mode instead of picking it up!
+	var target_item_id_v: Variant = target_collider.get("item_id")
+	var is_target_briefcase: bool = (target_item_id_v is String and PICKUP_SCRIPT.is_briefcase_item(str(target_item_id_v)))
+	if is_target_briefcase and target_collider.has_method("request_focus_briefcase") and PICKUP_SCRIPT.is_objective_item(left_hand_item_id):
+		_drawer_focus_just_entered = true
+		target_collider.request_focus_briefcase(my_peer_id)
+		return true
+	var supports_hold: bool = aiming_bucket_steal or (
+		target_collider.has_method("request_hold_interaction")
+		and (not target_collider.has_method("supports_hold_interaction") or bool(target_collider.supports_hold_interaction()))
+	)
+	_interact_key_down = true
+	_interact_hold_elapsed = 0.0
+	_interact_hold_triggered = false
+	_interact_target = target_collider
+	_interact_steal_bucket = aiming_bucket_steal
+	if not supports_hold:
+		_interact_hold_triggered = true
+		target_collider.request_interaction(my_peer_id)
+	return true
 
 
 func _reset_interact_hold() -> void:

@@ -15,11 +15,15 @@ const DRAWER_CLOSED_Z: float = 0.08
 const DRAWER_OPEN_Z: float = 0.56
 const SPRING_TRIGGER_VISUAL_RATIO: float = 0.42
 const DRAWER_EASE_EXPONENT: float = 1.85
-const CLUTTER_LAYER_YS: Array[float] = [-0.004, 0.014, 0.034]
+const CLUTTER_LAYER_YS: Array[float] = [-0.008, 0.014, 0.036]
+const CLUTTER_SUBLAYER_STEP_Y: float = 0.011
 const DEFAULT_CLUTTER_POSITIONS: Array[Vector2] = [
-	Vector2(0.34, 0.44), # Layer 1
-	Vector2(0.64, 0.56), # Layer 2
-	Vector2(0.48, 0.46)  # Layer 3
+	Vector2(0.34, 0.40), # Layer 1: Manila Folder
+	Vector2(0.62, 0.42), # Layer 1: Embassy Ledger
+	Vector2(0.38, 0.66), # Layer 2: Classified Envelope
+	Vector2(0.64, 0.66), # Layer 2: Folded Newspaper
+	Vector2(0.48, 0.50), # Layer 3: Wooden Clipboard
+	Vector2(0.52, 0.36)  # Layer 3: Heavy Stapler
 ]
 const ITEM_TRAY_POSITIONS: Array[Vector2] = [
 	Vector2(0.32, 0.38),
@@ -57,7 +61,7 @@ const CLUTTER_PROP_SPECS: Array[Dictionary] = [
 @export var container_id: String = "Drawer"
 @export var container_seed: int = 0
 @export var is_briefcase_container: bool = false
-@export var clutter_count: int = 3
+@export var clutter_count: int = 6
 @export var stored_items: Array[String] = []
 @export var armed_spring: bool = false
 @export var spring_owner_peer_id: int = 0
@@ -142,7 +146,7 @@ func _get_max_clutter_layers() -> int:
 func _get_effective_clutter_count() -> int:
 	if is_briefcase_container:
 		return 0
-	return clampi(clutter_count, 0, _get_max_clutter_layers())
+	return maxi(clutter_count, 0)
 
 
 func _init_clutter_if_empty() -> void:
@@ -1239,12 +1243,11 @@ func _rpc_sync_container_state(state_dict: Dictionary) -> void:
 	drawer_visual_ratio = float(state_dict.get("drawer_visual_ratio", 0.0))
 
 	var raw_clutter: Array = state_dict.get("clutter_positions", [])
-	if not raw_clutter.is_empty():
+	if is_briefcase_container:
 		clutter_positions.clear()
-		var max_clutter: int = 0 if is_briefcase_container else _get_max_clutter_layers()
+	elif not raw_clutter.is_empty():
+		clutter_positions.clear()
 		for p in raw_clutter:
-			if clutter_positions.size() >= max_clutter:
-				break
 			clutter_positions.append(_clamp_container_norm(p as Vector2))
 
 	var local_id: int = multiplayer.get_unique_id() if _is_peer_connected() else 1
@@ -1606,17 +1609,24 @@ func _rebuild_3d_interior() -> void:
 			item_area.add_child(glint)
 		_contents_root.add_child(item_area)
 
-	# 4. Upper Clutter Layers — Capped to 3 Strictly Disjoint Vertical Strata (0.70x scaled)
-	var max_layers: int = _get_max_clutter_layers()
+	# 4. Upper Clutter Layers — All drawer junk across max 3 disjoint vertical strata (0.70x scaled)
+	var max_layers: int = maxi(_get_max_clutter_layers(), 1)
+	var total_clutter: int = clutter_positions.size()
+	var items_per_layer: int = maxi(int(ceilf(float(total_clutter) / float(max_layers))), 1)
+	var sub_step: float = CLUTTER_SUBLAYER_STEP_Y if items_per_layer <= 2 else minf(CLUTTER_SUBLAYER_STEP_Y, 0.018 / float(items_per_layer))
 	var seed_offset: int = absi(container_seed) % CLUTTER_PROP_SPECS.size()
-	for i in range(mini(clutter_positions.size(), max_layers)):
+	for i in range(total_clutter):
+		@warning_ignore("integer_division")
+		var layer_idx: int = mini(i / items_per_layer, max_layers - 1)
+		var slot_in_layer: int = i - layer_idx * items_per_layer
 		var spec_idx: int = (i + seed_offset) % CLUTTER_PROP_SPECS.size()
 		var spec: Dictionary = CLUTTER_PROP_SPECS[spec_idx]
-		var base_y: float = (
-			CLUTTER_LAYER_YS[i]
-			if i < CLUTTER_LAYER_YS.size()
-			else CLUTTER_LAYER_YS[CLUTTER_LAYER_YS.size() - 1] + float(i - CLUTTER_LAYER_YS.size() + 1) * 0.018
+		var layer_base_y: float = (
+			CLUTTER_LAYER_YS[layer_idx]
+			if layer_idx < CLUTTER_LAYER_YS.size()
+			else CLUTTER_LAYER_YS[CLUTTER_LAYER_YS.size() - 1] + float(layer_idx - CLUTTER_LAYER_YS.size() + 1) * 0.022
 		)
+		var base_y: float = layer_base_y + float(slot_in_layer) * sub_step
 		var c_size: Vector3 = (spec["size"] as Vector3) * drawer_scale
 		var xz: Vector2 = norm_to_tray_local_xz(clutter_positions[i])
 
@@ -1629,6 +1639,7 @@ func _rebuild_3d_interior() -> void:
 		clutter_area.rotation.y = deg_to_rad(yaw_deg)
 		clutter_area.set_meta("container_role", "clutter")
 		clutter_area.set_meta("clutter_idx", i)
+		clutter_area.set_meta("clutter_layer", layer_idx)
 		clutter_area.set_meta("base_y", base_y)
 		clutter_area.set_meta("exact_aabb", AABB(-c_size * 0.5, c_size))
 

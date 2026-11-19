@@ -292,12 +292,19 @@ func test_drawer_3d_interior_layers_and_immediate_preview() -> void:
 	var clutter_1: Node3D = drawer.get_clutter_area_node(1)
 	var clutter_2: Node3D = drawer.get_clutter_area_node(2)
 	var clutter_3: Node3D = drawer.get_clutter_area_node(3)
+	var clutter_4: Node3D = drawer.get_clutter_area_node(4)
+	var clutter_5: Node3D = drawer.get_clutter_area_node(5)
 	assert_true(item_key != null, "Bottom-layer 3D KEY item built in ContentsRoot")
-	assert_true(clutter_0 != null and clutter_1 != null and clutter_2 != null, "Drawer builds max 3 clutter layers (indices 0..2)")
-	assert_true(clutter_3 == null, "Drawer clutter capped at 3 layers (no index 3)")
-	assert_gt(clutter_0.position.y, item_key.position.y, "Clutter Layer 1 sits above bottom-layer items")
-	assert_gt(clutter_1.position.y, clutter_0.position.y, "Clutter Layer 2 sits above Clutter Layer 1")
-	assert_gt(clutter_2.position.y, clutter_1.position.y, "Clutter Layer 3 sits above Clutter Layer 2")
+	assert_true(clutter_0 != null and clutter_1 != null and clutter_2 != null and clutter_3 != null and clutter_4 != null and clutter_5 != null, "All 6 original clutter props built inside drawer (indices 0..5)")
+	assert_eq(drawer.clutter_positions.size(), 6, "Drawer retains all 6 default clutter props")
+	assert_gt(clutter_0.position.y, item_key.position.y, "Bottom clutter prop sits strictly above stored items")
+	assert_gt(clutter_1.position.y, clutter_0.position.y, "Clutter 1 sits strictly above Clutter 0")
+	assert_gt(clutter_2.position.y, clutter_1.position.y, "Clutter 2 sits strictly above Clutter 1")
+	assert_gt(clutter_3.position.y, clutter_2.position.y, "Clutter 3 sits strictly above Clutter 2")
+	assert_gt(clutter_4.position.y, clutter_3.position.y, "Clutter 4 sits strictly above Clutter 3")
+	assert_gt(clutter_5.position.y, clutter_4.position.y, "Clutter 5 sits strictly above Clutter 4")
+	for c_node in [clutter_0, clutter_1, clutter_2, clutter_3, clutter_4, clutter_5]:
+		assert_true(int(c_node.get_meta("clutter_layer", 99)) < 3, "Every clutter item is grouped within max 3 vertical layers (0..2)")
 	assert_eq(contents_root.find_children("*", "Label3D", true, false).size(), 0, "Drawer objects have zero Label3D name tags")
 
 	# Verify ~30% drawer interior mesh scale (0.70x) on items, lip spring, and clutter
@@ -307,12 +314,14 @@ func test_drawer_3d_interior_layers_and_immediate_preview() -> void:
 	assert_true(lip_aabb.size.is_equal_approx(Vector3(0.242, 0.059, 0.092) * 0.70), "Drawer lip spring AABB scaled by 0.70x")
 	var c0_aabb: AABB = clutter_0.get_meta("exact_aabb") as AABB
 	assert_true(c0_aabb.size.x < 0.20, "Drawer clutter prop size scaled down by 0.70x")
-	drawer.set("clutter_count", 6)
+	drawer.set("clutter_count", 9)
 	drawer._rebuild_3d_interior()
-	assert_eq(drawer.clutter_positions.size(), 3, "clutter_count > 3 still capped to 3 layers")
-	assert_true(drawer.get_clutter_area_node(3) == null, "Layer cap enforced after rebuild")
+	assert_eq(drawer.clutter_positions.size(), 9, "Raising clutter_count keeps requested item count")
+	for extra_i in range(9):
+		var c_extra: Node3D = drawer.get_clutter_area_node(extra_i)
+		assert_true(c_extra != null and int(c_extra.get_meta("clutter_layer", 99)) <= 2, "Even 9 junk items stay capped within max 3 vertical layers (0..2)")
 	lip_node = contents_root.get_node_or_null("LipSpringTrap") as Node3D
-	assert_true(lip_node != null, "LipSpringTrap rebuilt intact after clutter cap check")
+	assert_true(lip_node != null, "LipSpringTrap rebuilt intact after clutter layer cap check")
 
 	# 4. Slow Ease-In pull: 1.4s of 2.8s moves less than 35% visually, safely revealing front spring without triggering KO
 	drawer.step_open_drawer(1, 1.4, p1)
