@@ -9,6 +9,7 @@ extends StaticBody3D
 signal state_changed()
 
 const PICKUP_SCRIPT = preload("res://entities/props/world_item_pickup.gd")
+const BRIEFCASE_BUILDER = preload("res://entities/props/briefcase_visual_builder.gd")
 const DRAWER_CONTENTS_MASK: int = 32
 const DRAWER_CLOSED_Z: float = 0.08
 const DRAWER_OPEN_Z: float = 0.56
@@ -86,6 +87,9 @@ var drawer_visual_ratio: float = 0.0
 var _hollow_built: bool = false
 var _contents_root: Node3D = null
 var _clutter_area_nodes: Dictionary = {}
+var _briefcase_lid_pivot: Node3D = null
+var _briefcase_interior_light: OmniLight3D = null
+var _lid_tween: Tween = null
 
 
 func _ready() -> void:
@@ -146,8 +150,8 @@ func get_top_down_camera_transform() -> Transform3D:
 	up_dir.y = 0.0
 	up_dir = Vector3.FORWARD if up_dir.length_squared() < 0.0001 else up_dir.normalized()
 	if is_briefcase_container:
-		var b_origin: Vector3 = xform.origin + Vector3(0.0, 0.90, 0.0)
-		var b_target: Vector3 = xform.origin + Vector3(0.0, 0.08, 0.0)
+		var b_origin: Vector3 = xform.origin + Vector3(0.0, 0.96, 0.02)
+		var b_target: Vector3 = xform.origin + Vector3(0.0, 0.04, 0.0)
 		return Transform3D(Basis.looking_at((b_target - b_origin).normalized(), up_dir), b_origin)
 	var origin: Vector3 = xform * Vector3(0.0, 1.42, 0.52)
 	var look_target: Vector3 = xform * Vector3(0.0, 0.55, 0.52)
@@ -228,6 +232,20 @@ func request_loot_item(caller_peer_id: int, item_id: String, target_slot: int = 
 		loot_item_to_player(caller_peer_id, item_id, target_slot)
 
 
+func request_deposit_left_hand_item(caller_peer_id: int) -> void:
+	if _is_peer_connected():
+		_server_deposit_left_hand_item.rpc_id(1, caller_peer_id)
+	else:
+		deposit_left_hand_item(caller_peer_id)
+
+
+func request_deposit_briefcase_item(caller_peer_id: int, obj_id: String) -> void:
+	if _is_peer_connected():
+		_server_deposit_briefcase_item.rpc_id(1, caller_peer_id, obj_id)
+	else:
+		deposit_briefcase_item(caller_peer_id, obj_id)
+
+
 func request_plant_trap(caller_peer_id: int, slot_index: int, target_zone: String) -> void:
 	if _is_peer_connected():
 		_server_plant_trap.rpc_id(1, caller_peer_id, slot_index, target_zone)
@@ -258,14 +276,19 @@ func focus_container(peer_id: int, player_override: Node = null) -> bool:
 	_is_preview_sliding = false
 
 	if not already_this_occupant:
-		drawer_open_progress = 1.0 if is_briefcase_container else 0.0
-		drawer_visual_ratio = 1.0 if is_briefcase_container else 0.0
+		# Both Drawers and Floor Briefcases start at Stage 1 Closed (0%) so player chooses Fast (Tap E) vs Slow (Hold E)
+		drawer_open_progress = 0.0
+		drawer_visual_ratio = 0.0
 		_opened_effects_applied = false
 		if _slide_tween != null and _slide_tween.is_valid():
 			_slide_tween.kill()
+		if _lid_tween != null and _lid_tween.is_valid():
+			_lid_tween.kill()
 		if _tray_drawer_node != null:
 			_tray_drawer_node.position.z = 0.0 if is_briefcase_container else DRAWER_CLOSED_Z
 			_tray_target_z = _tray_drawer_node.position.z
+		if is_briefcase_container:
+			_apply_briefcase_lid_ratio(0.0)
 
 	_sync_state_to_peers()
 	if player != null and player.has_method("enter_container_view"):
@@ -274,26 +297,38 @@ func focus_container(peer_id: int, player_override: Node = null) -> bool:
 
 
 func step_open_drawer(peer_id: int, delta: float, player_override: Node = null) -> void:
-	if occupied_by_peer_id != peer_id or is_briefcase_container:
+	if occupied_by_peer_id != peer_id:
 		return
 
 	var slow_dur: float = GameConfig.drawer_slow_peek_hold_time if GameConfig != null else 2.80
 	drawer_open_progress = clampf(drawer_open_progress + delta / maxf(slow_dur, 0.5), 0.0, 1.0)
 	drawer_visual_ratio = pow(drawer_open_progress, DRAWER_EASE_EXPONENT)
-	_tray_target_z = lerpf(DRAWER_CLOSED_Z, DRAWER_OPEN_Z, drawer_visual_ratio)
 
-	if _slide_tween != null and _slide_tween.is_valid():
-		_slide_tween.kill()
-	if _tray_drawer_node != null:
-		_tray_drawer_node.position.z = _tray_target_z
+	if is_briefcase_container:
+		if _lid_tween != null and _lid_tween.is_valid():
+			_lid_tween.kill()
+		_apply_briefcase_lid_ratio(drawer_visual_ratio)
+	else:
+		_tray_target_z = lerpf(DRAWER_CLOSED_Z, DRAWER_OPEN_Z, drawer_visual_ratio)
+		if _slide_tween != null and _slide_tween.is_valid():
+			_slide_tween.kill()
+		if _tray_drawer_node != null:
+			_tray_drawer_node.position.z = _tray_target_z
+
+	var player: Node = player_override if player_override != null else (_occupant_player_override if _occupant_player_override != null else _find_player_node(peer_id))
 
 	if armed_spring and drawer_visual_ratio >= SPRING_TRIGGER_VISUAL_RATIO:
-		var player: Node = player_override if player_override != null else (_occupant_player_override if _occupant_player_override != null else _find_player_node(peer_id))
 		_trigger_spring_trap_ko(peer_id, player)
 		return
 
+	# Simultaneous carried-Briefcase Spring check when slow-opening a Drawer while holding Briefcase
+	if not is_briefcase_container and player != null and player.has_method("has_held_briefcase_armed_spring") and bool(player.has_held_briefcase_armed_spring()):
+		if drawer_visual_ratio >= SPRING_TRIGGER_VISUAL_RATIO:
+			_trigger_held_briefcase_spring_from_drawer(peer_id, player)
+			return
+
 	if drawer_visual_ratio >= 0.65 and not _opened_effects_applied:
-		_activate_opened_drawer_effects(peer_id, true)
+		_activate_opened_drawer_effects(peer_id, true, player)
 		_sync_state_to_peers()
 		return
 
@@ -307,7 +342,7 @@ func begin_open_preview(peer_id: int, player_override: Node = null) -> bool:
 	return focus_container(peer_id, player_override)
 
 
-func _activate_opened_drawer_effects(peer_id: int, is_slow_peek: bool) -> Dictionary:
+func _activate_opened_drawer_effects(peer_id: int, is_slow_peek: bool, player: Node = null) -> Dictionary:
 	var out: Dictionary = {"lit_bomb": false, "awarded_bonus": false}
 	if _opened_effects_applied:
 		return out
@@ -328,6 +363,13 @@ func _activate_opened_drawer_effects(peer_id: int, is_slow_peek: bool) -> Dictio
 			AudioBridge.request_world_cue("bomb_hiss", _safe_global_pos(), fuse_rad, bomb_owner_peer_id)
 		out["lit_bomb"] = true
 
+	# Simultaneous carried-Briefcase Time Bomb ignition when opening a Drawer while holding Briefcase
+	var resolved_player: Node = player if player != null else (_occupant_player_override if _occupant_player_override != null else _find_player_node(peer_id))
+	if not is_briefcase_container and resolved_player != null and resolved_player.has_method("has_held_briefcase_armed_bomb") and bool(resolved_player.has_held_briefcase_armed_bomb()):
+		if resolved_player.has_method("ignite_held_briefcase_bomb"):
+			resolved_player.ignite_held_briefcase_bomb(is_slow_peek)
+			out["lit_bomb"] = true
+
 	if not is_briefcase_container and not searched_by_peers.has(peer_id):
 		searched_by_peers[peer_id] = true
 		out["awarded_bonus"] = true
@@ -337,6 +379,18 @@ func _activate_opened_drawer_effects(peer_id: int, is_slow_peek: bool) -> Dictio
 			MatchManager.award_first_search_bonus(peer_id)
 
 	return out
+
+
+func _trigger_held_briefcase_spring_from_drawer(_peer_id: int, player: Node) -> void:
+	drawer_open_progress = 0.0
+	drawer_visual_ratio = 0.0
+	_opened_effects_applied = false
+	occupied_by_peer_id = 0
+	_occupant_player_override = null
+	_animate_tray_open(false, false)
+	_sync_state_to_peers()
+	if player != null and player.has_method("trigger_held_briefcase_spring_ko"):
+		player.trigger_held_briefcase_spring_ko()
 
 
 func _trigger_spring_trap_ko(_peer_id: int, player: Node) -> void:
@@ -358,6 +412,7 @@ func _trigger_spring_trap_ko(_peer_id: int, player: Node) -> void:
 	occupied_by_peer_id = 0
 	_occupant_player_override = null
 	_animate_tray_open(false, false)
+	_sync_back_to_briefcase_pickup()
 	_sync_state_to_peers()
 
 
@@ -378,12 +433,19 @@ func open_container(peer_id: int, is_slow_peek: bool, player_override: Node = nu
 	var player: Node = player_override if player_override != null else _find_player_node(peer_id)
 	_is_preview_sliding = false
 
-	if not is_slow_peek and not is_briefcase_container and not _opened_effects_applied and AudioBridge != null:
+	if not is_slow_peek and not _opened_effects_applied and AudioBridge != null:
 		var slam_rad: float = GameConfig.audio_radius_drawer_fast if GameConfig != null else 10.0
 		AudioBridge.request_world_cue("drawer_slam", _safe_global_pos(), slam_rad, peer_id)
 
-	# 1. Armed Spring Check (Doc 3 §3.B)
-	if armed_spring and not is_briefcase_container:
+	var held_briefcase_spring: bool = (
+		not is_briefcase_container
+		and player != null
+		and player.has_method("has_held_briefcase_armed_spring")
+		and bool(player.has_held_briefcase_armed_spring())
+	)
+
+	# 1. Armed Spring Check (Both Drawers AND Briefcases, plus Simultaneous Held Briefcase on Drawers!)
+	if armed_spring:
 		if not is_slow_peek:
 			_trigger_spring_trap_ko(peer_id, player)
 			result["reason"] = "SPRING_KO"
@@ -393,18 +455,28 @@ func open_container(peer_id: int, is_slow_peek: bool, player_override: Node = nu
 			spring_unlatched = false
 			drawer_open_progress = 0.56
 			drawer_visual_ratio = pow(drawer_open_progress, DRAWER_EASE_EXPONENT)
+	elif held_briefcase_spring:
+		if not is_slow_peek:
+			_trigger_held_briefcase_spring_from_drawer(peer_id, player)
+			result["reason"] = "SPRING_KO"
+			result["triggered_spring"] = true
+			return result
+		else:
+			drawer_open_progress = 0.56
+			drawer_visual_ratio = pow(drawer_open_progress, DRAWER_EASE_EXPONENT)
 	else:
 		drawer_open_progress = 1.0
 		drawer_visual_ratio = 1.0
 
 	# 2 & 3. Armed Bomb Ignition + First-Visit Exploration Bonus (+10s)
-	var eff: Dictionary = _activate_opened_drawer_effects(peer_id, is_slow_peek)
+	var eff: Dictionary = _activate_opened_drawer_effects(peer_id, is_slow_peek, player)
 	result["lit_bomb"] = bool(eff["lit_bomb"])
 	result["awarded_bonus"] = bool(eff["awarded_bonus"])
 
 	occupied_by_peer_id = peer_id
 	_occupant_player_override = player_override
 	_animate_tray_to_ratio(drawer_visual_ratio, is_slow_peek)
+	_sync_back_to_briefcase_pickup()
 	_sync_state_to_peers()
 
 	if player != null and player.has_method("enter_container_view"):
@@ -435,13 +507,16 @@ func close_container(peer_id: int, player_override: Node = null) -> void:
 	var cached_player: Node = player_override if player_override != null else _occupant_player_override
 	_occupant_player_override = null
 
+	var player: Node = cached_player if cached_player != null else _find_player_node(prev_occupant)
+	if not is_briefcase_container and player != null and player.has_method("commit_held_briefcase_traps"):
+		player.commit_held_briefcase_traps()
+
 	if not live_bomb_lit:
 		_animate_tray_open(false, false)
 
 	_sync_back_to_briefcase_pickup()
 	_sync_state_to_peers()
 
-	var player: Node = cached_player if cached_player != null else _find_player_node(prev_occupant)
 	if player != null and player.has_method("exit_container_view"):
 		player.exit_container_view()
 
@@ -491,13 +566,14 @@ func steal_unlatched_spring_to_jacket(peer_id: int, target_slot: int = -1, playe
 
 
 func rearm_unlatched_spring_on_lip(peer_id: int) -> bool:
-	if occupied_by_peer_id != peer_id or not spring_unlatched or is_briefcase_container:
+	if occupied_by_peer_id != peer_id or not spring_unlatched:
 		return false
 	spring_unlatched = false
 	staged_spring_on_lip = true
 	spring_owner_peer_id = peer_id
 	if AudioBridge != null and GameConfig != null:
 		AudioBridge.request_world_cue("trap_arm", _safe_global_pos(), GameConfig.audio_radius_trap_setup, peer_id)
+	_sync_back_to_briefcase_pickup()
 	_sync_state_to_peers()
 	return true
 
@@ -514,11 +590,97 @@ func loot_item_to_player(peer_id: int, item_id: String, target_jacket_slot: int 
 	if player == null:
 		return false
 
+	# Objective transfer rules: pack into held Briefcase, equip to empty Left Hand, or cleanly swap with held Objective
+	if PICKUP_SCRIPT.is_objective_item(upper):
+		var held_left: String = str(player.get("left_hand_item_id")).to_upper()
+		if held_left == "BRIEFCASE":
+			if player.has_method("server_pack_objective_into_briefcase"):
+				if not bool(player.server_pack_objective_into_briefcase(upper)):
+					return false
+			elif not _give_item_to_player(player, upper, target_jacket_slot):
+				return false
+			stored_items.remove_at(idx)
+			_sync_back_to_briefcase_pickup()
+			_sync_state_to_peers()
+			return true
+		elif PICKUP_SCRIPT.is_objective_item(held_left):
+			if held_left == upper:
+				return false
+			if player.has_method("server_swap_left_hand_objective"):
+				var prev_obj: String = str(player.server_swap_left_hand_objective(upper))
+				if prev_obj == "NONE":
+					return false
+				stored_items.remove_at(idx)
+				if not (prev_obj in stored_items):
+					stored_items.append(prev_obj)
+				_sync_back_to_briefcase_pickup()
+				_sync_state_to_peers()
+				return true
+
 	if not _give_item_to_player(player, upper, target_jacket_slot):
 		return false
 
 	stored_items.remove_at(idx)
 	_sync_back_to_briefcase_pickup()
+	_sync_state_to_peers()
+	return true
+
+
+func deposit_left_hand_item(peer_id: int, player_override: Node = null) -> bool:
+	if occupied_by_peer_id != peer_id:
+		return false
+	if drawer_visual_ratio < 0.35:
+		return false
+	var player: Node = player_override if player_override != null else (_occupant_player_override if _occupant_player_override != null else _find_player_node(peer_id))
+	if player == null:
+		return false
+
+	var held_left: String = str(player.get("left_hand_item_id")).to_upper()
+	if not PICKUP_SCRIPT.is_objective_item(held_left):
+		return false
+	if is_briefcase_container:
+		if (held_left in stored_items) or stored_items.size() >= 4:
+			return false
+
+	var taken: String = "NONE"
+	if player.has_method("server_take_left_hand_objective"):
+		taken = str(player.server_take_left_hand_objective())
+	else:
+		taken = held_left
+		player.set("left_hand_item_id", "NONE")
+		if player.has_method("_sync_inventory_state_to_peers"):
+			player._sync_inventory_state_to_peers()
+
+	if taken == "NONE":
+		return false
+
+	stored_items.append(taken)
+	if AudioBridge != null:
+		AudioBridge.request_world_cue("paper_rustle", _safe_global_pos(), 4.0, peer_id)
+	_sync_back_to_briefcase_pickup()
+	_sync_state_to_peers()
+	return true
+
+
+func deposit_briefcase_item(peer_id: int, obj_id: String, player_override: Node = null) -> bool:
+	if occupied_by_peer_id != peer_id or is_briefcase_container:
+		return false
+	if drawer_visual_ratio < 0.35:
+		return false
+	var upper: String = obj_id.to_upper()
+	if not PICKUP_SCRIPT.is_objective_item(upper):
+		return false
+	var player: Node = player_override if player_override != null else (_occupant_player_override if _occupant_player_override != null else _find_player_node(peer_id))
+	if player == null:
+		return false
+	if not player.has_method("server_remove_objective_from_briefcase"):
+		return false
+	if not bool(player.server_remove_objective_from_briefcase(upper)):
+		return false
+
+	stored_items.append(upper)
+	if AudioBridge != null:
+		AudioBridge.request_world_cue("paper_rustle", _safe_global_pos(), 4.0, peer_id)
 	_sync_state_to_peers()
 	return true
 
@@ -537,16 +699,17 @@ func plant_trap_from_jacket(peer_id: int, slot_index: int, target_zone: String, 
 	var trap_id: String = str(slots[slot_index]).to_upper()
 	var zone: String = target_zone.to_upper()
 
-	if trap_id == "SPRING" and zone == "LIP" and not is_briefcase_container and not armed_spring and not staged_spring_on_lip and not spring_unlatched:
+	if trap_id == "SPRING" and (zone == "LIP" or zone == "TRAY") and not armed_spring and not staged_spring_on_lip and not spring_unlatched:
 		_consume_jacket_slot(player, slot_index)
 		staged_spring_on_lip = true
 		spring_owner_peer_id = peer_id
 		if AudioBridge != null and GameConfig != null:
 			AudioBridge.request_world_cue("trap_arm", _safe_global_pos(), GameConfig.audio_radius_trap_setup, peer_id)
+		_sync_back_to_briefcase_pickup()
 		_sync_state_to_peers()
 		return true
 
-	if trap_id == "BOMB" and zone == "TRAY" and not armed_bomb and not staged_bomb_in_tray and not live_bomb_lit:
+	if trap_id == "BOMB" and (zone == "TRAY" or zone == "LIP") and not armed_bomb and not staged_bomb_in_tray and not live_bomb_lit:
 		_consume_jacket_slot(player, slot_index)
 		staged_bomb_in_tray = true
 		bomb_owner_peer_id = peer_id
@@ -667,8 +830,17 @@ func _sync_back_to_briefcase_pickup() -> void:
 			if PICKUP_SCRIPT.is_objective_item(item):
 				packed.append(item)
 		linked_briefcase_pickup.set("packed_objectives", packed)
+		linked_briefcase_pickup.set("armed_spring", armed_spring or staged_spring_on_lip)
+		linked_briefcase_pickup.set("spring_owner_peer_id", spring_owner_peer_id)
 		linked_briefcase_pickup.set("armed_bomb", armed_bomb or staged_bomb_in_tray)
 		linked_briefcase_pickup.set("bomb_owner_peer_id", bomb_owner_peer_id)
+
+
+func _apply_briefcase_lid_ratio(ratio: float) -> void:
+	var clamped: float = clampf(ratio, 0.0, 1.0)
+	BRIEFCASE_BUILDER.set_lid_open_ratio(_briefcase_lid_pivot, clamped, _briefcase_interior_light)
+	if _contents_root != null and is_instance_valid(_contents_root):
+		_contents_root.visible = (clamped > 0.03)
 
 
 func _animate_tray_open(open_state: bool, slow: bool) -> void:
@@ -679,16 +851,36 @@ func _animate_tray_to_ratio(ratio: float, slow: bool) -> void:
 	if _tray_drawer_node == null:
 		return
 	var clamped_ratio: float = clampf(ratio, 0.0, 1.0)
-	var target_z: float = 0.0 if is_briefcase_container else lerpf(DRAWER_CLOSED_Z, DRAWER_OPEN_Z, clamped_ratio)
-	var current_z: float = _tray_drawer_node.position.z
-	if slow and is_equal_approx(_tray_target_z, target_z) and _slide_tween != null and _slide_tween.is_valid() and _slide_tween.is_running():
-		return
 
 	var base_dur: float = 0.0
 	if clamped_ratio > 0.01:
 		base_dur = (GameConfig.drawer_slow_peek_hold_time if GameConfig != null else 2.80) if slow else (GameConfig.drawer_fast_slam_duration if GameConfig != null else 0.22)
 	else:
 		base_dur = GameConfig.drawer_close_duration if GameConfig != null else 0.30
+
+	if is_briefcase_container:
+		if _lid_tween != null and _lid_tween.is_valid():
+			_lid_tween.kill()
+		if _briefcase_lid_pivot != null and is_inside_tree() and base_dur > 0.01:
+			var target_rot_x: float = deg_to_rad(BRIEFCASE_BUILDER.OPEN_LID_ANGLE_DEG * clamped_ratio)
+			if _contents_root != null and clamped_ratio > 0.03:
+				_contents_root.visible = true
+			if _briefcase_interior_light != null:
+				_briefcase_interior_light.visible = clamped_ratio > 0.04
+			_lid_tween = create_tween()
+			_lid_tween.tween_property(_briefcase_lid_pivot, "rotation:x", target_rot_x, base_dur).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+			if clamped_ratio <= 0.03:
+				_lid_tween.tween_callback(func():
+					_apply_briefcase_lid_ratio(0.0)
+				)
+		else:
+			_apply_briefcase_lid_ratio(clamped_ratio)
+		return
+
+	var target_z: float = lerpf(DRAWER_CLOSED_Z, DRAWER_OPEN_Z, clamped_ratio)
+	var current_z: float = _tray_drawer_node.position.z
+	if slow and is_equal_approx(_tray_target_z, target_z) and _slide_tween != null and _slide_tween.is_valid() and _slide_tween.is_running():
+		return
 
 	var travel: float = maxf(DRAWER_OPEN_Z - DRAWER_CLOSED_Z, 0.01)
 	var frac: float = clampf(absf(target_z - current_z) / travel, 0.12, 1.0)
@@ -732,11 +924,16 @@ func _server_step_open_drawer(caller_peer_id: int, delta: float) -> void:
 func _rpc_sync_drawer_slide(open_prog: float, vis_ratio: float) -> void:
 	drawer_open_progress = clampf(open_prog, 0.0, 1.0)
 	drawer_visual_ratio = clampf(vis_ratio, 0.0, 1.0)
-	_tray_target_z = 0.0 if is_briefcase_container else lerpf(DRAWER_CLOSED_Z, DRAWER_OPEN_Z, drawer_visual_ratio)
-	if _slide_tween != null and _slide_tween.is_valid():
-		_slide_tween.kill()
-	if _tray_drawer_node != null:
-		_tray_drawer_node.position.z = _tray_target_z
+	if is_briefcase_container:
+		if _lid_tween != null and _lid_tween.is_valid():
+			_lid_tween.kill()
+		_apply_briefcase_lid_ratio(drawer_visual_ratio)
+	else:
+		_tray_target_z = lerpf(DRAWER_CLOSED_Z, DRAWER_OPEN_Z, drawer_visual_ratio)
+		if _slide_tween != null and _slide_tween.is_valid():
+			_slide_tween.kill()
+		if _tray_drawer_node != null:
+			_tray_drawer_node.position.z = _tray_target_z
 	state_changed.emit()
 
 @rpc("any_peer", "call_local", "reliable")
@@ -807,6 +1004,26 @@ func _server_loot_item(caller_peer_id: int, item_id: String, target_slot: int) -
 	if sender != 0:
 		caller_peer_id = sender
 	loot_item_to_player(caller_peer_id, item_id, target_slot)
+
+
+@rpc("any_peer", "call_local", "reliable")
+func _server_deposit_left_hand_item(caller_peer_id: int) -> void:
+	if _is_peer_connected() and not multiplayer.is_server():
+		return
+	var sender: int = multiplayer.get_remote_sender_id()
+	if sender != 0:
+		caller_peer_id = sender
+	deposit_left_hand_item(caller_peer_id)
+
+
+@rpc("any_peer", "call_local", "reliable")
+func _server_deposit_briefcase_item(caller_peer_id: int, obj_id: String) -> void:
+	if _is_peer_connected() and not multiplayer.is_server():
+		return
+	var sender: int = multiplayer.get_remote_sender_id()
+	if sender != 0:
+		caller_peer_id = sender
+	deposit_briefcase_item(caller_peer_id, obj_id)
 
 
 @rpc("any_peer", "call_local", "reliable")
@@ -886,11 +1103,15 @@ func _rpc_sync_container_state(state_dict: Dictionary) -> void:
 			_animate_tray_to_ratio(0.0, false)
 		elif drawer_visual_ratio > 0.0:
 			_animate_tray_to_ratio(drawer_visual_ratio, false)
-	elif occupied_by_peer_id != 0 and not is_briefcase_container:
-		var desired_z: float = lerpf(DRAWER_CLOSED_Z, DRAWER_OPEN_Z, drawer_visual_ratio)
-		if not is_equal_approx(_tray_target_z, desired_z):
+	elif occupied_by_peer_id != 0:
+		if is_briefcase_container:
 			_animate_tray_to_ratio(drawer_visual_ratio, false)
+		else:
+			var desired_z: float = lerpf(DRAWER_CLOSED_Z, DRAWER_OPEN_Z, drawer_visual_ratio)
+			if not is_equal_approx(_tray_target_z, desired_z):
+				_animate_tray_to_ratio(drawer_visual_ratio, false)
 
+	_sync_back_to_briefcase_pickup()
 	_rebuild_3d_interior()
 	state_changed.emit()
 
@@ -929,7 +1150,7 @@ func _ensure_3d_tray_structure() -> void:
 	if _tray_drawer_node == null:
 		_tray_drawer_node = Node3D.new()
 		_tray_drawer_node.name = "TrayPivot"
-		_tray_drawer_node.position = Vector3(0.0, 0.09 if is_briefcase_container else 0.62, 0.0)
+		_tray_drawer_node.position = Vector3(0.0, 0.075 if is_briefcase_container else 0.62, 0.0)
 		add_child(_tray_drawer_node)
 
 	var legacy_mesh: Node3D = _tray_drawer_node.get_node_or_null("TrayMesh") as Node3D
@@ -938,75 +1159,82 @@ func _ensure_3d_tray_structure() -> void:
 
 	if not _hollow_built:
 		_hollow_built = true
-		var geom := Node3D.new()
-		geom.name = "HollowTrayGeometry"
-		_tray_drawer_node.add_child(geom)
+		if is_briefcase_container:
+			var rig: Dictionary = BRIEFCASE_BUILDER.build_briefcase_rig(_tray_drawer_node)
+			_briefcase_lid_pivot = rig.get("lid_pivot") as Node3D
+			_briefcase_interior_light = rig.get("interior_light") as OmniLight3D
+		else:
+			var geom := Node3D.new()
+			geom.name = "HollowTrayGeometry"
+			_tray_drawer_node.add_child(geom)
 
-		var floor_w: float = 0.72 if is_briefcase_container else 0.88
-		var floor_d: float = 0.44 if is_briefcase_container else 0.50
-		var wall_h: float = 0.11 if is_briefcase_container else 0.16
+			var floor_w: float = 0.88
+			var floor_d: float = 0.50
+			var wall_h: float = 0.16
 
-		var floor_mat := StandardMaterial3D.new()
-		floor_mat.albedo_color = Color(0.24, 0.14, 0.09) if is_briefcase_container else Color(0.14, 0.22, 0.18)
-		var wall_mat := StandardMaterial3D.new()
-		wall_mat.albedo_color = Color(0.36, 0.21, 0.11) if is_briefcase_container else Color(0.58, 0.42, 0.26)
-		var brass_mat := StandardMaterial3D.new()
-		brass_mat.albedo_color = Color(0.86, 0.72, 0.28)
-		brass_mat.metallic = 0.65
+			var floor_mat := StandardMaterial3D.new()
+			floor_mat.albedo_color = Color(0.14, 0.22, 0.18)
+			var wall_mat := StandardMaterial3D.new()
+			wall_mat.albedo_color = Color(0.58, 0.42, 0.26)
+			var brass_mat := StandardMaterial3D.new()
+			brass_mat.albedo_color = Color(0.86, 0.72, 0.28)
+			brass_mat.metallic = 0.65
 
-		var floor_mi := MeshInstance3D.new()
-		var floor_box := BoxMesh.new()
-		floor_box.size = Vector3(floor_w, 0.02, floor_d)
-		floor_mi.mesh = floor_box
-		floor_mi.material_override = floor_mat
-		floor_mi.position = Vector3(0.0, -0.07, 0.0)
-		geom.add_child(floor_mi)
+			var floor_mi := MeshInstance3D.new()
+			var floor_box := BoxMesh.new()
+			floor_box.size = Vector3(floor_w, 0.02, floor_d)
+			floor_mi.mesh = floor_box
+			floor_mi.material_override = floor_mat
+			floor_mi.position = Vector3(0.0, -0.07, 0.0)
+			geom.add_child(floor_mi)
 
-		var side_box := BoxMesh.new()
-		side_box.size = Vector3(0.03, wall_h, floor_d + 0.02)
-		for side_sign in [-1.0, 1.0]:
-			var s_mi := MeshInstance3D.new()
-			s_mi.mesh = side_box
-			s_mi.material_override = wall_mat
-			s_mi.position = Vector3(side_sign * (floor_w * 0.5), 0.0, 0.0)
-			geom.add_child(s_mi)
+			var side_box := BoxMesh.new()
+			side_box.size = Vector3(0.03, wall_h, floor_d + 0.02)
+			for side_sign in [-1.0, 1.0]:
+				var s_mi := MeshInstance3D.new()
+				s_mi.mesh = side_box
+				s_mi.material_override = wall_mat
+				s_mi.position = Vector3(side_sign * (floor_w * 0.5), 0.0, 0.0)
+				geom.add_child(s_mi)
 
-		var back_mi := MeshInstance3D.new()
-		var back_box := BoxMesh.new()
-		back_box.size = Vector3(floor_w + 0.03, wall_h, 0.03)
-		back_mi.mesh = back_box
-		back_mi.material_override = wall_mat
-		back_mi.position = Vector3(0.0, 0.0, -floor_d * 0.5)
-		geom.add_child(back_mi)
+			var back_mi := MeshInstance3D.new()
+			var back_box := BoxMesh.new()
+			back_box.size = Vector3(floor_w + 0.03, wall_h, 0.03)
+			back_mi.mesh = back_box
+			back_mi.material_override = wall_mat
+			back_mi.position = Vector3(0.0, 0.0, -floor_d * 0.5)
+			geom.add_child(back_mi)
 
-		var front_mi := MeshInstance3D.new()
-		var front_box := BoxMesh.new()
-		front_box.size = Vector3(floor_w + 0.06, wall_h + 0.02, 0.03)
-		front_mi.mesh = front_box
-		front_mi.material_override = wall_mat
-		front_mi.position = Vector3(0.0, 0.0, floor_d * 0.5)
-		geom.add_child(front_mi)
+			var front_mi := MeshInstance3D.new()
+			var front_box := BoxMesh.new()
+			front_box.size = Vector3(floor_w + 0.06, wall_h + 0.02, 0.03)
+			front_mi.mesh = front_box
+			front_mi.material_override = wall_mat
+			front_mi.position = Vector3(0.0, 0.0, floor_d * 0.5)
+			geom.add_child(front_mi)
 
-		var handle_mi := MeshInstance3D.new()
-		var handle_box := BoxMesh.new()
-		handle_box.size = Vector3(0.22, 0.03, 0.03)
-		handle_mi.mesh = handle_box
-		handle_mi.material_override = brass_mat
-		handle_mi.position = Vector3(0.0, 0.01, floor_d * 0.5 + 0.025)
-		geom.add_child(handle_mi)
+			var handle_mi := MeshInstance3D.new()
+			var handle_box := BoxMesh.new()
+			handle_box.size = Vector3(0.22, 0.03, 0.03)
+			handle_mi.mesh = handle_box
+			handle_mi.material_override = brass_mat
+			handle_mi.position = Vector3(0.0, 0.01, floor_d * 0.5 + 0.025)
+			geom.add_child(handle_mi)
 
-		var light := OmniLight3D.new()
-		light.name = "DrawerInteriorLight"
-		light.position = Vector3(0.0, 0.55, 0.0)
-		light.omni_range = 1.6
-		light.light_energy = 0.85
-		_tray_drawer_node.add_child(light)
+			var light := OmniLight3D.new()
+			light.name = "DrawerInteriorLight"
+			light.position = Vector3(0.0, 0.55, 0.0)
+			light.omni_range = 1.6
+			light.light_energy = 0.85
+			_tray_drawer_node.add_child(light)
 
 	_contents_root = _tray_drawer_node.get_node_or_null("ContentsRoot") as Node3D
 	if _contents_root == null:
 		_contents_root = Node3D.new()
 		_contents_root.name = "ContentsRoot"
 		_tray_drawer_node.add_child(_contents_root)
+	if is_briefcase_container:
+		_apply_briefcase_lid_ratio(drawer_visual_ratio)
 
 
 func _get_stored_item_tray_layout(item_id: String) -> Dictionary:
@@ -1030,6 +1258,8 @@ func _get_stored_item_tray_layout(item_id: String) -> Dictionary:
 func pick_drawer_object_at_ray(ray_origin: Vector3, ray_dir: Vector3) -> Dictionary:
 	if _contents_root == null or not is_instance_valid(_contents_root) or not is_inside_tree():
 		return {}
+	if is_briefcase_container and drawer_visual_ratio < 0.12:
+		return {}
 	var best_area: Node3D = null
 	var best_world_hit := Vector3.ZERO
 	var best_dist_sq: float = INF
@@ -1038,6 +1268,9 @@ func pick_drawer_object_at_ray(ray_origin: Vector3, ray_dir: Vector3) -> Diction
 			continue
 		var area: Area3D = child as Area3D
 		if not area.has_meta("exact_aabb"):
+			continue
+		var role: String = str(area.get_meta("container_role", ""))
+		if is_briefcase_container and drawer_visual_ratio < 0.42 and role != "lip_spring":
 			continue
 		var inv: Transform3D = area.global_transform.affine_inverse()
 		var local_orig: Vector3 = inv * ray_origin
@@ -1071,15 +1304,15 @@ func _rebuild_3d_interior() -> void:
 		_contents_root.remove_child(child)
 		child.queue_free()
 
-	# 1. Front-Inside Lip Spring Trap (Drawer only)
-	if not is_briefcase_container and (armed_spring or spring_unlatched or staged_spring_on_lip):
+	# 1. Front-Inside Lip Spring Trap (Both Drawers AND Briefcases!)
+	if armed_spring or spring_unlatched or staged_spring_on_lip:
 		var lip_area := Area3D.new()
 		lip_area.name = "LipSpringTrap"
 		lip_area.collision_layer = DRAWER_CONTENTS_MASK
 		lip_area.collision_mask = 0
-		lip_area.position = Vector3(0.0, 0.055, 0.16)
+		lip_area.position = Vector3(0.0, 0.010, 0.145) if is_briefcase_container else Vector3(0.0, 0.055, 0.16)
 		lip_area.set_meta("container_role", "lip_spring")
-		var lip_size := Vector3(0.242, 0.059, 0.092)
+		var lip_size := Vector3(0.20, 0.055, 0.080) if is_briefcase_container else Vector3(0.242, 0.059, 0.092)
 		lip_area.set_meta("exact_aabb", AABB(-lip_size * 0.5, lip_size))
 
 		var lip_col := CollisionShape3D.new()
@@ -1089,7 +1322,7 @@ func _rebuild_3d_interior() -> void:
 		lip_area.add_child(lip_col)
 
 		var spring_mesh := PICKUP_SCRIPT.build_item_mesh("SPRING")
-		spring_mesh.scale = Vector3(1.10, 0.42, 0.42)
+		spring_mesh.scale = Vector3(0.88, 0.38, 0.36) if is_briefcase_container else Vector3(1.10, 0.42, 0.42)
 		var mat: StandardMaterial3D = spring_mesh.material_override as StandardMaterial3D
 		if mat != null:
 			if armed_spring:
@@ -1107,9 +1340,9 @@ func _rebuild_3d_interior() -> void:
 		bomb_area.name = "TrayTimeBomb"
 		bomb_area.collision_layer = DRAWER_CONTENTS_MASK
 		bomb_area.collision_mask = 0
-		bomb_area.position = Vector3(0.0, -0.015, -0.04)
+		bomb_area.position = Vector3(0.0, -0.025, 0.0) if is_briefcase_container else Vector3(0.0, -0.015, -0.04)
 		bomb_area.set_meta("container_role", "lit_bomb" if live_bomb_lit else "planted_bomb")
-		var bomb_size := Vector3(0.16, 0.16, 0.16)
+		var bomb_size := Vector3(0.15, 0.15, 0.15) if is_briefcase_container else Vector3(0.16, 0.16, 0.16)
 		bomb_area.set_meta("exact_aabb", AABB(-bomb_size * 0.5, bomb_size))
 
 		var bomb_col := CollisionShape3D.new()
@@ -1119,15 +1352,14 @@ func _rebuild_3d_interior() -> void:
 		bomb_area.add_child(bomb_col)
 
 		var bomb_mesh := PICKUP_SCRIPT.build_item_mesh("LIVE_BOMB" if live_bomb_lit else "BOMB")
-		bomb_mesh.scale = Vector3(0.55, 0.55, 0.55)
+		bomb_mesh.scale = Vector3(0.48, 0.48, 0.48) if is_briefcase_container else Vector3(0.55, 0.55, 0.55)
 		bomb_area.add_child(bomb_mesh)
 		_contents_root.add_child(bomb_area)
 
 	# 3. Bottom Layer (Layer 0) — Stored Objectives & Gadgets (strictly below -0.039)
 	for i in range(stored_items.size()):
 		var item_id: String = str(stored_items[i]).to_upper()
-		var norm: Vector2 = ITEM_TRAY_POSITIONS[i % ITEM_TRAY_POSITIONS.size()]
-		var xz: Vector2 = norm_to_tray_local_xz(norm)
+		var xz: Vector2 = BRIEFCASE_BUILDER.BRIEFCASE_SLOT_OFFSETS[i % BRIEFCASE_BUILDER.BRIEFCASE_SLOT_OFFSETS.size()] if is_briefcase_container else norm_to_tray_local_xz(ITEM_TRAY_POSITIONS[i % ITEM_TRAY_POSITIONS.size()])
 		var layout: Dictionary = _get_stored_item_tray_layout(item_id)
 		var exact_size: Vector3 = layout["size"] as Vector3
 
@@ -1135,10 +1367,10 @@ func _rebuild_3d_interior() -> void:
 		item_area.name = "TrayItem_%d_%s" % [i, item_id]
 		item_area.collision_layer = DRAWER_CONTENTS_MASK
 		item_area.collision_mask = 0
-		item_area.position = Vector3(xz.x, -0.048, xz.y)
+		item_area.position = Vector3(xz.x, -0.044 if is_briefcase_container else -0.048, xz.y)
 		item_area.set_meta("container_role", "loot_item")
 		item_area.set_meta("item_id", item_id)
-		item_area.set_meta("base_y", -0.048)
+		item_area.set_meta("base_y", item_area.position.y)
 		item_area.set_meta("exact_aabb", AABB(-exact_size * 0.5, exact_size))
 
 		var item_col := CollisionShape3D.new()
@@ -1186,6 +1418,9 @@ func _rebuild_3d_interior() -> void:
 		_build_3d_clutter_prop(clutter_area, i)
 		_contents_root.add_child(clutter_area)
 		_clutter_area_nodes[i] = clutter_area
+
+	if is_briefcase_container:
+		_apply_briefcase_lid_ratio(drawer_visual_ratio)
 
 
 func _build_3d_clutter_prop(parent_area: Area3D, idx: int) -> void:

@@ -16,8 +16,16 @@ enum RightHandMode {
 
 var left_hand_item_id: String = "NONE"
 var briefcase_objectives: Array[String] = []
+var briefcase_armed_spring: bool = false
+var briefcase_spring_owner_id: int = 0
+var briefcase_spring_unlatched: bool = false
+var briefcase_staged_spring: bool = false
 var briefcase_armed_bomb: bool = false
 var briefcase_bomb_owner_id: int = 0
+var briefcase_staged_bomb: bool = false
+var briefcase_live_bomb_lit: bool = false
+var briefcase_live_bomb_fuse_remaining: float = 0.0
+
 var jacket_slots: Array[String] = ["NONE", "NONE", "NONE"]
 var active_jacket_slot: int = 0
 var right_hand_mode: int = RightHandMode.JACKET_SLOT
@@ -43,12 +51,85 @@ func get_filled_jacket_slot_count() -> int:
 	return count
 
 
+func pack_objective_into_briefcase(obj_id: String) -> bool:
+	var upper: String = obj_id.to_upper()
+	if left_hand_item_id != "BRIEFCASE" or not PICKUP_SCRIPT.is_objective_item(upper):
+		return false
+	if (upper in briefcase_objectives) or briefcase_objectives.size() >= 4:
+		return false
+	briefcase_objectives.append(upper)
+	return true
+
+
+func remove_objective_from_briefcase(obj_id: String) -> bool:
+	var upper: String = obj_id.to_upper()
+	if left_hand_item_id != "BRIEFCASE":
+		return false
+	var idx: int = briefcase_objectives.find(upper)
+	if idx == -1:
+		return false
+	briefcase_objectives.remove_at(idx)
+	return true
+
+
+func take_left_hand_objective() -> String:
+	if not PICKUP_SCRIPT.is_objective_item(left_hand_item_id):
+		return "NONE"
+	var taken: String = left_hand_item_id
+	left_hand_item_id = "NONE"
+	return taken
+
+
+func put_left_hand_objective(obj_id: String) -> bool:
+	var upper: String = obj_id.to_upper()
+	if left_hand_item_id != "NONE" or not PICKUP_SCRIPT.is_objective_item(upper):
+		return false
+	left_hand_item_id = upper
+	return true
+
+
+func swap_left_hand_objective(new_obj_id: String) -> String:
+	var upper: String = new_obj_id.to_upper()
+	if not PICKUP_SCRIPT.is_objective_item(upper):
+		return "NONE"
+	if not PICKUP_SCRIPT.is_objective_item(left_hand_item_id):
+		return "NONE"
+	var prev: String = left_hand_item_id
+	left_hand_item_id = upper
+	return prev
+
+
+func commit_briefcase_staged_traps() -> void:
+	if briefcase_staged_spring:
+		briefcase_staged_spring = false
+		briefcase_armed_spring = true
+	if briefcase_staged_bomb:
+		briefcase_staged_bomb = false
+		briefcase_armed_bomb = true
+
+
+func clear_briefcase_trap_state() -> void:
+	briefcase_armed_spring = false
+	briefcase_spring_owner_id = 0
+	briefcase_spring_unlatched = false
+	briefcase_staged_spring = false
+	briefcase_armed_bomb = false
+	briefcase_bomb_owner_id = 0
+	briefcase_staged_bomb = false
+	briefcase_live_bomb_lit = false
+	briefcase_live_bomb_fuse_remaining = 0.0
+
+
 func pickup_item(new_item_id: String, extra_briefcase_items: Array = []) -> Dictionary:
 	var id: String = new_item_id.to_upper()
 	var result: Dictionary = {
 		"picked": false,
 		"dropped_item_id": "NONE",
-		"dropped_briefcase_items": [] as Array[String]
+		"dropped_briefcase_items": [] as Array[String],
+		"dropped_briefcase_armed_spring": false,
+		"dropped_briefcase_spring_owner": 0,
+		"dropped_briefcase_armed_bomb": false,
+		"dropped_briefcase_bomb_owner": 0
 	}
 
 	if PICKUP_SCRIPT.is_objective_item(id):
@@ -58,7 +139,9 @@ func pickup_item(new_item_id: String, extra_briefcase_items: Array = []) -> Dict
 		elif left_hand_item_id == "BRIEFCASE":
 			if not (id in briefcase_objectives) and briefcase_objectives.size() < 4:
 				briefcase_objectives.append(id)
-			result["picked"] = true
+				result["picked"] = true
+			else:
+				result["picked"] = false
 		else:
 			result["dropped_item_id"] = left_hand_item_id
 			left_hand_item_id = id
@@ -74,18 +157,25 @@ func pickup_item(new_item_id: String, extra_briefcase_items: Array = []) -> Dict
 
 		if left_hand_item_id == "NONE":
 			briefcase_objectives = merged
+			clear_briefcase_trap_state()
 			left_hand_item_id = "BRIEFCASE"
 			result["picked"] = true
 		elif PICKUP_SCRIPT.is_objective_item(left_hand_item_id):
 			if not (left_hand_item_id in merged) and merged.size() < 4:
 				merged.append(left_hand_item_id)
 			briefcase_objectives = merged
+			clear_briefcase_trap_state()
 			left_hand_item_id = "BRIEFCASE"
 			result["picked"] = true
 		elif left_hand_item_id == "BRIEFCASE":
 			result["dropped_item_id"] = "BRIEFCASE"
 			result["dropped_briefcase_items"] = briefcase_objectives.duplicate()
+			result["dropped_briefcase_armed_spring"] = briefcase_armed_spring or briefcase_staged_spring
+			result["dropped_briefcase_spring_owner"] = briefcase_spring_owner_id
+			result["dropped_briefcase_armed_bomb"] = briefcase_armed_bomb or briefcase_staged_bomb
+			result["dropped_briefcase_bomb_owner"] = briefcase_bomb_owner_id
 			briefcase_objectives = merged
+			clear_briefcase_trap_state()
 			left_hand_item_id = "BRIEFCASE"
 			result["picked"] = true
 		return result
@@ -160,6 +250,8 @@ func drop_left_hand_item() -> Dictionary:
 	var result: Dictionary = {
 		"dropped_item_id": "NONE",
 		"dropped_briefcase_items": [] as Array[String],
+		"dropped_briefcase_armed_spring": false,
+		"dropped_briefcase_spring_owner": 0,
 		"dropped_briefcase_armed_bomb": false,
 		"dropped_briefcase_bomb_owner": 0
 	}
@@ -169,11 +261,12 @@ func drop_left_hand_item() -> Dictionary:
 	result["dropped_item_id"] = left_hand_item_id
 	if left_hand_item_id == "BRIEFCASE":
 		result["dropped_briefcase_items"] = briefcase_objectives.duplicate()
-		result["dropped_briefcase_armed_bomb"] = briefcase_armed_bomb
+		result["dropped_briefcase_armed_spring"] = briefcase_armed_spring or briefcase_staged_spring
+		result["dropped_briefcase_spring_owner"] = briefcase_spring_owner_id
+		result["dropped_briefcase_armed_bomb"] = briefcase_armed_bomb or briefcase_staged_bomb
 		result["dropped_briefcase_bomb_owner"] = briefcase_bomb_owner_id
-		briefcase_objectives.clear()
-		briefcase_armed_bomb = false
-		briefcase_bomb_owner_id = 0
+		briefcase_objectives = [] as Array[String]
+		clear_briefcase_trap_state()
 	left_hand_item_id = "NONE"
 	return result
 
@@ -221,7 +314,11 @@ func consume_live_bomb() -> bool:
 func start_club_charge() -> Dictionary:
 	var result: Dictionary = {
 		"dropped_item_id": "NONE",
-		"dropped_briefcase_items": [] as Array[String]
+		"dropped_briefcase_items": [] as Array[String],
+		"dropped_briefcase_armed_spring": false,
+		"dropped_briefcase_spring_owner": 0,
+		"dropped_briefcase_armed_bomb": false,
+		"dropped_briefcase_bomb_owner": 0
 	}
 	if right_hand_mode != RightHandMode.CLUB:
 		return result
@@ -264,17 +361,57 @@ func force_drop_all_hands() -> Array[Dictionary]:
 	return drops
 
 
-func apply_sync_state(l_item: String, b_objs: Array, j_slots: Array, a_slot: int, r_mode: int, charging: bool) -> void:
-	left_hand_item_id = l_item.to_upper() if not l_item.is_empty() else "NONE"
-	briefcase_objectives.clear()
-	for obj in b_objs:
-		briefcase_objectives.append(str(obj).to_upper())
+func get_briefcase_trap_dict() -> Dictionary:
+	return {
+		"armed_spring": briefcase_armed_spring,
+		"spring_owner": briefcase_spring_owner_id,
+		"spring_unlatched": briefcase_spring_unlatched,
+		"staged_spring": briefcase_staged_spring,
+		"armed_bomb": briefcase_armed_bomb,
+		"bomb_owner": briefcase_bomb_owner_id,
+		"staged_bomb": briefcase_staged_bomb,
+		"live_bomb_lit": briefcase_live_bomb_lit,
+		"live_bomb_fuse": briefcase_live_bomb_fuse_remaining
+	}
 
-	jacket_slots = ["NONE", "NONE", "NONE"]
+
+func apply_sync_state(
+	l_item: String,
+	b_objs: Array,
+	j_slots: Array,
+	a_slot: int,
+	r_mode: int,
+	charging: bool,
+	b_traps: Dictionary = {}
+) -> void:
+	left_hand_item_id = l_item.to_upper() if not l_item.is_empty() else "NONE"
+
+	# Build a brand-new typed Array BEFORE replacing briefcase_objectives so call_local RPC
+	# passing inv.briefcase_objectives by reference can NEVER clear its own source array!
+	var next_objs: Array[String] = []
+	for obj in b_objs:
+		next_objs.append(str(obj).to_upper())
+	briefcase_objectives = next_objs
+
+	var next_slots: Array[String] = ["NONE", "NONE", "NONE"]
 	for i in range(mini(j_slots.size(), JACKET_SLOT_COUNT)):
 		var s: String = str(j_slots[i]).to_upper()
-		jacket_slots[i] = s if not s.is_empty() else "NONE"
+		next_slots[i] = s if not s.is_empty() else "NONE"
+	jacket_slots = next_slots
 
 	active_jacket_slot = clampi(a_slot, 0, JACKET_SLOT_COUNT - 1)
 	right_hand_mode = r_mode
 	is_charging_club = charging
+
+	if not b_traps.is_empty():
+		briefcase_armed_spring = bool(b_traps.get("armed_spring", false))
+		briefcase_spring_owner_id = int(b_traps.get("spring_owner", 0))
+		briefcase_spring_unlatched = bool(b_traps.get("spring_unlatched", false))
+		briefcase_staged_spring = bool(b_traps.get("staged_spring", false))
+		briefcase_armed_bomb = bool(b_traps.get("armed_bomb", false))
+		briefcase_bomb_owner_id = int(b_traps.get("bomb_owner", 0))
+		briefcase_staged_bomb = bool(b_traps.get("staged_bomb", false))
+		briefcase_live_bomb_lit = bool(b_traps.get("live_bomb_lit", false))
+		briefcase_live_bomb_fuse_remaining = float(b_traps.get("live_bomb_fuse", 0.0))
+	elif left_hand_item_id != "BRIEFCASE":
+		clear_briefcase_trap_state()

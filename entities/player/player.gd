@@ -457,6 +457,211 @@ func force_drop_all_hands() -> Array[Dictionary]:
 func set_briefcase_bomb_state(armed: bool, owner_id: int) -> void:
 	_inv().briefcase_armed_bomb = armed
 	_inv().briefcase_bomb_owner_id = owner_id
+	_sync_inventory_state_to_peers()
+
+
+func set_briefcase_trap_state(armed_spring: bool, spring_owner: int, armed_bomb: bool, bomb_owner: int) -> void:
+	var inv: SpyInventoryComponent = _inv()
+	inv.briefcase_armed_spring = armed_spring
+	inv.briefcase_spring_owner_id = spring_owner
+	inv.briefcase_spring_unlatched = false
+	inv.briefcase_staged_spring = false
+	inv.briefcase_armed_bomb = armed_bomb
+	inv.briefcase_bomb_owner_id = bomb_owner
+	inv.briefcase_staged_bomb = false
+	inv.briefcase_live_bomb_lit = false
+	inv.briefcase_live_bomb_fuse_remaining = 0.0
+	_sync_inventory_state_to_peers()
+
+
+func get_held_briefcase_trap_dict() -> Dictionary:
+	return _inv().get_briefcase_trap_dict()
+
+
+func has_held_briefcase_armed_spring() -> bool:
+	return left_hand_item_id == "BRIEFCASE" and _inv().briefcase_armed_spring
+
+
+func has_held_briefcase_armed_bomb() -> bool:
+	return left_hand_item_id == "BRIEFCASE" and _inv().briefcase_armed_bomb
+
+
+func commit_held_briefcase_traps() -> void:
+	if left_hand_item_id != "BRIEFCASE":
+		return
+	var inv: SpyInventoryComponent = _inv()
+	var had_staged: bool = inv.briefcase_staged_spring or inv.briefcase_staged_bomb
+	inv.commit_briefcase_staged_traps()
+	if had_staged:
+		_sync_inventory_state_to_peers()
+
+
+func trigger_held_briefcase_spring_ko() -> void:
+	var inv: SpyInventoryComponent = _inv()
+	if left_hand_item_id != "BRIEFCASE" or not inv.briefcase_armed_spring:
+		return
+	var owner_id: int = inv.briefcase_spring_owner_id
+	inv.briefcase_armed_spring = false
+	inv.briefcase_spring_unlatched = false
+	inv.briefcase_spring_owner_id = 0
+	if AudioBridge != null:
+		AudioBridge.request_world_cue("spring_trigger", _safe_global_pos(), 10.0, owner_id)
+	var back_dir: Vector3 = global_transform.basis.z.normalized() if is_inside_tree() else Vector3(0.0, 0.0, 1.0)
+	apply_trap_ko("SPRING", owner_id, back_dir * 13.5 + Vector3(0.0, 6.0, 0.0))
+
+
+func ignite_held_briefcase_bomb(is_slow_peek: bool) -> void:
+	var inv: SpyInventoryComponent = _inv()
+	if left_hand_item_id != "BRIEFCASE" or not inv.briefcase_armed_bomb:
+		return
+	inv.briefcase_armed_bomb = false
+	inv.briefcase_live_bomb_lit = true
+	var min_f: float = GameConfig.time_bomb_fuse_min if GameConfig != null else 2.5
+	var max_f: float = GameConfig.time_bomb_fuse_max if GameConfig != null else 4.0
+	var base_fuse: float = randf_range(min_f, max_f)
+	inv.briefcase_live_bomb_fuse_remaining = maxf(base_fuse - 0.70, 0.5) if is_slow_peek else base_fuse
+	if AudioBridge != null:
+		var fuse_rad: float = GameConfig.audio_radius_bomb_fuse if GameConfig != null else 10.0
+		AudioBridge.request_world_cue("bomb_hiss", _safe_global_pos(), fuse_rad, inv.briefcase_bomb_owner_id)
+	_sync_inventory_state_to_peers()
+
+
+func step_held_briefcase_live_bomb(delta: float) -> bool:
+	var inv: SpyInventoryComponent = _inv()
+	if left_hand_item_id != "BRIEFCASE" or not inv.briefcase_live_bomb_lit:
+		return false
+	inv.briefcase_live_bomb_fuse_remaining = maxf(inv.briefcase_live_bomb_fuse_remaining - delta, 0.0)
+	if inv.briefcase_live_bomb_fuse_remaining <= 0.0:
+		if not _is_peer_connected() or multiplayer.is_server():
+			var owner_id: int = inv.briefcase_bomb_owner_id
+			inv.briefcase_live_bomb_lit = false
+			inv.briefcase_bomb_owner_id = 0
+			_sync_inventory_state_to_peers()
+			var blast_origin: Vector3 = _safe_global_pos() + Vector3(0.0, 0.85, 0.0)
+			var w3d: World3D = get_world_3d() if is_inside_tree() else null
+			var tree: SceneTree = get_tree() if is_inside_tree() else null
+			THROWN_BOMB_SCRIPT.detonate_blast_at(tree, w3d, blast_origin, owner_id)
+		return true
+	return false
+
+
+func server_pack_objective_into_briefcase(obj_id: String) -> bool:
+	if not _inv().pack_objective_into_briefcase(obj_id):
+		return false
+	_refresh_hand_and_back_sockets()
+	_update_hud_status()
+	_sync_inventory_state_to_peers()
+	return true
+
+
+func server_remove_objective_from_briefcase(obj_id: String) -> bool:
+	if not _inv().remove_objective_from_briefcase(obj_id):
+		return false
+	_refresh_hand_and_back_sockets()
+	_update_hud_status()
+	_sync_inventory_state_to_peers()
+	return true
+
+
+func server_take_left_hand_objective() -> String:
+	var taken: String = _inv().take_left_hand_objective()
+	if taken != "NONE":
+		_refresh_hand_and_back_sockets()
+		_update_hud_status()
+		_sync_inventory_state_to_peers()
+	return taken
+
+
+func server_swap_left_hand_objective(new_obj_id: String) -> String:
+	var prev: String = _inv().swap_left_hand_objective(new_obj_id)
+	if prev != "NONE":
+		_refresh_hand_and_back_sockets()
+		_update_hud_status()
+		_sync_inventory_state_to_peers()
+	return prev
+
+
+func request_briefcase_trap_action(action: String, slot_arg: int = 0) -> void:
+	if _is_peer_connected():
+		_rpc_server_briefcase_trap_action.rpc_id(1, action, slot_arg)
+	else:
+		_rpc_server_briefcase_trap_action(action, slot_arg)
+
+
+@rpc("any_peer", "call_local", "reliable")
+func _rpc_server_briefcase_trap_action(action: String, slot_arg: int = 0) -> void:
+	if _is_peer_connected() and not multiplayer.is_server():
+		return
+	var sender_id: int = multiplayer.get_remote_sender_id() if (_is_peer_connected() and multiplayer != null) else 0
+	if sender_id != 0 and sender_id != name.to_int():
+		return
+	var inv: SpyInventoryComponent = _inv()
+	if inv.left_hand_item_id != "BRIEFCASE":
+		return
+	var peer_id: int = name.to_int()
+	match action.to_upper():
+		"UNLATCH_SPRING":
+			if inv.briefcase_armed_spring and not inv.briefcase_spring_unlatched:
+				inv.briefcase_armed_spring = false
+				inv.briefcase_spring_unlatched = true
+				if AudioBridge != null:
+					AudioBridge.request_world_cue("spring_unlatch", _safe_global_pos(), 5.0, peer_id)
+		"REARM_SPRING":
+			if inv.briefcase_spring_unlatched:
+				inv.briefcase_spring_unlatched = false
+				inv.briefcase_staged_spring = true
+				inv.briefcase_spring_owner_id = peer_id
+				if AudioBridge != null and GameConfig != null:
+					AudioBridge.request_world_cue("trap_arm", _safe_global_pos(), GameConfig.audio_radius_trap_setup, peer_id)
+		"STEAL_SPRING":
+			if inv.briefcase_spring_unlatched:
+				var placed: bool = false
+				if slot_arg >= 0 and slot_arg < SpyInventoryComponent.JACKET_SLOT_COUNT and inv.jacket_slots[slot_arg] == "NONE":
+					inv.jacket_slots[slot_arg] = "SPRING"
+					inv.active_jacket_slot = slot_arg
+					inv.right_hand_mode = SpyInventoryComponent.RightHandMode.JACKET_SLOT
+					placed = true
+				else:
+					var res: Dictionary = inv.pickup_item("SPRING")
+					placed = bool(res.get("picked", false))
+					if str(res.get("dropped_item_id", "NONE")) != "NONE":
+						_server_spawn_floor_drop(str(res["dropped_item_id"]), [], _compute_safe_drop_position(Vector3(0.0, 0.0, -0.5)))
+				if placed:
+					inv.briefcase_spring_unlatched = false
+					inv.briefcase_spring_owner_id = 0
+		"PLANT_SPRING":
+			if slot_arg >= 0 and slot_arg < inv.jacket_slots.size() and inv.jacket_slots[slot_arg] == "SPRING":
+				if not inv.briefcase_armed_spring and not inv.briefcase_staged_spring and not inv.briefcase_spring_unlatched:
+					inv.jacket_slots[slot_arg] = "NONE"
+					inv.briefcase_staged_spring = true
+					inv.briefcase_spring_owner_id = peer_id
+					if AudioBridge != null and GameConfig != null:
+						AudioBridge.request_world_cue("trap_arm", _safe_global_pos(), GameConfig.audio_radius_trap_setup, peer_id)
+		"PLANT_BOMB":
+			if slot_arg >= 0 and slot_arg < inv.jacket_slots.size() and inv.jacket_slots[slot_arg] == "BOMB":
+				if not inv.briefcase_armed_bomb and not inv.briefcase_staged_bomb and not inv.briefcase_live_bomb_lit:
+					inv.jacket_slots[slot_arg] = "NONE"
+					inv.briefcase_staged_bomb = true
+					inv.briefcase_bomb_owner_id = peer_id
+					if AudioBridge != null and GameConfig != null:
+						AudioBridge.request_world_cue("trap_arm", _safe_global_pos(), GameConfig.audio_radius_trap_setup, peer_id)
+		"GRAB_LIT_BOMB":
+			if inv.briefcase_live_bomb_lit:
+				var rem: float = inv.briefcase_live_bomb_fuse_remaining
+				var b_owner: int = inv.briefcase_bomb_owner_id
+				inv.briefcase_live_bomb_lit = false
+				inv.briefcase_live_bomb_fuse_remaining = 0.0
+				inv.briefcase_bomb_owner_id = 0
+				if active_container != null and is_instance_valid(active_container) and active_container.has_method("close_container"):
+					active_container.close_container(peer_id, self)
+				server_pickup_world_item("LIVE_BOMB", [], _safe_global_pos())
+				if _is_peer_connected():
+					_rpc_sync_live_bomb_timer.rpc(rem, b_owner)
+				else:
+					set_live_bomb_timer(rem, b_owner)
+	_refresh_hand_and_back_sockets()
+	_update_hud_status()
+	_sync_inventory_state_to_peers()
 
 
 func enter_container_view(container: Node) -> void:
@@ -574,7 +779,9 @@ func apply_trap_ko(_reason: String, _attacker_peer_id: int = 0, custom_impulse: 
 				entry.get("dropped_briefcase_items", []),
 				_compute_safe_drop_position(offset),
 				bool(entry.get("dropped_briefcase_armed_bomb", false)),
-				int(entry.get("dropped_briefcase_bomb_owner", 0))
+				int(entry.get("dropped_briefcase_bomb_owner", 0)),
+				bool(entry.get("dropped_briefcase_armed_spring", false)),
+				int(entry.get("dropped_briefcase_spring_owner", 0))
 			)
 
 	var ko_dur: float = GameConfig.ko_ragdoll_duration if GameConfig != null else 15.0
@@ -897,7 +1104,9 @@ func server_pickup_world_item(item_id: String, extra_briefcase_items: Array, pic
 			res["dropped_briefcase_items"],
 			pickup_pos,
 			bool(res.get("dropped_briefcase_armed_bomb", false)),
-			int(res.get("dropped_briefcase_bomb_owner", 0))
+			int(res.get("dropped_briefcase_bomb_owner", 0)),
+			bool(res.get("dropped_briefcase_armed_spring", false)),
+			int(res.get("dropped_briefcase_spring_owner", 0))
 		)
 
 	_sync_inventory_state_to_peers()
@@ -944,7 +1153,9 @@ func server_request_hand_action(action_type: String, slot_arg: int = 0) -> void:
 					entry.get("dropped_briefcase_items", []),
 					_compute_safe_drop_position(offset),
 					bool(entry.get("dropped_briefcase_armed_bomb", false)),
-					int(entry.get("dropped_briefcase_bomb_owner", 0))
+					int(entry.get("dropped_briefcase_bomb_owner", 0)),
+					bool(entry.get("dropped_briefcase_armed_spring", false)),
+					int(entry.get("dropped_briefcase_spring_owner", 0))
 				)
 
 	if str(res["dropped_item_id"]) != "NONE":
@@ -955,7 +1166,9 @@ func server_request_hand_action(action_type: String, slot_arg: int = 0) -> void:
 			res["dropped_briefcase_items"],
 			drop_pos,
 			bool(res.get("dropped_briefcase_armed_bomb", false)),
-			int(res.get("dropped_briefcase_bomb_owner", 0))
+			int(res.get("dropped_briefcase_bomb_owner", 0)),
+			bool(res.get("dropped_briefcase_armed_spring", false)),
+			int(res.get("dropped_briefcase_spring_owner", 0))
 		)
 
 	_sync_inventory_state_to_peers()
@@ -997,38 +1210,56 @@ func _sync_inventory_state_to_peers() -> void:
 		var inv: SpyInventoryComponent = _inv()
 		_rpc_sync_inventory.rpc(
 			inv.left_hand_item_id,
-			inv.briefcase_objectives,
-			inv.jacket_slots,
+			inv.briefcase_objectives.duplicate(),
+			inv.jacket_slots.duplicate(),
 			inv.active_jacket_slot,
 			inv.right_hand_mode,
-			inv.is_charging_club
+			inv.is_charging_club,
+			inv.get_briefcase_trap_dict()
 		)
 	elif _container_ui != null and _container_ui.visible:
 		_container_ui.refresh_view()
 
 
 @rpc("any_peer", "call_local", "reliable")
-func _rpc_sync_inventory(l_item: String, b_objs: Array, j_slots: Array, a_slot: int, r_mode: int, charging: bool) -> void:
+func _rpc_sync_inventory(l_item: String, b_objs: Array, j_slots: Array, a_slot: int, r_mode: int, charging: bool, b_traps: Dictionary = {}) -> void:
 	if not _is_authorized_state_rpc():
 		return
-	_inv().apply_sync_state(l_item, b_objs, j_slots, a_slot, r_mode, charging)
+	_inv().apply_sync_state(l_item, b_objs, j_slots, a_slot, r_mode, charging, b_traps)
 	_refresh_hand_and_back_sockets()
 	_update_hud_status()
 	if _container_ui != null and _container_ui.visible:
 		_container_ui.refresh_view()
 
 
-func _server_spawn_floor_drop(dropped_id: String, b_objs: Array, world_pos: Vector3, b_armed_bomb: bool = false, b_bomb_owner: int = 0) -> void:
+func _server_spawn_floor_drop(
+	dropped_id: String,
+	b_objs: Array,
+	world_pos: Vector3,
+	b_armed_bomb: bool = false,
+	b_bomb_owner: int = 0,
+	b_armed_spring: bool = false,
+	b_spring_owner: int = 0
+) -> void:
 	_drop_counter += 1
 	var drop_name: String = "Dropped_%s_%s_%d" % [name, dropped_id, _drop_counter]
 	if _is_peer_connected():
-		_rpc_spawn_dropped_pickup.rpc(dropped_id, b_objs, world_pos, drop_name, b_armed_bomb, b_bomb_owner)
+		_rpc_spawn_dropped_pickup.rpc(dropped_id, b_objs.duplicate(), world_pos, drop_name, b_armed_bomb, b_bomb_owner, b_armed_spring, b_spring_owner)
 	else:
-		_rpc_spawn_dropped_pickup(dropped_id, b_objs, world_pos, drop_name, b_armed_bomb, b_bomb_owner)
+		_rpc_spawn_dropped_pickup(dropped_id, b_objs.duplicate(), world_pos, drop_name, b_armed_bomb, b_bomb_owner, b_armed_spring, b_spring_owner)
 
 
 @rpc("any_peer", "call_local", "reliable")
-func _rpc_spawn_dropped_pickup(dropped_id: String, b_objs: Array, world_pos: Vector3, drop_name: String, b_armed_bomb: bool = false, b_bomb_owner: int = 0) -> void:
+func _rpc_spawn_dropped_pickup(
+	dropped_id: String,
+	b_objs: Array,
+	world_pos: Vector3,
+	drop_name: String,
+	b_armed_bomb: bool = false,
+	b_bomb_owner: int = 0,
+	b_armed_spring: bool = false,
+	b_spring_owner: int = 0
+) -> void:
 	if not _is_authorized_state_rpc():
 		return
 	var target_root: Node = get_tree().current_scene if get_tree() != null else null
@@ -1044,6 +1275,8 @@ func _rpc_spawn_dropped_pickup(dropped_id: String, b_objs: Array, world_pos: Vec
 	for item in b_objs:
 		typed_objs.append(str(item))
 	pickup.set("packed_objectives", typed_objs)
+	pickup.set("armed_spring", b_armed_spring)
+	pickup.set("spring_owner_peer_id", b_spring_owner)
 	pickup.set("armed_bomb", b_armed_bomb)
 	pickup.set("bomb_owner_peer_id", b_bomb_owner)
 	target_root.add_child(pickup)
@@ -1316,7 +1549,6 @@ func _execute_dart_shot(ray_origin: Vector3, ray_dir: Vector3) -> bool:
 	if get_tree() == null:
 		return false
 	var env_mask: int = GameConfig.LAYER_ENVIRONMENT if GameConfig != null else 1
-	var ko_val: int = GameConfig.Stance.KO if GameConfig != null else 4
 	var crouch_val: int = GameConfig.Stance.CROUCH if GameConfig != null else 2
 	var closest_rival: Node = null
 	var closest_dist_sq: float = INF
@@ -1898,8 +2130,6 @@ func _tick_drawer_open_input(delta: float) -> void:
 		if not e_down:
 			_drawer_focus_just_entered = false
 		return
-	if bool(active_container.get("is_briefcase_container")):
-		return
 
 	var my_peer_id: int = multiplayer.get_unique_id() if _is_peer_connected() else name.to_int()
 	var open_prog: float = float(active_container.get("drawer_open_progress"))
@@ -2008,7 +2238,9 @@ func _process_interaction_raycast() -> void:
 	if live_bomb_remaining <= 0.0:
 		if is_interactable:
 			var p_text: String = "[Hold E 1.0s] Steal Rigged Water Bucket" if aiming_bucket_steal else (
-				target_collider.get_interaction_prompt() if target_collider.has_method("get_interaction_prompt") else "[E] Interact"
+				target_collider.get_interaction_prompt_for_player(self) if target_collider.has_method("get_interaction_prompt_for_player") else (
+					target_collider.get_interaction_prompt() if target_collider.has_method("get_interaction_prompt") else "[E] Interact"
+				)
 			)
 			if right_hand_item_id == "BUCKET" and target_collider.has_method("rig_water_bucket") and not bool(target_collider.get("is_open")) and not bool(target_collider.get("has_rigged_bucket")):
 				p_text += "  |  [Hold LMB] Rig Water Bucket"
@@ -2036,6 +2268,12 @@ func _process_interaction_raycast() -> void:
 		if target_collider.has_method("request_focus_container"):
 			_drawer_focus_just_entered = true
 			target_collider.request_focus_container(my_peer_id)
+			return
+		# Playtest Briefcase rule: if holding a loose Objective in Left Hand, pressing E on a floor Briefcase
+		# enters two-stage Briefcase Focus/Search Mode instead of picking it up!
+		if target_collider.has_method("request_focus_briefcase") and PICKUP_SCRIPT.is_objective_item(left_hand_item_id):
+			_drawer_focus_just_entered = true
+			target_collider.request_focus_briefcase(my_peer_id)
 			return
 		var supports_hold: bool = aiming_bucket_steal or (
 			target_collider.has_method("request_hold_interaction")
@@ -2102,6 +2340,8 @@ func _input(event: InputEvent) -> void:
 func _is_point_over_interactive_ui(screen_pos: Vector2) -> bool:
 	if _container_ui == null or not is_instance_valid(_container_ui):
 		return false
+	if _container_ui.has_method("is_point_over_ui_panel") and bool(_container_ui.is_point_over_ui_panel(screen_pos)):
+		return true
 	for btn in _container_ui.find_children("*", "Button", true, false):
 		if btn is Control and (btn as Control).is_visible_in_tree():
 			if (btn as Control).get_global_rect().has_point(screen_pos):
@@ -2161,9 +2401,14 @@ func _handle_container_3d_mouse_down(screen_pos: Vector2, button_index: int) -> 
 			hit_area.position.y = float(hit_area.get_meta("base_y", hit_area.position.y))
 			return true
 		"loot_item":
-			if button_index == MOUSE_BUTTON_LEFT and active_container.has_method("request_loot_item"):
-				active_container.request_loot_item(my_id, str(hit_area.get_meta("item_id", "")), -1)
-				return true
+			if button_index == MOUSE_BUTTON_LEFT:
+				var loot_id: String = str(hit_area.get_meta("item_id", ""))
+				if _container_ui != null and _container_ui.has_method("begin_external_drag"):
+					_container_ui.begin_external_drag("CONTAINER_ITEM", loot_id, screen_pos, -1)
+					return true
+				elif active_container.has_method("request_loot_item"):
+					active_container.request_loot_item(my_id, loot_id, -1)
+					return true
 		"lip_spring":
 			if bool(active_container.get("armed_spring")) and button_index == MOUSE_BUTTON_LEFT:
 				active_container.request_unlatch_spring(my_id)
@@ -2171,6 +2416,8 @@ func _handle_container_3d_mouse_down(screen_pos: Vector2, button_index: int) -> 
 			elif bool(active_container.get("spring_unlatched")):
 				if button_index == MOUSE_BUTTON_RIGHT:
 					active_container.request_rearm_spring(my_id)
+				elif _container_ui != null and _container_ui.has_method("begin_external_drag"):
+					_container_ui.begin_external_drag("CONTAINER_SPRING", "SPRING", screen_pos, -1)
 				else:
 					active_container.request_steal_spring(my_id, -1)
 				return true
@@ -2344,6 +2591,7 @@ func _physics_process(delta: float) -> void:
 		return
 
 	tick_ko_and_immunity(delta)
+	step_held_briefcase_live_bomb(delta)
 
 	var ko_val: int = GameConfig.Stance.KO if GameConfig != null else 4
 	var crouch_val: int = GameConfig.Stance.CROUCH if GameConfig != null else 2

@@ -47,8 +47,12 @@ const ITEM_DISPLAY_NAMES: Dictionary = {
 		item_id = value.to_upper()
 		if is_inside_tree():
 			_rebuild_visuals()
+			if is_briefcase_item(item_id):
+				_ensure_briefcase_container()
 
 @export var packed_objectives: Array[String] = []
+@export var armed_spring: bool = false
+@export var spring_owner_peer_id: int = 0
 @export var armed_bomb: bool = false
 @export var bomb_owner_peer_id: int = 0
 
@@ -184,9 +188,18 @@ static func create_objective_glint_particles(in_drawer: bool = false) -> CPUPart
 
 
 func get_interaction_prompt() -> String:
+	return get_interaction_prompt_for_player(null)
+
+
+func get_interaction_prompt_for_player(player: Node) -> String:
 	var disp: String = get_display_name(item_id, packed_objectives)
 	if is_briefcase_item(item_id):
-		return "[Tap E] Pick Up %s (Left Hand)  |  [Hold E] Open & Inspect" % disp
+		if _briefcase_container != null and is_instance_valid(_briefcase_container) and int(_briefcase_container.get("occupied_by_peer_id")) != 0:
+			return "[IN USE]"
+		var held_left: String = str(player.get("left_hand_item_id")).to_upper() if player != null else "NONE"
+		if is_objective_item(held_left):
+			return "[E] Open %s to Pack %s" % [disp, get_display_name(held_left)]
+		return "[Tap E] Carry %s (Left Hand)  |  [Hold E] Open & Inspect" % disp
 	if is_objective_item(item_id):
 		return "[E] Pick Up %s (Left Hand)" % disp
 	if item_id.to_upper() == "LIVE_BOMB":
@@ -199,15 +212,26 @@ func supports_hold_interaction() -> bool:
 
 
 func get_hold_interaction_duration() -> float:
-	return 0.50
+	return 0.45
 
 
-func request_hold_interaction(caller_peer_id: int) -> void:
+func request_focus_briefcase(caller_peer_id: int) -> void:
 	if _is_consumed or not is_briefcase_item(item_id):
 		return
 	var container: Node = _ensure_briefcase_container()
-	if container != null and container.has_method("request_hold_interaction"):
-		container.request_hold_interaction(caller_peer_id)
+	if container != null and container.has_method("request_focus_container"):
+		container.request_focus_container(caller_peer_id)
+
+
+func request_hold_interaction(caller_peer_id: int) -> void:
+	# Holding E on a floor Briefcase enters two-stage Closed (0%) Focus Mode just like drawers
+	request_focus_briefcase(caller_peer_id)
+
+
+func get_briefcase_container() -> Node:
+	if not is_briefcase_item(item_id):
+		return null
+	return _ensure_briefcase_container()
 
 
 func _ensure_briefcase_container() -> Node:
@@ -218,14 +242,28 @@ func _ensure_briefcase_container() -> Node:
 		var container_script: Script = load("res://entities/props/searchable_container.gd")
 		_briefcase_container = container_script.new()
 		_briefcase_container.name = "BriefcaseContainer"
-		_briefcase_container.set("container_id", "Briefcase")
+		_briefcase_container.set("container_id", "Compact Briefcase")
 		_briefcase_container.set("is_briefcase_container", true)
 		_briefcase_container.set("clutter_count", 0)
 		_briefcase_container.set("linked_briefcase_pickup", self)
+		var typed_items: Array[String] = []
+		for obj in packed_objectives:
+			typed_items.append(str(obj).to_upper())
+		_briefcase_container.set("stored_items", typed_items)
+		_briefcase_container.set("armed_spring", armed_spring)
+		_briefcase_container.set("spring_owner_peer_id", spring_owner_peer_id)
+		_briefcase_container.set("armed_bomb", armed_bomb)
+		_briefcase_container.set("bomb_owner_peer_id", bomb_owner_peer_id)
 		add_child(_briefcase_container)
-	_briefcase_container.set("stored_items", packed_objectives.duplicate())
-	_briefcase_container.set("armed_bomb", armed_bomb)
-	_briefcase_container.set("bomb_owner_peer_id", bomb_owner_peer_id)
+	else:
+		var typed_items: Array[String] = []
+		for obj in packed_objectives:
+			typed_items.append(str(obj).to_upper())
+		_briefcase_container.set("stored_items", typed_items)
+		_briefcase_container.set("armed_spring", armed_spring)
+		_briefcase_container.set("spring_owner_peer_id", spring_owner_peer_id)
+		_briefcase_container.set("armed_bomb", armed_bomb)
+		_briefcase_container.set("bomb_owner_peer_id", bomb_owner_peer_id)
 	return _briefcase_container
 
 
@@ -251,24 +289,39 @@ func _server_request_pickup(caller_peer_id: int) -> void:
 func _execute_server_pickup(peer_id: int) -> void:
 	if _is_consumed:
 		return
-	if is_briefcase_item(item_id) and _briefcase_container != null:
-		if int(_briefcase_container.get("occupied_by_peer_id")) != 0:
-			return
-		packed_objectives.clear()
-		for it in _briefcase_container.get("stored_items"):
-			packed_objectives.append(str(it))
-		armed_bomb = bool(_briefcase_container.get("armed_bomb"))
-		bomb_owner_peer_id = int(_briefcase_container.get("bomb_owner_peer_id"))
 
 	var player: Node = _find_player_node(peer_id)
 	if player == null or not player.has_method("server_pickup_world_item"):
 		return
 
+	if is_briefcase_item(item_id):
+		var container: Node = _ensure_briefcase_container()
+		if container != null and int(container.get("occupied_by_peer_id")) != 0:
+			return
+		# Playtest design rule: if player holds a loose Objective in Left Hand, pressing E on the Briefcase
+		# enters two-stage Briefcase Focus/Search Mode instead of picking it up or auto-packing!
+		var held_left: String = str(player.get("left_hand_item_id")).to_upper()
+		if is_objective_item(held_left):
+			if container != null and container.has_method("focus_container"):
+				container.focus_container(peer_id, player)
+			return
+		if container != null:
+			packed_objectives.clear()
+			for it in container.get("stored_items"):
+				packed_objectives.append(str(it))
+			armed_spring = bool(container.get("armed_spring"))
+			spring_owner_peer_id = int(container.get("spring_owner_peer_id"))
+			armed_bomb = bool(container.get("armed_bomb"))
+			bomb_owner_peer_id = int(container.get("bomb_owner_peer_id"))
+
 	_is_consumed = true
 	var picked: bool = player.server_pickup_world_item(item_id, packed_objectives.duplicate(), global_position)
 	if picked:
-		if is_briefcase_item(item_id) and player.has_method("set_briefcase_bomb_state"):
-			player.set_briefcase_bomb_state(armed_bomb, bomb_owner_peer_id)
+		if is_briefcase_item(item_id):
+			if player.has_method("set_briefcase_trap_state"):
+				player.set_briefcase_trap_state(armed_spring, spring_owner_peer_id, armed_bomb, bomb_owner_peer_id)
+			elif player.has_method("set_briefcase_bomb_state"):
+				player.set_briefcase_bomb_state(armed_bomb, bomb_owner_peer_id)
 		if not Engine.is_editor_hint() and multiplayer != null and multiplayer.has_multiplayer_peer() and not (multiplayer.multiplayer_peer is OfflineMultiplayerPeer) and multiplayer.multiplayer_peer.get_connection_status() == MultiplayerPeer.CONNECTION_CONNECTED:
 			_rpc_consume_pickup.rpc()
 		else:
@@ -322,6 +375,26 @@ func _rebuild_visuals() -> void:
 	if old_glint != null:
 		remove_child(old_glint)
 		old_glint.queue_free()
+
+	if is_briefcase_item(item_id):
+		# Floor Briefcase uses BriefcaseContainer's unified hinged 3D BriefcaseVisualRig (zero double-mesh clipping!)
+		if _mesh_instance != null:
+			_mesh_instance.visible = false
+		if _collision_shape != null:
+			var b_shape := BoxShape3D.new()
+			b_shape.size = Vector3(0.58, 0.16, 0.40)
+			_collision_shape.shape = b_shape
+			_collision_shape.position = Vector3(0.0, 0.08, 0.0)
+		return
+
+	if _mesh_instance != null:
+		_mesh_instance.visible = true
+	if _collision_shape != null:
+		var std_shape := BoxShape3D.new()
+		std_shape.size = Vector3(0.45, 0.35, 0.45)
+		_collision_shape.shape = std_shape
+		_collision_shape.position = Vector3(0.0, 0.18, 0.0)
+
 	var template: MeshInstance3D = build_item_mesh(item_id)
 	_mesh_instance.mesh = template.mesh
 	_mesh_instance.material_override = template.material_override
