@@ -12,6 +12,7 @@ const COLOR_SPY_WHITE: Color = Color(0.92, 0.92, 0.92)
 const COLOR_SPY_BLACK: Color = Color(0.12, 0.12, 0.12)
 const PICKUP_SCENE: PackedScene = preload("res://entities/props/world_item_pickup.tscn")
 const PICKUP_SCRIPT = preload("res://entities/props/world_item_pickup.gd")
+const BRIEFCASE_BUILDER = preload("res://entities/props/briefcase_visual_builder.gd")
 const TOP_DOWN_UI_SCRIPT = preload("res://ui/top_down_container_ui.gd")
 const DVD_RETICLE_UI_SCRIPT = preload("res://ui/dvd_dart_reticle_ui.gd")
 const CLUB_QTE_UI_SCRIPT = preload("res://ui/club_qte_bar_ui.gd")
@@ -73,6 +74,14 @@ var briefcase_objectives: Array[String]:
 	set(value):
 		_inv().briefcase_objectives = value
 		_update_hud_status()
+
+var briefcase_item_positions: Dictionary:
+	get:
+		return _inv().briefcase_item_positions
+
+var briefcase_bomb_norm_pos: Vector2:
+	get:
+		return _inv().briefcase_bomb_norm_pos
 
 var jacket_slots: Array[String]:
 	get:
@@ -167,6 +176,11 @@ var _dragging_3d_clutter_idx: int = -1
 var _dragging_3d_clutter_node: Node3D = null
 var _dragging_3d_plane_y: float = 0.0
 var _dragging_3d_offset_xz: Vector2 = Vector2.ZERO
+var _dragging_3d_briefcase_role: String = ""
+var _dragging_3d_briefcase_item_id: String = ""
+var _dragging_3d_briefcase_node: Node3D = null
+var _dragging_3d_briefcase_plane_y: float = 0.0
+var _dragging_3d_briefcase_offset_xz: Vector2 = Vector2.ZERO
 var _drawer_focus_just_entered: bool = false
 var _drawer_e_held: bool = false
 var _drawer_e_hold_elapsed: float = 0.0
@@ -384,8 +398,8 @@ func _inv() -> SpyInventoryComponent:
 	return inventory
 
 
-func pickup_item(new_item_id: String, extra_briefcase_items: Array = []) -> Dictionary:
-	var res: Dictionary = _inv().pickup_item(new_item_id, extra_briefcase_items)
+func pickup_item(new_item_id: String, extra_briefcase_items: Array = [], extra_briefcase_positions: Dictionary = {}) -> Dictionary:
+	var res: Dictionary = _inv().pickup_item(new_item_id, extra_briefcase_items, extra_briefcase_positions)
 	if bool(res["picked"]):
 		_refresh_hand_and_back_sockets()
 		_update_hud_status()
@@ -460,7 +474,13 @@ func set_briefcase_bomb_state(armed: bool, owner_id: int) -> void:
 	_sync_inventory_state_to_peers()
 
 
-func set_briefcase_trap_state(armed_spring: bool, spring_owner: int, armed_bomb: bool, bomb_owner: int) -> void:
+func set_briefcase_trap_state(
+	armed_spring: bool,
+	spring_owner: int,
+	armed_bomb: bool,
+	bomb_owner: int,
+	b_bomb_pos: Vector2 = BRIEFCASE_BUILDER.DEFAULT_BOMB_NORM_POS
+) -> void:
 	var inv: SpyInventoryComponent = _inv()
 	inv.briefcase_armed_spring = armed_spring
 	inv.briefcase_spring_owner_id = spring_owner
@@ -471,6 +491,7 @@ func set_briefcase_trap_state(armed_spring: bool, spring_owner: int, armed_bomb:
 	inv.briefcase_staged_bomb = false
 	inv.briefcase_live_bomb_lit = false
 	inv.briefcase_live_bomb_fuse_remaining = 0.0
+	inv.set_briefcase_bomb_position(b_bomb_pos)
 	_sync_inventory_state_to_peers()
 
 
@@ -545,13 +566,45 @@ func step_held_briefcase_live_bomb(delta: float) -> bool:
 	return false
 
 
-func server_pack_objective_into_briefcase(obj_id: String) -> bool:
-	if not _inv().pack_objective_into_briefcase(obj_id):
+func server_pack_objective_into_briefcase(obj_id: String, norm_pos: Vector2 = Vector2(-1.0, -1.0)) -> bool:
+	if not _inv().pack_objective_into_briefcase(obj_id, norm_pos):
 		return false
 	_refresh_hand_and_back_sockets()
 	_update_hud_status()
 	_sync_inventory_state_to_peers()
 	return true
+
+
+func request_move_briefcase_item(item_id: String, norm_pos: Vector2) -> void:
+	if _is_peer_connected():
+		_rpc_server_move_briefcase_item.rpc_id(1, item_id, norm_pos)
+	else:
+		_rpc_server_move_briefcase_item(item_id, norm_pos)
+
+
+@rpc("any_peer", "call_local", "reliable")
+func _rpc_server_move_briefcase_item(item_id: String, norm_pos: Vector2) -> void:
+	if _is_peer_connected() and not multiplayer.is_server():
+		return
+	var sender_id: int = multiplayer.get_remote_sender_id() if (_is_peer_connected() and multiplayer != null) else 0
+	if sender_id != 0 and sender_id != name.to_int():
+		return
+	var inv: SpyInventoryComponent = _inv()
+	if inv.left_hand_item_id != "BRIEFCASE":
+		return
+	var upper: String = item_id.to_upper()
+	var moved: bool = false
+	if upper == "BOMB":
+		if inv.briefcase_staged_bomb or inv.briefcase_armed_bomb or inv.briefcase_live_bomb_lit:
+			inv.set_briefcase_bomb_position(norm_pos)
+			moved = true
+	else:
+		moved = inv.set_briefcase_item_position(upper, norm_pos)
+	if not moved:
+		return
+	if AudioBridge != null:
+		AudioBridge.request_world_cue("paper_rustle", _safe_global_pos(), 4.0, name.to_int())
+	_sync_inventory_state_to_peers()
 
 
 func server_remove_objective_from_briefcase(obj_id: String) -> bool:
@@ -581,15 +634,15 @@ func server_swap_left_hand_objective(new_obj_id: String) -> String:
 	return prev
 
 
-func request_briefcase_trap_action(action: String, slot_arg: int = 0) -> void:
+func request_briefcase_trap_action(action: String, slot_arg: int = 0, norm_pos: Vector2 = Vector2(-1.0, -1.0)) -> void:
 	if _is_peer_connected():
-		_rpc_server_briefcase_trap_action.rpc_id(1, action, slot_arg)
+		_rpc_server_briefcase_trap_action.rpc_id(1, action, slot_arg, norm_pos)
 	else:
-		_rpc_server_briefcase_trap_action(action, slot_arg)
+		_rpc_server_briefcase_trap_action(action, slot_arg, norm_pos)
 
 
 @rpc("any_peer", "call_local", "reliable")
-func _rpc_server_briefcase_trap_action(action: String, slot_arg: int = 0) -> void:
+func _rpc_server_briefcase_trap_action(action: String, slot_arg: int = 0, norm_pos: Vector2 = Vector2(-1.0, -1.0)) -> void:
 	if _is_peer_connected() and not multiplayer.is_server():
 		return
 	var sender_id: int = multiplayer.get_remote_sender_id() if (_is_peer_connected() and multiplayer != null) else 0
@@ -643,6 +696,10 @@ func _rpc_server_briefcase_trap_action(action: String, slot_arg: int = 0) -> voi
 					inv.jacket_slots[slot_arg] = "NONE"
 					inv.briefcase_staged_bomb = true
 					inv.briefcase_bomb_owner_id = peer_id
+					if norm_pos.x >= 0.0 and norm_pos.y >= 0.0:
+						inv.set_briefcase_bomb_position(norm_pos)
+					else:
+						inv.set_briefcase_bomb_position(BRIEFCASE_BUILDER.DEFAULT_BOMB_NORM_POS)
 					if AudioBridge != null and GameConfig != null:
 						AudioBridge.request_world_cue("trap_arm", _safe_global_pos(), GameConfig.audio_radius_trap_setup, peer_id)
 		"GRAB_LIT_BOMB":
@@ -670,6 +727,9 @@ func enter_container_view(container: Node) -> void:
 	stance_state = GameConfig.Stance.DRAWER_LOCK if GameConfig != null else 3
 	_dragging_3d_clutter_idx = -1
 	_dragging_3d_clutter_node = null
+	_dragging_3d_briefcase_role = ""
+	_dragging_3d_briefcase_item_id = ""
+	_dragging_3d_briefcase_node = null
 	_lmb_trap_hold_active = false
 	_lmb_trap_hold_elapsed = 0.0
 	if _dvd_reticle_ui != null:
@@ -706,6 +766,9 @@ func exit_container_view() -> void:
 	active_container = null
 	_dragging_3d_clutter_idx = -1
 	_dragging_3d_clutter_node = null
+	_dragging_3d_briefcase_role = ""
+	_dragging_3d_briefcase_item_id = ""
+	_dragging_3d_briefcase_node = null
 	_drawer_focus_just_entered = false
 	_drawer_e_held = false
 	_drawer_e_hold_elapsed = 0.0
@@ -781,7 +844,9 @@ func apply_trap_ko(_reason: String, _attacker_peer_id: int = 0, custom_impulse: 
 				bool(entry.get("dropped_briefcase_armed_bomb", false)),
 				int(entry.get("dropped_briefcase_bomb_owner", 0)),
 				bool(entry.get("dropped_briefcase_armed_spring", false)),
-				int(entry.get("dropped_briefcase_spring_owner", 0))
+				int(entry.get("dropped_briefcase_spring_owner", 0)),
+				entry.get("dropped_briefcase_item_positions", {}),
+				entry.get("dropped_briefcase_bomb_pos", BRIEFCASE_BUILDER.DEFAULT_BOMB_NORM_POS)
 			)
 
 	var ko_dur: float = GameConfig.ko_ragdoll_duration if GameConfig != null else 15.0
@@ -1093,8 +1158,13 @@ func _on_match_clock_updated(peer_id: int, remaining_seconds: float, delta_bonus
 # Server-Authoritative Hand & Pickup RPCs
 # ==========================================
 
-func server_pickup_world_item(item_id: String, extra_briefcase_items: Array, pickup_pos: Vector3) -> bool:
-	var res: Dictionary = pickup_item(item_id, extra_briefcase_items)
+func server_pickup_world_item(
+	item_id: String,
+	extra_briefcase_items: Array,
+	pickup_pos: Vector3,
+	extra_briefcase_positions: Dictionary = {}
+) -> bool:
+	var res: Dictionary = pickup_item(item_id, extra_briefcase_items, extra_briefcase_positions)
 	if not bool(res["picked"]):
 		return false
 
@@ -1106,7 +1176,9 @@ func server_pickup_world_item(item_id: String, extra_briefcase_items: Array, pic
 			bool(res.get("dropped_briefcase_armed_bomb", false)),
 			int(res.get("dropped_briefcase_bomb_owner", 0)),
 			bool(res.get("dropped_briefcase_armed_spring", false)),
-			int(res.get("dropped_briefcase_spring_owner", 0))
+			int(res.get("dropped_briefcase_spring_owner", 0)),
+			res.get("dropped_briefcase_item_positions", {}),
+			res.get("dropped_briefcase_bomb_pos", BRIEFCASE_BUILDER.DEFAULT_BOMB_NORM_POS)
 		)
 
 	_sync_inventory_state_to_peers()
@@ -1155,7 +1227,9 @@ func server_request_hand_action(action_type: String, slot_arg: int = 0) -> void:
 					bool(entry.get("dropped_briefcase_armed_bomb", false)),
 					int(entry.get("dropped_briefcase_bomb_owner", 0)),
 					bool(entry.get("dropped_briefcase_armed_spring", false)),
-					int(entry.get("dropped_briefcase_spring_owner", 0))
+					int(entry.get("dropped_briefcase_spring_owner", 0)),
+					entry.get("dropped_briefcase_item_positions", {}),
+					entry.get("dropped_briefcase_bomb_pos", BRIEFCASE_BUILDER.DEFAULT_BOMB_NORM_POS)
 				)
 
 	if str(res["dropped_item_id"]) != "NONE":
@@ -1168,7 +1242,9 @@ func server_request_hand_action(action_type: String, slot_arg: int = 0) -> void:
 			bool(res.get("dropped_briefcase_armed_bomb", false)),
 			int(res.get("dropped_briefcase_bomb_owner", 0)),
 			bool(res.get("dropped_briefcase_armed_spring", false)),
-			int(res.get("dropped_briefcase_spring_owner", 0))
+			int(res.get("dropped_briefcase_spring_owner", 0)),
+			res.get("dropped_briefcase_item_positions", {}),
+			res.get("dropped_briefcase_bomb_pos", BRIEFCASE_BUILDER.DEFAULT_BOMB_NORM_POS)
 		)
 
 	_sync_inventory_state_to_peers()
@@ -1239,14 +1315,16 @@ func _server_spawn_floor_drop(
 	b_armed_bomb: bool = false,
 	b_bomb_owner: int = 0,
 	b_armed_spring: bool = false,
-	b_spring_owner: int = 0
+	b_spring_owner: int = 0,
+	b_item_positions: Dictionary = {},
+	b_bomb_pos: Vector2 = BRIEFCASE_BUILDER.DEFAULT_BOMB_NORM_POS
 ) -> void:
 	_drop_counter += 1
 	var drop_name: String = "Dropped_%s_%s_%d" % [name, dropped_id, _drop_counter]
 	if _is_peer_connected():
-		_rpc_spawn_dropped_pickup.rpc(dropped_id, b_objs.duplicate(), world_pos, drop_name, b_armed_bomb, b_bomb_owner, b_armed_spring, b_spring_owner)
+		_rpc_spawn_dropped_pickup.rpc(dropped_id, b_objs.duplicate(), world_pos, drop_name, b_armed_bomb, b_bomb_owner, b_armed_spring, b_spring_owner, b_item_positions.duplicate(), b_bomb_pos)
 	else:
-		_rpc_spawn_dropped_pickup(dropped_id, b_objs.duplicate(), world_pos, drop_name, b_armed_bomb, b_bomb_owner, b_armed_spring, b_spring_owner)
+		_rpc_spawn_dropped_pickup(dropped_id, b_objs.duplicate(), world_pos, drop_name, b_armed_bomb, b_bomb_owner, b_armed_spring, b_spring_owner, b_item_positions.duplicate(), b_bomb_pos)
 
 
 @rpc("any_peer", "call_local", "reliable")
@@ -1258,13 +1336,19 @@ func _rpc_spawn_dropped_pickup(
 	b_armed_bomb: bool = false,
 	b_bomb_owner: int = 0,
 	b_armed_spring: bool = false,
-	b_spring_owner: int = 0
+	b_spring_owner: int = 0,
+	b_item_positions: Dictionary = {},
+	b_bomb_pos: Vector2 = BRIEFCASE_BUILDER.DEFAULT_BOMB_NORM_POS
 ) -> void:
 	if not _is_authorized_state_rpc():
 		return
 	var target_root: Node = get_tree().current_scene if get_tree() != null else null
 	if target_root == null:
-		target_root = get_parent()
+		var parent_node: Node = get_parent()
+		if parent_node != null and parent_node.name == "Players" and parent_node.get_parent() != null:
+			target_root = parent_node.get_parent()
+		else:
+			target_root = parent_node
 	if target_root == null:
 		return
 
@@ -1275,6 +1359,8 @@ func _rpc_spawn_dropped_pickup(
 	for item in b_objs:
 		typed_objs.append(str(item))
 	pickup.set("packed_objectives", typed_objs)
+	pickup.set("packed_item_positions", b_item_positions.duplicate())
+	pickup.set("bomb_norm_pos", BRIEFCASE_BUILDER.clamp_norm(b_bomb_pos))
 	pickup.set("armed_spring", b_armed_spring)
 	pickup.set("spring_owner_peer_id", b_spring_owner)
 	pickup.set("armed_bomb", b_armed_bomb)
@@ -2264,6 +2350,9 @@ func _process_interaction_raycast() -> void:
 
 	var my_peer_id: int = multiplayer.get_unique_id() if _is_peer_connected() else 1
 	if is_interactable and target_collider != null and e_just_pressed and not _interact_key_down:
+		var target_item_id_v: Variant = target_collider.get("item_id")
+		if target_item_id_v is String and PICKUP_SCRIPT.is_objective_item(str(target_item_id_v)) and left_hand_item_id == "BRIEFCASE":
+			return
 		reset_anti_camp()
 		if target_collider.has_method("request_focus_container"):
 			_drawer_focus_just_entered = true
@@ -2315,6 +2404,12 @@ func _input(event: InputEvent) -> void:
 		if is_exit_key:
 			if _dragging_3d_clutter_idx != -1:
 				_finish_container_3d_drag()
+			if _dragging_3d_briefcase_node != null:
+				_dragging_3d_briefcase_node = null
+				_dragging_3d_briefcase_role = ""
+				_dragging_3d_briefcase_item_id = ""
+				if _container_ui != null and _container_ui.has_method("clear_external_3d_briefcase_drag"):
+					_container_ui.clear_external_3d_briefcase_drag()
 			var my_id: int = multiplayer.get_unique_id() if _is_peer_connected() else name.to_int()
 			if active_container != null and is_instance_valid(active_container) and active_container.has_method("request_close_container"):
 				active_container.request_close_container(my_id)
@@ -2329,12 +2424,20 @@ func _input(event: InputEvent) -> void:
 					if not _is_point_over_interactive_ui(event.position):
 						if _handle_container_3d_mouse_down(event.position, event.button_index):
 							get_viewport().set_input_as_handled()
-				elif event.button_index == MOUSE_BUTTON_LEFT and _dragging_3d_clutter_idx != -1:
-					_finish_container_3d_drag()
+				elif event.button_index == MOUSE_BUTTON_LEFT:
+					if _dragging_3d_clutter_idx != -1:
+						_finish_container_3d_drag()
+						get_viewport().set_input_as_handled()
+					elif _dragging_3d_briefcase_node != null:
+						_finish_briefcase_3d_drag(event.position)
+						get_viewport().set_input_as_handled()
+			elif event is InputEventMouseMotion:
+				if _dragging_3d_clutter_idx != -1:
+					_update_container_3d_drag(event.position)
 					get_viewport().set_input_as_handled()
-			elif event is InputEventMouseMotion and _dragging_3d_clutter_idx != -1:
-				_update_container_3d_drag(event.position)
-				get_viewport().set_input_as_handled()
+				elif _dragging_3d_briefcase_node != null:
+					_update_briefcase_3d_drag(event.position)
+					get_viewport().set_input_as_handled()
 
 
 func _is_point_over_interactive_ui(screen_pos: Vector2) -> bool:
@@ -2403,11 +2506,34 @@ func _handle_container_3d_mouse_down(screen_pos: Vector2, button_index: int) -> 
 		"loot_item":
 			if button_index == MOUSE_BUTTON_LEFT:
 				var loot_id: String = str(hit_area.get_meta("item_id", ""))
+				if bool(active_container.get("is_briefcase_container")):
+					var b_tray: Node3D = active_container.get_tray_node() if active_container.has_method("get_tray_node") else null
+					if b_tray != null:
+						var local_hit: Vector3 = b_tray.to_local(hit_pos)
+						_dragging_3d_briefcase_role = "loot_item"
+						_dragging_3d_briefcase_item_id = loot_id
+						_dragging_3d_briefcase_node = hit_area
+						_dragging_3d_briefcase_plane_y = hit_area.global_position.y
+						_dragging_3d_briefcase_offset_xz = Vector2(hit_area.position.x - local_hit.x, hit_area.position.z - local_hit.z)
+						hit_area.position.y = float(hit_area.get_meta("base_y", hit_area.position.y))
+						return true
 				if _container_ui != null and _container_ui.has_method("begin_external_drag"):
 					_container_ui.begin_external_drag("CONTAINER_ITEM", loot_id, screen_pos, -1)
 					return true
 				elif active_container.has_method("request_loot_item"):
 					active_container.request_loot_item(my_id, loot_id, -1)
+					return true
+		"planted_bomb":
+			if button_index == MOUSE_BUTTON_LEFT and bool(active_container.get("is_briefcase_container")):
+				var b_tray2: Node3D = active_container.get_tray_node() if active_container.has_method("get_tray_node") else null
+				if b_tray2 != null:
+					var local_hit2: Vector3 = b_tray2.to_local(hit_pos)
+					_dragging_3d_briefcase_role = "planted_bomb"
+					_dragging_3d_briefcase_item_id = "BOMB"
+					_dragging_3d_briefcase_node = hit_area
+					_dragging_3d_briefcase_plane_y = hit_area.global_position.y
+					_dragging_3d_briefcase_offset_xz = Vector2(hit_area.position.x - local_hit2.x, hit_area.position.z - local_hit2.z)
+					hit_area.position.y = float(hit_area.get_meta("base_y", hit_area.position.y))
 					return true
 		"lip_spring":
 			if bool(active_container.get("armed_spring")) and button_index == MOUSE_BUTTON_LEFT:
@@ -2450,6 +2576,9 @@ func _finish_container_3d_drag() -> void:
 	var node: Node3D = _dragging_3d_clutter_node
 	_dragging_3d_clutter_idx = -1
 	_dragging_3d_clutter_node = null
+	_dragging_3d_briefcase_role = ""
+	_dragging_3d_briefcase_item_id = ""
+	_dragging_3d_briefcase_node = null
 	if node == null or not is_instance_valid(node) or active_container == null or not is_instance_valid(active_container):
 		return
 	node.position.y = float(node.get_meta("base_y", node.position.y))
@@ -2457,6 +2586,73 @@ func _finish_container_3d_drag() -> void:
 		var norm_pos: Vector2 = active_container.tray_local_xz_to_norm(node.position.x, node.position.z)
 		var my_id: int = multiplayer.get_unique_id() if _is_peer_connected() else name.to_int()
 		active_container.request_move_clutter(my_id, idx, norm_pos)
+
+
+func project_screen_pos_to_briefcase_norm(screen_pos: Vector2) -> Vector2:
+	if camera == null or active_container == null or not is_instance_valid(active_container):
+		return Vector2(-1.0, -1.0)
+	if not active_container.has_method("get_tray_node"):
+		return Vector2(-1.0, -1.0)
+	var tray: Node3D = active_container.get_tray_node() as Node3D
+	if tray == null:
+		return Vector2(-1.0, -1.0)
+	var ray_origin: Vector3 = camera.project_ray_origin(screen_pos)
+	var ray_dir: Vector3 = camera.project_ray_normal(screen_pos)
+	var world_hit: Variant = Plane(Vector3.UP, tray.global_position.y).intersects_ray(ray_origin, ray_dir)
+	if not (world_hit is Vector3):
+		return Vector2(-1.0, -1.0)
+	var local_pt: Vector3 = tray.to_local(world_hit as Vector3)
+	return BRIEFCASE_BUILDER.briefcase_local_xz_to_norm(local_pt.x, local_pt.z)
+
+
+func _update_briefcase_3d_drag(screen_pos: Vector2) -> void:
+	if active_container == null or not is_instance_valid(active_container) or _dragging_3d_briefcase_node == null or not is_instance_valid(_dragging_3d_briefcase_node):
+		_dragging_3d_briefcase_node = null
+		_dragging_3d_briefcase_role = ""
+		_dragging_3d_briefcase_item_id = ""
+		return
+	var over_left: bool = _container_ui != null and _container_ui.has_method("is_point_over_left_panel") and bool(_container_ui.is_point_over_left_panel(screen_pos))
+	if over_left and _dragging_3d_briefcase_role == "loot_item":
+		if _container_ui.has_method("update_external_3d_briefcase_drag"):
+			_container_ui.update_external_3d_briefcase_drag(_dragging_3d_briefcase_item_id, screen_pos)
+		return
+	if _container_ui != null and _container_ui.has_method("clear_external_3d_briefcase_drag"):
+		_container_ui.clear_external_3d_briefcase_drag()
+	var tray: Node3D = active_container.get_tray_node() if active_container.has_method("get_tray_node") else null
+	if tray == null or camera == null:
+		return
+	var ray_origin: Vector3 = camera.project_ray_origin(screen_pos)
+	var ray_dir: Vector3 = camera.project_ray_normal(screen_pos)
+	var world_hit: Variant = Plane(Vector3.UP, _dragging_3d_briefcase_plane_y).intersects_ray(ray_origin, ray_dir)
+	if world_hit is Vector3:
+		var local_pt: Vector3 = tray.to_local(world_hit as Vector3)
+		_dragging_3d_briefcase_node.position.x = clampf(local_pt.x + _dragging_3d_briefcase_offset_xz.x, -BRIEFCASE_BUILDER.INTERIOR_HALF_X, BRIEFCASE_BUILDER.INTERIOR_HALF_X)
+		_dragging_3d_briefcase_node.position.z = clampf(local_pt.z + _dragging_3d_briefcase_offset_xz.y, -BRIEFCASE_BUILDER.INTERIOR_HALF_Z, BRIEFCASE_BUILDER.INTERIOR_HALF_Z)
+		_dragging_3d_briefcase_node.position.y = float(_dragging_3d_briefcase_node.get_meta("base_y", _dragging_3d_briefcase_node.position.y))
+
+
+func _finish_briefcase_3d_drag(release_pos: Vector2) -> void:
+	var role: String = _dragging_3d_briefcase_role
+	var item_id: String = _dragging_3d_briefcase_item_id
+	var node: Node3D = _dragging_3d_briefcase_node
+	_dragging_3d_briefcase_role = ""
+	_dragging_3d_briefcase_item_id = ""
+	_dragging_3d_briefcase_node = null
+	if _container_ui != null and _container_ui.has_method("clear_external_3d_briefcase_drag"):
+		_container_ui.clear_external_3d_briefcase_drag()
+	if node == null or not is_instance_valid(node) or active_container == null or not is_instance_valid(active_container):
+		return
+	node.position.y = float(node.get_meta("base_y", node.position.y))
+	var my_id: int = multiplayer.get_unique_id() if _is_peer_connected() else name.to_int()
+	if role == "loot_item" and _container_ui != null and _container_ui.has_method("is_point_over_left_panel") and bool(_container_ui.is_point_over_left_panel(release_pos)):
+		if active_container.has_method("request_loot_item"):
+			active_container.request_loot_item(my_id, item_id, -1)
+		return
+	var norm_pos: Vector2 = BRIEFCASE_BUILDER.briefcase_local_xz_to_norm(node.position.x, node.position.z)
+	if role == "loot_item" and active_container.has_method("request_move_stored_item"):
+		active_container.request_move_stored_item(my_id, item_id, norm_pos)
+	elif role == "planted_bomb" and active_container.has_method("request_move_planted_bomb"):
+		active_container.request_move_planted_bomb(my_id, norm_pos)
 
 
 func _unhandled_input(event: InputEvent) -> void:

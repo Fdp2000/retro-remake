@@ -247,8 +247,9 @@ func test_airport_exit_door_victory_validation() -> void:
 	assert_false(exit_door.try_trigger_exit_victory(p1), "Airport Exit rejects Briefcase with 3/4 Objectives")
 	assert_eq(MatchManager.match_state, MatchManager.MatchState.IN_PROGRESS, "Match remains IN_PROGRESS")
 
-	# Pack 4th Objective -> instant victory
-	p1.pickup_item("PLANS")
+	# Pack 4th Objective via container packing -> instant victory
+	assert_false(bool(p1.pickup_item("PLANS")["picked"]), "Floor PLANS blocked while carrying Briefcase")
+	assert_true(p1.server_pack_objective_into_briefcase("PLANS"), "Packed 4th Objective inside Briefcase")
 	assert_eq(p1.briefcase_objectives.size(), 4, "Briefcase holds 4/4 Objectives")
 	assert_true(exit_door.try_trigger_exit_victory(p1), "Airport Exit accepts 4/4 Briefcase")
 	assert_eq(MatchManager.match_state, MatchManager.MatchState.ENDED, "Match transitioned to ENDED")

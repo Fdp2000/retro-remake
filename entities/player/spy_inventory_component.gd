@@ -7,6 +7,7 @@ extends Node
 
 const JACKET_SLOT_COUNT: int = 3
 const PICKUP_SCRIPT = preload("res://entities/props/world_item_pickup.gd")
+const BRIEFCASE_BUILDER = preload("res://entities/props/briefcase_visual_builder.gd")
 
 enum RightHandMode {
 	JACKET_SLOT = 0,
@@ -16,6 +17,8 @@ enum RightHandMode {
 
 var left_hand_item_id: String = "NONE"
 var briefcase_objectives: Array[String] = []
+var briefcase_item_positions: Dictionary = {} # String item_id -> Vector2 norm [0.08..0.92]
+var briefcase_bomb_norm_pos: Vector2 = BRIEFCASE_BUILDER.DEFAULT_BOMB_NORM_POS
 var briefcase_armed_spring: bool = false
 var briefcase_spring_owner_id: int = 0
 var briefcase_spring_unlatched: bool = false
@@ -51,13 +54,39 @@ func get_filled_jacket_slot_count() -> int:
 	return count
 
 
-func pack_objective_into_briefcase(obj_id: String) -> bool:
+func ensure_briefcase_item_positions() -> void:
+	var next_positions: Dictionary = {}
+	for i in range(briefcase_objectives.size()):
+		var obj_id: String = str(briefcase_objectives[i]).to_upper()
+		if briefcase_item_positions.has(obj_id) and briefcase_item_positions[obj_id] is Vector2:
+			next_positions[obj_id] = BRIEFCASE_BUILDER.clamp_norm(briefcase_item_positions[obj_id] as Vector2)
+		else:
+			next_positions[obj_id] = BRIEFCASE_BUILDER.DEFAULT_ITEM_NORM_POSITIONS[i % BRIEFCASE_BUILDER.DEFAULT_ITEM_NORM_POSITIONS.size()]
+	briefcase_item_positions = next_positions
+
+
+func set_briefcase_item_position(obj_id: String, norm_pos: Vector2) -> bool:
+	var upper: String = obj_id.to_upper()
+	if left_hand_item_id != "BRIEFCASE" or not (upper in briefcase_objectives):
+		return false
+	briefcase_item_positions[upper] = BRIEFCASE_BUILDER.clamp_norm(norm_pos)
+	return true
+
+
+func set_briefcase_bomb_position(norm_pos: Vector2) -> void:
+	briefcase_bomb_norm_pos = BRIEFCASE_BUILDER.clamp_norm(norm_pos)
+
+
+func pack_objective_into_briefcase(obj_id: String, norm_pos: Vector2 = Vector2(-1.0, -1.0)) -> bool:
 	var upper: String = obj_id.to_upper()
 	if left_hand_item_id != "BRIEFCASE" or not PICKUP_SCRIPT.is_objective_item(upper):
 		return false
 	if (upper in briefcase_objectives) or briefcase_objectives.size() >= 4:
 		return false
 	briefcase_objectives.append(upper)
+	if norm_pos.x >= 0.0 and norm_pos.y >= 0.0:
+		briefcase_item_positions[upper] = BRIEFCASE_BUILDER.clamp_norm(norm_pos)
+	ensure_briefcase_item_positions()
 	return true
 
 
@@ -69,6 +98,7 @@ func remove_objective_from_briefcase(obj_id: String) -> bool:
 	if idx == -1:
 		return false
 	briefcase_objectives.remove_at(idx)
+	briefcase_item_positions.erase(upper)
 	return true
 
 
@@ -118,14 +148,23 @@ func clear_briefcase_trap_state() -> void:
 	briefcase_staged_bomb = false
 	briefcase_live_bomb_lit = false
 	briefcase_live_bomb_fuse_remaining = 0.0
+	briefcase_bomb_norm_pos = BRIEFCASE_BUILDER.DEFAULT_BOMB_NORM_POS
+	if left_hand_item_id != "BRIEFCASE":
+		briefcase_item_positions.clear()
 
 
-func pickup_item(new_item_id: String, extra_briefcase_items: Array = []) -> Dictionary:
+func pickup_item(
+	new_item_id: String,
+	extra_briefcase_items: Array = [],
+	extra_briefcase_positions: Dictionary = {}
+) -> Dictionary:
 	var id: String = new_item_id.to_upper()
 	var result: Dictionary = {
 		"picked": false,
 		"dropped_item_id": "NONE",
 		"dropped_briefcase_items": [] as Array[String],
+		"dropped_briefcase_item_positions": {},
+		"dropped_briefcase_bomb_pos": BRIEFCASE_BUILDER.DEFAULT_BOMB_NORM_POS,
 		"dropped_briefcase_armed_spring": false,
 		"dropped_briefcase_spring_owner": 0,
 		"dropped_briefcase_armed_bomb": false,
@@ -137,11 +176,9 @@ func pickup_item(new_item_id: String, extra_briefcase_items: Array = []) -> Dict
 			left_hand_item_id = id
 			result["picked"] = true
 		elif left_hand_item_id == "BRIEFCASE":
-			if not (id in briefcase_objectives) and briefcase_objectives.size() < 4:
-				briefcase_objectives.append(id)
-				result["picked"] = true
-			else:
-				result["picked"] = false
+			# Playtest Briefcase rule: cannot pick up floor Objectives while carrying Briefcase
+			# (must drop Briefcase [Q], pick up Objective, open Briefcase, and drag it inside).
+			result["picked"] = false
 		else:
 			result["dropped_item_id"] = left_hand_item_id
 			left_hand_item_id = id
@@ -155,28 +192,42 @@ func pickup_item(new_item_id: String, extra_briefcase_items: Array = []) -> Dict
 			if PICKUP_SCRIPT.is_objective_item(obj_str) and not (obj_str in merged):
 				merged.append(obj_str)
 
+		var incoming_positions: Dictionary = {}
+		for k in extra_briefcase_positions.keys():
+			var key_upper: String = str(k).to_upper()
+			if (key_upper in merged) and extra_briefcase_positions[k] is Vector2:
+				incoming_positions[key_upper] = BRIEFCASE_BUILDER.clamp_norm(extra_briefcase_positions[k] as Vector2)
+
 		if left_hand_item_id == "NONE":
-			briefcase_objectives = merged
 			clear_briefcase_trap_state()
+			briefcase_objectives = merged
+			briefcase_item_positions = incoming_positions
 			left_hand_item_id = "BRIEFCASE"
+			ensure_briefcase_item_positions()
 			result["picked"] = true
 		elif PICKUP_SCRIPT.is_objective_item(left_hand_item_id):
 			if not (left_hand_item_id in merged) and merged.size() < 4:
 				merged.append(left_hand_item_id)
-			briefcase_objectives = merged
 			clear_briefcase_trap_state()
+			briefcase_objectives = merged
+			briefcase_item_positions = incoming_positions
 			left_hand_item_id = "BRIEFCASE"
+			ensure_briefcase_item_positions()
 			result["picked"] = true
 		elif left_hand_item_id == "BRIEFCASE":
 			result["dropped_item_id"] = "BRIEFCASE"
 			result["dropped_briefcase_items"] = briefcase_objectives.duplicate()
+			result["dropped_briefcase_item_positions"] = briefcase_item_positions.duplicate()
+			result["dropped_briefcase_bomb_pos"] = briefcase_bomb_norm_pos
 			result["dropped_briefcase_armed_spring"] = briefcase_armed_spring or briefcase_staged_spring
 			result["dropped_briefcase_spring_owner"] = briefcase_spring_owner_id
 			result["dropped_briefcase_armed_bomb"] = briefcase_armed_bomb or briefcase_staged_bomb
 			result["dropped_briefcase_bomb_owner"] = briefcase_bomb_owner_id
-			briefcase_objectives = merged
 			clear_briefcase_trap_state()
+			briefcase_objectives = merged
+			briefcase_item_positions = incoming_positions
 			left_hand_item_id = "BRIEFCASE"
+			ensure_briefcase_item_positions()
 			result["picked"] = true
 		return result
 
@@ -250,6 +301,8 @@ func drop_left_hand_item() -> Dictionary:
 	var result: Dictionary = {
 		"dropped_item_id": "NONE",
 		"dropped_briefcase_items": [] as Array[String],
+		"dropped_briefcase_item_positions": {},
+		"dropped_briefcase_bomb_pos": BRIEFCASE_BUILDER.DEFAULT_BOMB_NORM_POS,
 		"dropped_briefcase_armed_spring": false,
 		"dropped_briefcase_spring_owner": 0,
 		"dropped_briefcase_armed_bomb": false,
@@ -261,11 +314,14 @@ func drop_left_hand_item() -> Dictionary:
 	result["dropped_item_id"] = left_hand_item_id
 	if left_hand_item_id == "BRIEFCASE":
 		result["dropped_briefcase_items"] = briefcase_objectives.duplicate()
+		result["dropped_briefcase_item_positions"] = briefcase_item_positions.duplicate()
+		result["dropped_briefcase_bomb_pos"] = briefcase_bomb_norm_pos
 		result["dropped_briefcase_armed_spring"] = briefcase_armed_spring or briefcase_staged_spring
 		result["dropped_briefcase_spring_owner"] = briefcase_spring_owner_id
 		result["dropped_briefcase_armed_bomb"] = briefcase_armed_bomb or briefcase_staged_bomb
 		result["dropped_briefcase_bomb_owner"] = briefcase_bomb_owner_id
 		briefcase_objectives = [] as Array[String]
+		briefcase_item_positions.clear()
 		clear_briefcase_trap_state()
 	left_hand_item_id = "NONE"
 	return result
@@ -315,6 +371,8 @@ func start_club_charge() -> Dictionary:
 	var result: Dictionary = {
 		"dropped_item_id": "NONE",
 		"dropped_briefcase_items": [] as Array[String],
+		"dropped_briefcase_item_positions": {},
+		"dropped_briefcase_bomb_pos": BRIEFCASE_BUILDER.DEFAULT_BOMB_NORM_POS,
 		"dropped_briefcase_armed_spring": false,
 		"dropped_briefcase_spring_owner": 0,
 		"dropped_briefcase_armed_bomb": false,
@@ -371,7 +429,9 @@ func get_briefcase_trap_dict() -> Dictionary:
 		"bomb_owner": briefcase_bomb_owner_id,
 		"staged_bomb": briefcase_staged_bomb,
 		"live_bomb_lit": briefcase_live_bomb_lit,
-		"live_bomb_fuse": briefcase_live_bomb_fuse_remaining
+		"live_bomb_fuse": briefcase_live_bomb_fuse_remaining,
+		"item_positions": briefcase_item_positions.duplicate(),
+		"bomb_norm_pos": briefcase_bomb_norm_pos
 	}
 
 
@@ -413,5 +473,24 @@ func apply_sync_state(
 		briefcase_staged_bomb = bool(b_traps.get("staged_bomb", false))
 		briefcase_live_bomb_lit = bool(b_traps.get("live_bomb_lit", false))
 		briefcase_live_bomb_fuse_remaining = float(b_traps.get("live_bomb_fuse", 0.0))
+
+		var raw_positions: Variant = b_traps.get("item_positions", {})
+		var next_positions: Dictionary = {}
+		if raw_positions is Dictionary:
+			for k in (raw_positions as Dictionary).keys():
+				var pos_val: Variant = (raw_positions as Dictionary)[k]
+				if pos_val is Vector2:
+					next_positions[str(k).to_upper()] = BRIEFCASE_BUILDER.clamp_norm(pos_val as Vector2)
+		briefcase_item_positions = next_positions
+
+		var raw_bomb_pos: Variant = b_traps.get("bomb_norm_pos", BRIEFCASE_BUILDER.DEFAULT_BOMB_NORM_POS)
+		if raw_bomb_pos is Vector2:
+			briefcase_bomb_norm_pos = BRIEFCASE_BUILDER.clamp_norm(raw_bomb_pos as Vector2)
+		else:
+			briefcase_bomb_norm_pos = BRIEFCASE_BUILDER.DEFAULT_BOMB_NORM_POS
 	elif left_hand_item_id != "BRIEFCASE":
+		briefcase_item_positions.clear()
 		clear_briefcase_trap_state()
+
+	if left_hand_item_id == "BRIEFCASE":
+		ensure_briefcase_item_positions()

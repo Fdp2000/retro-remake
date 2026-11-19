@@ -51,6 +51,8 @@ const ITEM_DISPLAY_NAMES: Dictionary = {
 				_ensure_briefcase_container()
 
 @export var packed_objectives: Array[String] = []
+@export var packed_item_positions: Dictionary = {}
+@export var bomb_norm_pos: Vector2 = Vector2(0.50, 0.45)
 @export var armed_spring: bool = false
 @export var spring_owner_peer_id: int = 0
 @export var armed_bomb: bool = false
@@ -201,6 +203,9 @@ func get_interaction_prompt_for_player(player: Node) -> String:
 			return "[E] Open %s to Pack %s" % [disp, get_display_name(held_left)]
 		return "[Tap E] Carry %s (Left Hand)  |  [Hold E] Open & Inspect" % disp
 	if is_objective_item(item_id):
+		var held_left: String = str(player.get("left_hand_item_id")).to_upper() if player != null else "NONE"
+		if held_left == "BRIEFCASE":
+			return "[Hands Full] Drop Briefcase [Q] to pick up %s" % disp
 		return "[E] Pick Up %s (Left Hand)" % disp
 	if item_id.to_upper() == "LIVE_BOMB":
 		return "[E] Grab %s (Active Hand!)" % disp
@@ -250,6 +255,8 @@ func _ensure_briefcase_container() -> Node:
 		for obj in packed_objectives:
 			typed_items.append(str(obj).to_upper())
 		_briefcase_container.set("stored_items", typed_items)
+		_briefcase_container.set("item_positions", packed_item_positions.duplicate())
+		_briefcase_container.set("bomb_norm_pos", bomb_norm_pos)
 		_briefcase_container.set("armed_spring", armed_spring)
 		_briefcase_container.set("spring_owner_peer_id", spring_owner_peer_id)
 		_briefcase_container.set("armed_bomb", armed_bomb)
@@ -260,6 +267,8 @@ func _ensure_briefcase_container() -> Node:
 		for obj in packed_objectives:
 			typed_items.append(str(obj).to_upper())
 		_briefcase_container.set("stored_items", typed_items)
+		_briefcase_container.set("item_positions", packed_item_positions.duplicate())
+		_briefcase_container.set("bomb_norm_pos", bomb_norm_pos)
 		_briefcase_container.set("armed_spring", armed_spring)
 		_briefcase_container.set("spring_owner_peer_id", spring_owner_peer_id)
 		_briefcase_container.set("armed_bomb", armed_bomb)
@@ -294,6 +303,10 @@ func _execute_server_pickup(peer_id: int) -> void:
 	if player == null or not player.has_method("server_pickup_world_item"):
 		return
 
+	# Playtest Briefcase rule: cannot pick up a floor Objective while carrying the Briefcase
+	if is_objective_item(item_id) and str(player.get("left_hand_item_id")).to_upper() == "BRIEFCASE":
+		return
+
 	if is_briefcase_item(item_id):
 		var container: Node = _ensure_briefcase_container()
 		if container != null and int(container.get("occupied_by_peer_id")) != 0:
@@ -309,17 +322,22 @@ func _execute_server_pickup(peer_id: int) -> void:
 			packed_objectives.clear()
 			for it in container.get("stored_items"):
 				packed_objectives.append(str(it))
+			var raw_pos: Variant = container.get("item_positions")
+			packed_item_positions = (raw_pos as Dictionary).duplicate() if raw_pos is Dictionary else {}
+			var raw_bpos: Variant = container.get("bomb_norm_pos")
+			if raw_bpos is Vector2:
+				bomb_norm_pos = raw_bpos as Vector2
 			armed_spring = bool(container.get("armed_spring"))
 			spring_owner_peer_id = int(container.get("spring_owner_peer_id"))
 			armed_bomb = bool(container.get("armed_bomb"))
 			bomb_owner_peer_id = int(container.get("bomb_owner_peer_id"))
 
 	_is_consumed = true
-	var picked: bool = player.server_pickup_world_item(item_id, packed_objectives.duplicate(), global_position)
+	var picked: bool = player.server_pickup_world_item(item_id, packed_objectives.duplicate(), global_position, packed_item_positions.duplicate())
 	if picked:
 		if is_briefcase_item(item_id):
 			if player.has_method("set_briefcase_trap_state"):
-				player.set_briefcase_trap_state(armed_spring, spring_owner_peer_id, armed_bomb, bomb_owner_peer_id)
+				player.set_briefcase_trap_state(armed_spring, spring_owner_peer_id, armed_bomb, bomb_owner_peer_id, bomb_norm_pos)
 			elif player.has_method("set_briefcase_bomb_state"):
 				player.set_briefcase_bomb_state(armed_bomb, bomb_owner_peer_id)
 		if not Engine.is_editor_hint() and multiplayer != null and multiplayer.has_multiplayer_peer() and not (multiplayer.multiplayer_peer is OfflineMultiplayerPeer) and multiplayer.multiplayer_peer.get_connection_status() == MultiplayerPeer.CONNECTION_CONNECTED:

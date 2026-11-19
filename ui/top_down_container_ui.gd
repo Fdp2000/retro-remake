@@ -8,6 +8,7 @@ extends Control
 ## - Right Side: Visual 3-Slot Inner Trenchcoat Jacket (drag traps into Drawer/Briefcase; drop looted gadgets into Slots 1-3).
 
 const PICKUP_SCRIPT = preload("res://entities/props/world_item_pickup.gd")
+const BRIEFCASE_BUILDER = preload("res://entities/props/briefcase_visual_builder.gd")
 const DRAG_THRESHOLD_PX: float = 12.0
 
 var _player: Node = null
@@ -21,6 +22,8 @@ var _push_clutter_btn: Button = null
 var _left_panel: PanelContainer = null
 var _left_title_label: Label = null
 var _left_content_box: VBoxContainer = null
+var _briefcase_felt_panel: PanelContainer = null
+var _briefcase_felt_canvas: Control = null
 var _briefcase_lid_cover: ColorRect = null
 var _briefcase_lid_label: Label = null
 var _carried_briefcase_bomb_btn: Button = null
@@ -63,7 +66,7 @@ func _process(_delta: float) -> void:
 	if _carried_briefcase_bomb_btn != null and is_instance_valid(_carried_briefcase_bomb_btn) and _player != null and _player.has_method("get_held_briefcase_trap_dict"):
 		var t_dict: Dictionary = _player.get_held_briefcase_trap_dict()
 		if bool(t_dict.get("live_bomb_lit", false)):
-			_carried_briefcase_bomb_btn.text = "LIT BOMB IN BRIEFCASE (%.1fs)! CLICK TO GRAB!" % float(t_dict.get("live_bomb_fuse", 0.0))
+			_carried_briefcase_bomb_btn.text = "LIT BOMB (%.1fs)!" % float(t_dict.get("live_bomb_fuse", 0.0))
 
 	# Keep simultaneous Left-Side Briefcase lid visual synced smoothly during slow-peek hold
 	_update_carried_briefcase_lid_overlay()
@@ -129,6 +132,29 @@ func is_point_over_ui_panel(screen_pos: Vector2) -> bool:
 	return false
 
 
+func is_point_over_left_panel(screen_pos: Vector2) -> bool:
+	return _left_panel != null and _left_panel.is_visible_in_tree() and _left_panel.get_global_rect().has_point(screen_pos)
+
+
+func update_external_3d_briefcase_drag(item_id: String, screen_pos: Vector2) -> void:
+	if _drag_ghost != null and _drag_ghost_label != null:
+		var upper: String = item_id.to_upper()
+		var col: Color = PICKUP_SCRIPT.ITEM_COLORS.get(upper, Color(0.95, 0.85, 0.35))
+		_apply_panel_style(_drag_ghost, Color(0.12, 0.14, 0.18, 0.96), col)
+		_drag_ghost_label.text = PICKUP_SCRIPT.get_display_name(upper)
+		_drag_ghost.position = screen_pos + Vector2(14.0, -18.0)
+		_drag_ghost.visible = true
+	if _left_panel != null:
+		_apply_panel_style(_left_panel, Color(0.14, 0.22, 0.16, 0.95), Color(0.35, 1.0, 0.55, 1.0))
+
+
+func clear_external_3d_briefcase_drag() -> void:
+	if not _drag_active and _drag_ghost != null:
+		_drag_ghost.visible = false
+	if not _drag_active:
+		_reset_panel_highlights()
+
+
 func begin_external_drag(source: String, item_id: String, screen_pos: Vector2, slot_idx: int = -1) -> void:
 	_start_drag(source, item_id, screen_pos, slot_idx)
 
@@ -170,9 +196,9 @@ func refresh_view() -> void:
 		_title_label.text = "%s (%d%% Open) — Hold E to open further | Release E to inspect traps | [A / S / D / ESC] Close" % [label_name, pct]
 	else:
 		if is_briefcase:
-			_title_label.text = "COMPACT BRIEFCASE — Drag Objective from Left Hand in, or drag Traps from Coat | [A / S / D / ESC] Close"
+			_title_label.text = "COMPACT BRIEFCASE — Drag items anywhere inside or drag to Left Hand | [A / S / D / ESC] Close"
 		elif holding_briefcase:
-			_title_label.text = "%s + BRIEFCASE — Drag clutter aside | Drag Objectives ↔ Briefcase (Left) & Traps ↔ Coat (Right) | [A / S / D / ESC] Close" % c_id.to_upper()
+			_title_label.text = "%s + BRIEFCASE — Drag Objectives ↔ Open Briefcase (Left) anywhere & Traps ↔ Coat (Right) | [A / S / D / ESC] Close" % c_id.to_upper()
 		else:
 			_title_label.text = "%s — Drag 3D junk aside | Drag Objectives → Left Hand & Gadgets ↔ Inner Coat | [A / S / D / ESC] Close" % c_id.to_upper()
 
@@ -394,16 +420,28 @@ func _refresh_left_panel(is_briefcase: bool, vis_ratio: float) -> void:
 	if _left_content_box == null or _player == null:
 		return
 	_carried_briefcase_bomb_btn = null
+	_briefcase_felt_panel = null
+	_briefcase_felt_canvas = null
 	for c in _left_content_box.get_children():
 		c.queue_free()
 
 	var l_id: String = str(_player.get("left_hand_item_id")).to_upper()
 	var can_transfer: bool = vis_ratio >= 0.40
 
-	# Mode B: Carrying Briefcase while searching a Drawer -> show Simultaneous Open Briefcase on Left!
+	# Mode B: Carrying Briefcase while searching a Drawer -> Freeform Layered Briefcase Canvas on Left!
 	if l_id == "BRIEFCASE" and not is_briefcase:
 		var b_objs: Array = _player.get("briefcase_objectives") as Array
 		var objs: Array = b_objs if b_objs != null else []
+		var raw_positions: Variant = _player.get("briefcase_item_positions")
+		var item_positions: Dictionary = raw_positions as Dictionary if raw_positions is Dictionary else {}
+		var trap_state: Dictionary = _player.get_held_briefcase_trap_dict() if _player.has_method("get_held_briefcase_trap_dict") else {}
+		var b_armed_bomb: bool = bool(trap_state.get("armed_bomb", false))
+		var b_staged_bomb: bool = bool(trap_state.get("staged_bomb", false))
+		var b_lit_bomb: bool = bool(trap_state.get("live_bomb_lit", false))
+		var b_fuse: float = float(trap_state.get("live_bomb_fuse", 0.0))
+		var raw_bomb_pos: Variant = trap_state.get("bomb_norm_pos", BRIEFCASE_BUILDER.DEFAULT_BOMB_NORM_POS)
+		var b_bomb_pos: Vector2 = BRIEFCASE_BUILDER.clamp_norm(raw_bomb_pos as Vector2) if raw_bomb_pos is Vector2 else BRIEFCASE_BUILDER.DEFAULT_BOMB_NORM_POS
+
 		_left_title_label.text = "BRIEFCASE [%d/4] (LEFT)" % objs.size()
 
 		var hint := Label.new()
@@ -411,65 +449,134 @@ func _refresh_left_panel(is_briefcase: bool, vis_ratio: float) -> void:
 		hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		hint.add_theme_font_size_override("font_size", 12)
 		hint.modulate = Color(0.92, 0.84, 0.62)
-		hint.text = "Drag Objectives from Drawer into slots below\n(or drag out to stash in Drawer)" if can_transfer else "Open Drawer to open Briefcase"
+		hint.text = "Drag items anywhere inside (layered)\nDrag to Drawer center to stash" if can_transfer else "Open Drawer to open Briefcase"
 		_left_content_box.add_child(hint)
 
-		# 2x2 Felt Compartments Grid for the 4 Objectives
-		var grid := GridContainer.new()
-		grid.columns = 2
-		grid.size_flags_vertical = Control.SIZE_EXPAND_FILL
-		grid.add_theme_constant_override("h_separation", 8)
-		grid.add_theme_constant_override("v_separation", 8)
-		_left_content_box.add_child(grid)
+		# Freeform Dark-Felt Briefcase Tray (zero rigid grid slots!)
+		_briefcase_felt_panel = PanelContainer.new()
+		_briefcase_felt_panel.name = "FreeformBriefcaseFeltPanel"
+		_briefcase_felt_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		_briefcase_felt_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		_briefcase_felt_panel.custom_minimum_size = Vector2(240.0, 210.0)
+		_apply_panel_style(_briefcase_felt_panel, Color(0.14, 0.21, 0.18, 0.98), Color(0.46, 0.28, 0.14, 0.95))
+		_left_content_box.add_child(_briefcase_felt_panel)
 
-		for slot_i in range(4):
-			var cell := PanelContainer.new()
-			cell.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-			cell.size_flags_vertical = Control.SIZE_EXPAND_FILL
-			cell.custom_minimum_size = Vector2(110.0, 74.0)
-			if slot_i < objs.size():
-				var obj_id: String = str(objs[slot_i]).to_upper()
-				var col: Color = PICKUP_SCRIPT.ITEM_COLORS.get(obj_id, Color(0.85, 0.75, 0.35))
-				_apply_panel_style(cell, Color(0.16, 0.21, 0.18, 0.95), col)
-				var cv := VBoxContainer.new()
-				cv.alignment = BoxContainer.ALIGNMENT_CENTER
-				cv.mouse_filter = Control.MOUSE_FILTER_IGNORE
-				cell.add_child(cv)
+		_briefcase_felt_canvas = Control.new()
+		_briefcase_felt_canvas.name = "BriefcaseFeltCanvas"
+		_briefcase_felt_canvas.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		_briefcase_felt_canvas.clip_contents = true
+		_briefcase_felt_canvas.mouse_filter = Control.MOUSE_FILTER_PASS
+		_briefcase_felt_panel.add_child(_briefcase_felt_canvas)
 
-				var swatch := ColorRect.new()
-				swatch.custom_minimum_size = Vector2(28.0, 10.0)
-				swatch.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-				swatch.color = col
-				swatch.mouse_filter = Control.MOUSE_FILTER_IGNORE
-				cv.add_child(swatch)
+		if objs.is_empty() and not (b_armed_bomb or b_staged_bomb or b_lit_bomb):
+			var empty_hint := Label.new()
+			empty_hint.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+			empty_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			empty_hint.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+			empty_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			empty_hint.add_theme_font_size_override("font_size", 12)
+			empty_hint.modulate = Color(0.62, 0.72, 0.68, 0.80)
+			empty_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			empty_hint.text = "Open Briefcase Interior\nDrop Objectives or Bombs anywhere"
+			_briefcase_felt_canvas.add_child(empty_hint)
 
-				var name_lbl := Label.new()
-				name_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-				name_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-				name_lbl.add_theme_font_size_override("font_size", 12)
-				name_lbl.text = PICKUP_SCRIPT.get_display_name(obj_id)
-				name_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
-				cv.add_child(name_lbl)
+		# Bottom Layer (Layer 0): Bomb inside Carried Briefcase (can be covered by Objectives layered on top!)
+		if b_lit_bomb:
+			var bomb_btn := Button.new()
+			bomb_btn.focus_mode = Control.FOCUS_NONE
+			bomb_btn.modulate = Color(1.0, 0.38, 0.22)
+			bomb_btn.text = "LIT BOMB (%.1fs)!" % b_fuse
+			bomb_btn.anchor_left = b_bomb_pos.x
+			bomb_btn.anchor_right = b_bomb_pos.x
+			bomb_btn.anchor_top = b_bomb_pos.y
+			bomb_btn.anchor_bottom = b_bomb_pos.y
+			bomb_btn.offset_left = -64.0
+			bomb_btn.offset_right = 64.0
+			bomb_btn.offset_top = -18.0
+			bomb_btn.offset_bottom = 18.0
+			bomb_btn.pressed.connect(func():
+				if _player != null and _player.has_method("request_briefcase_trap_action"):
+					_player.request_briefcase_trap_action("GRAB_LIT_BOMB", 0)
+			)
+			_briefcase_felt_canvas.add_child(bomb_btn)
+			_carried_briefcase_bomb_btn = bomb_btn
+		elif b_staged_bomb or b_armed_bomb:
+			var bomb_card := PanelContainer.new()
+			bomb_card.anchor_left = b_bomb_pos.x
+			bomb_card.anchor_right = b_bomb_pos.x
+			bomb_card.anchor_top = b_bomb_pos.y
+			bomb_card.anchor_bottom = b_bomb_pos.y
+			bomb_card.offset_left = -46.0
+			bomb_card.offset_right = 46.0
+			bomb_card.offset_top = -18.0
+			bomb_card.offset_bottom = 18.0
+			_apply_panel_style(bomb_card, Color(0.18, 0.14, 0.14, 0.96), Color(0.95, 0.52, 0.20))
+			var b_lbl := Label.new()
+			b_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			b_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+			b_lbl.add_theme_font_size_override("font_size", 11)
+			b_lbl.text = "Time Bomb" if b_staged_bomb else "Armed Bomb"
+			b_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			bomb_card.add_child(b_lbl)
+			if can_transfer:
+				bomb_card.mouse_default_cursor_shape = Control.CURSOR_DRAG
+				bomb_card.gui_input.connect(func(ev: InputEvent):
+					if ev is InputEventMouseButton and (ev as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT and (ev as InputEventMouseButton).pressed:
+						_start_drag("CARRIED_BRIEFCASE_BOMB", "BOMB", get_viewport().get_mouse_position(), -1)
+				)
+			_briefcase_felt_canvas.add_child(bomb_card)
 
-				if can_transfer:
-					cell.mouse_default_cursor_shape = Control.CURSOR_DRAG
-					var captured_obj: String = obj_id
-					cell.gui_input.connect(func(ev: InputEvent):
-						if ev is InputEventMouseButton and (ev as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT and (ev as InputEventMouseButton).pressed:
-							_start_drag("CARRIED_BRIEFCASE_OBJ", captured_obj, get_viewport().get_mouse_position(), slot_i)
-					)
-			else:
-				_apply_panel_style(cell, Color(0.11, 0.15, 0.13, 0.92), Color(0.40, 0.48, 0.42, 0.65))
-				var empty_lbl := Label.new()
-				empty_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-				empty_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-				empty_lbl.add_theme_font_size_override("font_size", 11)
-				empty_lbl.modulate = Color(0.65, 0.72, 0.68)
-				empty_lbl.text = "Slot %d\nEmpty" % (slot_i + 1)
-				cell.add_child(empty_lbl)
-			grid.add_child(cell)
+		# Stacked Freeform Layers 1..4: Packed Objectives
+		for i in range(objs.size()):
+			var obj_id: String = str(objs[i]).to_upper()
+			var fallback_pos: Vector2 = BRIEFCASE_BUILDER.DEFAULT_ITEM_NORM_POSITIONS[i % BRIEFCASE_BUILDER.DEFAULT_ITEM_NORM_POSITIONS.size()]
+			var raw_p: Variant = item_positions.get(obj_id, fallback_pos)
+			var norm_pos: Vector2 = BRIEFCASE_BUILDER.clamp_norm(raw_p as Vector2) if raw_p is Vector2 else fallback_pos
+			var col: Color = PICKUP_SCRIPT.ITEM_COLORS.get(obj_id, Color(0.85, 0.75, 0.35))
 
-		# Carried Briefcase Trap Strip (Spring / Bomb armed inside player's carried Briefcase!)
+			var item_card := PanelContainer.new()
+			item_card.name = "BriefcaseItemCard_%s" % obj_id
+			item_card.anchor_left = norm_pos.x
+			item_card.anchor_right = norm_pos.x
+			item_card.anchor_top = norm_pos.y
+			item_card.anchor_bottom = norm_pos.y
+			item_card.offset_left = -52.0
+			item_card.offset_right = 52.0
+			item_card.offset_top = -22.0
+			item_card.offset_bottom = 22.0
+			_apply_panel_style(item_card, Color(0.18, 0.24, 0.20, 0.98), col)
+
+			var cv := VBoxContainer.new()
+			cv.alignment = BoxContainer.ALIGNMENT_CENTER
+			cv.add_theme_constant_override("separation", 2)
+			cv.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			item_card.add_child(cv)
+
+			var swatch := ColorRect.new()
+			swatch.custom_minimum_size = Vector2(30.0, 6.0)
+			swatch.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+			swatch.color = col
+			swatch.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			cv.add_child(swatch)
+
+			var name_lbl := Label.new()
+			name_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			name_lbl.add_theme_font_size_override("font_size", 11)
+			name_lbl.text = PICKUP_SCRIPT.get_display_name(obj_id)
+			name_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			cv.add_child(name_lbl)
+
+			if can_transfer:
+				item_card.mouse_default_cursor_shape = Control.CURSOR_DRAG
+				var captured_obj: String = obj_id
+				var captured_idx: int = i
+				item_card.gui_input.connect(func(ev: InputEvent):
+					if ev is InputEventMouseButton and (ev as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT and (ev as InputEventMouseButton).pressed:
+						_start_drag("CARRIED_BRIEFCASE_OBJ", captured_obj, get_viewport().get_mouse_position(), captured_idx)
+				)
+			_briefcase_felt_canvas.add_child(item_card)
+
+		# Carried Briefcase Latch Spring Strip (Bomb is already inside the freeform tray above)
 		_build_carried_briefcase_trap_strip(vis_ratio)
 		return
 
@@ -558,7 +665,6 @@ func _build_carried_briefcase_trap_strip(vis_ratio: float) -> void:
 	var b_staged_spring: bool = bool(trap_state.get("staged_spring", false))
 	var b_staged_bomb: bool = bool(trap_state.get("staged_bomb", false))
 	var b_lit_bomb: bool = bool(trap_state.get("live_bomb_lit", false))
-	var b_fuse: float = float(trap_state.get("live_bomb_fuse", 0.0))
 
 	var trap_box := PanelContainer.new()
 	_apply_panel_style(trap_box, Color(0.14, 0.12, 0.12, 0.94), Color(0.55, 0.35, 0.25, 0.80))
@@ -569,16 +675,12 @@ func _build_carried_briefcase_trap_strip(vis_ratio: float) -> void:
 	trap_box.add_child(tv)
 
 	if b_lit_bomb:
-		var bomb_btn := Button.new()
-		bomb_btn.focus_mode = Control.FOCUS_NONE
-		bomb_btn.modulate = Color(1.0, 0.38, 0.22)
-		bomb_btn.text = "LIT BOMB IN BRIEFCASE (%.1fs)! CLICK TO GRAB!" % b_fuse
-		bomb_btn.pressed.connect(func():
-			if _player != null and _player.has_method("request_briefcase_trap_action"):
-				_player.request_briefcase_trap_action("GRAB_LIT_BOMB", 0)
-		)
-		tv.add_child(bomb_btn)
-		_carried_briefcase_bomb_btn = bomb_btn
+		var lit_lbl := Label.new()
+		lit_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		lit_lbl.add_theme_font_size_override("font_size", 12)
+		lit_lbl.modulate = Color(1.0, 0.35, 0.20)
+		lit_lbl.text = "Click pulsing Bomb inside Briefcase to grab!"
+		tv.add_child(lit_lbl)
 	elif b_armed_spring and vis_ratio >= 0.15:
 		var unlatch_btn := Button.new()
 		unlatch_btn.focus_mode = Control.FOCUS_NONE
@@ -837,14 +939,15 @@ func _update_drop_zone_highlights(screen_pos: Vector2) -> void:
 	var is_briefcase: bool = bool(_container.get("is_briefcase_container"))
 	var holding_briefcase: bool = (_player != null and str(_player.get("left_hand_item_id")).to_upper() == "BRIEFCASE")
 	var over_left: bool = _left_panel != null and _left_panel.get_global_rect().has_point(screen_pos)
+	var over_felt: bool = _briefcase_felt_canvas != null and is_instance_valid(_briefcase_felt_canvas) and _briefcase_felt_canvas.is_visible_in_tree() and _briefcase_felt_canvas.get_global_rect().has_point(screen_pos)
 	var over_right: bool = _right_panel != null and _right_panel.get_global_rect().has_point(screen_pos)
 	var over_center: bool = not over_left and not over_right and not (_top_bar != null and _top_bar.get_global_rect().has_point(screen_pos))
 
 	# Show center drop guide whenever dragging INTO the 3D container
 	var wants_center: bool = _drag_source in ["LEFT_HAND", "CARRIED_BRIEFCASE_OBJ", "COAT_SLOT", "CONTAINER_SPRING"]
 	if _center_drop_frame != null:
-		_center_drop_frame.visible = wants_center
-		if wants_center and _center_drop_label != null:
+		_center_drop_frame.visible = wants_center and not (over_felt and _drag_source == "CARRIED_BRIEFCASE_OBJ")
+		if _center_drop_frame.visible and _center_drop_label != null:
 			if _drag_source == "LEFT_HAND":
 				_center_drop_label.text = "Drop to Pack into %s" % ("Briefcase" if is_briefcase else "Drawer")
 			elif _drag_source == "CARRIED_BRIEFCASE_OBJ":
@@ -855,7 +958,17 @@ func _update_drop_zone_highlights(screen_pos: Vector2) -> void:
 				_center_drop_label.text = "Drop back on Latch to Re-Arm Spring"
 		_center_drop_frame.modulate = Color(1.0, 1.0, 1.0, 1.0) if over_center else Color(0.85, 0.85, 0.85, 0.55)
 
-	# Highlight Left Panel when dragging an Objective from Container OR Trap from Coat onto Open Carried Briefcase
+	# Highlight Left Panel / Felt Canvas when rearranging or dropping into Open Briefcase
+	if _briefcase_felt_panel != null and is_instance_valid(_briefcase_felt_panel):
+		var felt_valid: bool = (
+			_drag_source in ["CARRIED_BRIEFCASE_OBJ", "CARRIED_BRIEFCASE_BOMB"]
+			or (_drag_source == "CONTAINER_ITEM" and holding_briefcase and not is_briefcase and PICKUP_SCRIPT.is_objective_item(_drag_item_id))
+			or (_drag_source == "COAT_SLOT" and holding_briefcase and not is_briefcase and _drag_item_id == "BOMB")
+		)
+		if felt_valid:
+			var border: Color = Color(0.35, 1.0, 0.55, 1.0) if over_felt else Color(0.95, 0.82, 0.30, 0.90)
+			_apply_panel_style(_briefcase_felt_panel, Color(0.16, 0.24, 0.20, 0.98), border)
+
 	if _left_panel != null:
 		var left_valid: bool = (
 			(_drag_source == "CONTAINER_ITEM" and PICKUP_SCRIPT.is_objective_item(_drag_item_id))
@@ -883,8 +996,20 @@ func _update_drop_zone_highlights(screen_pos: Vector2) -> void:
 func _reset_panel_highlights() -> void:
 	if _left_panel != null:
 		_apply_panel_style(_left_panel, Color(0.11, 0.12, 0.15, 0.90), Color(0.42, 0.34, 0.24, 0.85))
+	if _briefcase_felt_panel != null and is_instance_valid(_briefcase_felt_panel):
+		_apply_panel_style(_briefcase_felt_panel, Color(0.14, 0.21, 0.18, 0.98), Color(0.46, 0.28, 0.14, 0.95))
 	if _right_panel != null:
 		_apply_panel_style(_right_panel, Color(0.10, 0.11, 0.14, 0.90), Color(0.36, 0.42, 0.52, 0.85))
+
+
+func _get_briefcase_canvas_norm_pos(screen_pos: Vector2) -> Vector2:
+	if _briefcase_felt_canvas == null or not is_instance_valid(_briefcase_felt_canvas):
+		return BRIEFCASE_BUILDER.DEFAULT_BOMB_NORM_POS
+	var rect: Rect2 = _briefcase_felt_canvas.get_global_rect()
+	if rect.size.x <= 1.0 or rect.size.y <= 1.0:
+		return BRIEFCASE_BUILDER.DEFAULT_BOMB_NORM_POS
+	var rel: Vector2 = (screen_pos - rect.position) / rect.size
+	return BRIEFCASE_BUILDER.clamp_norm(rel)
 
 
 func _finish_drag(release_pos: Vector2) -> void:
@@ -892,6 +1017,8 @@ func _finish_drag(release_pos: Vector2) -> void:
 	var item_id: String = _drag_item_id
 	var slot_idx: int = _drag_slot_index
 	var was_dragged: bool = _drag_moved
+	var over_felt: bool = _briefcase_felt_canvas != null and is_instance_valid(_briefcase_felt_canvas) and _briefcase_felt_canvas.is_visible_in_tree() and _briefcase_felt_canvas.get_global_rect().has_point(release_pos)
+	var felt_norm: Vector2 = _get_briefcase_canvas_norm_pos(release_pos) if over_felt else Vector2(-1.0, -1.0)
 	cancel_drag()
 
 	if _container == null or not is_instance_valid(_container) or _player == null:
@@ -907,14 +1034,23 @@ func _finish_drag(release_pos: Vector2) -> void:
 
 	match src:
 		"LEFT_HAND":
-			# Dragging held loose Objective -> drop onto open 3D Briefcase / Drawer!
+			# Dragging held loose Objective -> drop onto exact spot inside 3D Briefcase / Drawer!
 			if over_center and _container.has_method("request_deposit_left_hand_item"):
-				_container.request_deposit_left_hand_item(_local_peer_id)
+				var drop_norm := Vector2(-1.0, -1.0)
+				if is_briefcase and _player.has_method("project_screen_pos_to_briefcase_norm"):
+					drop_norm = _player.project_screen_pos_to_briefcase_norm(release_pos)
+				_container.request_deposit_left_hand_item(_local_peer_id, drop_norm)
 
 		"CARRIED_BRIEFCASE_OBJ":
-			# Dragging packed Objective out of Left Open Briefcase -> drop into open 3D Drawer!
-			if over_center and not is_briefcase and _container.has_method("request_deposit_briefcase_item"):
+			# Dragging packed Objective inside Left Briefcase -> freeform move; or drop into Center 3D Drawer to stash
+			if over_felt and was_dragged and _player.has_method("request_move_briefcase_item"):
+				_player.request_move_briefcase_item(item_id, felt_norm)
+			elif over_center and not is_briefcase and _container.has_method("request_deposit_briefcase_item"):
 				_container.request_deposit_briefcase_item(_local_peer_id, item_id)
+
+		"CARRIED_BRIEFCASE_BOMB":
+			if over_felt and was_dragged and _player.has_method("request_move_briefcase_item"):
+				_player.request_move_briefcase_item("BOMB", felt_norm)
 
 		"CARRIED_BRIEFCASE_SPRING":
 			# Dragging unlatched Spring out of Left Open Briefcase -> steal into Right Inner Coat!
@@ -926,17 +1062,20 @@ func _finish_drag(release_pos: Vector2) -> void:
 				if item_id == "SPRING":
 					_container.request_plant_trap(_local_peer_id, slot_idx, "LIP")
 				elif item_id == "BOMB":
-					_container.request_plant_trap(_local_peer_id, slot_idx, "TRAY")
+					var bomb_norm := Vector2(-1.0, -1.0)
+					if is_briefcase and _player.has_method("project_screen_pos_to_briefcase_norm"):
+						bomb_norm = _player.project_screen_pos_to_briefcase_norm(release_pos)
+					_container.request_plant_trap(_local_peer_id, slot_idx, "TRAY", bomb_norm)
 			elif over_left and holding_briefcase and not is_briefcase and _player.has_method("request_briefcase_trap_action"):
 				if item_id == "SPRING":
 					_player.request_briefcase_trap_action("PLANT_SPRING", slot_idx)
 				elif item_id == "BOMB":
-					_player.request_briefcase_trap_action("PLANT_BOMB", slot_idx)
+					_player.request_briefcase_trap_action("PLANT_BOMB", slot_idx, felt_norm)
 
 		"CONTAINER_ITEM":
 			if PICKUP_SCRIPT.is_objective_item(item_id):
 				if over_left:
-					_container.request_loot_item(_local_peer_id, item_id, -1)
+					_container.request_loot_item(_local_peer_id, item_id, -1, felt_norm)
 				elif not was_dragged:
 					# Quick-click convenience: loot cleanly when Left Hand is empty or holding Briefcase
 					var held_left: String = str(_player.get("left_hand_item_id")).to_upper()

@@ -4,6 +4,7 @@ extends RefCounted
 
 ## Builds the unified 3D Hinged Attaché Briefcase mesh rig used by floor Briefcase pickups/containers.
 ## Keeps closed and open visuals in a single rig (eliminating overlapping closed-box / open-tray clipping).
+## Interior is open, slot-free dark felt with freeform XY placement and strictly disjoint vertical layers.
 
 const CASE_WIDTH: float = 0.56
 const CASE_DEPTH: float = 0.38
@@ -12,13 +13,48 @@ const LID_HEIGHT: float = 0.042
 const WALL_THICK: float = 0.022
 const OPEN_LID_ANGLE_DEG: float = -118.0
 
-## 4 neat interior compartment centers (in TrayPivot local XZ) for KEY, MONEY, PASSPORT, PLANS
-const BRIEFCASE_SLOT_OFFSETS: Array[Vector2] = [
-	Vector2(-0.135, -0.070),
-	Vector2(0.135, -0.070),
-	Vector2(-0.135, 0.068),
-	Vector2(0.135, 0.068)
+const INTERIOR_HALF_X: float = 0.19
+const INTERIOR_HALF_Z: float = 0.115
+const NORM_MIN: float = 0.08
+const NORM_MAX: float = 0.92
+
+const BOMB_LAYER_Y: float = -0.045
+const ITEM_LAYER_BASE_Y: float = -0.027
+const ITEM_LAYER_STEP_Y: float = 0.016
+const DEFAULT_BOMB_NORM_POS := Vector2(0.50, 0.45)
+
+## Default non-overlapping spread for newly packed Objectives (player can drag anywhere afterward)
+const DEFAULT_ITEM_NORM_POSITIONS: Array[Vector2] = [
+	Vector2(0.32, 0.35),
+	Vector2(0.68, 0.38),
+	Vector2(0.36, 0.68),
+	Vector2(0.66, 0.65)
 ]
+
+
+static func clamp_norm(norm: Vector2) -> Vector2:
+	return Vector2(
+		clampf(norm.x, NORM_MIN, NORM_MAX),
+		clampf(norm.y, NORM_MIN, NORM_MAX)
+	)
+
+
+static func norm_to_briefcase_local_xz(norm: Vector2) -> Vector2:
+	var c: Vector2 = clamp_norm(norm)
+	return Vector2(
+		lerpf(-INTERIOR_HALF_X, INTERIOR_HALF_X, c.x),
+		lerpf(-INTERIOR_HALF_Z, INTERIOR_HALF_Z, c.y)
+	)
+
+
+static func briefcase_local_xz_to_norm(local_x: float, local_z: float) -> Vector2:
+	var nx: float = (local_x + INTERIOR_HALF_X) / maxf(INTERIOR_HALF_X * 2.0, 0.001)
+	var nz: float = (local_z + INTERIOR_HALF_Z) / maxf(INTERIOR_HALF_Z * 2.0, 0.001)
+	return clamp_norm(Vector2(nx, nz))
+
+
+static func get_item_layer_y(layer_idx: int) -> float:
+	return ITEM_LAYER_BASE_Y + float(maxi(layer_idx, 0)) * ITEM_LAYER_STEP_Y
 
 
 static func build_briefcase_rig(parent: Node3D) -> Dictionary:
@@ -38,10 +74,6 @@ static func build_briefcase_rig(parent: Node3D) -> Dictionary:
 	felt_mat.albedo_color = Color(0.16, 0.22, 0.19)
 	felt_mat.roughness = 0.92
 
-	var divider_mat := StandardMaterial3D.new()
-	divider_mat.albedo_color = Color(0.28, 0.16, 0.09)
-	divider_mat.roughness = 0.80
-
 	var brass_mat := StandardMaterial3D.new()
 	brass_mat.albedo_color = Color(0.88, 0.74, 0.28)
 	brass_mat.metallic = 0.72
@@ -53,19 +85,11 @@ static func build_briefcase_rig(parent: Node3D) -> Dictionary:
 	floor_mi.position = Vector3(0.0, -0.067, 0.0)
 	rig_root.add_child(floor_mi)
 
-	# Soft dark-felt interior liner
+	# Continuous open slot-free dark-felt interior liner
 	var liner_mi := _make_box(Vector3(CASE_WIDTH - WALL_THICK * 2.0, 0.004, CASE_DEPTH - WALL_THICK * 2.0), felt_mat)
 	liner_mi.name = "FeltLiner"
 	liner_mi.position = Vector3(0.0, -0.057, 0.0)
 	rig_root.add_child(liner_mi)
-
-	# Subtle cross dividers marking the 4 objective compartments inside the base
-	var div_x := _make_box(Vector3(CASE_WIDTH - WALL_THICK * 2.4, 0.012, 0.010), divider_mat)
-	div_x.position = Vector3(0.0, -0.050, 0.0)
-	rig_root.add_child(div_x)
-	var div_z := _make_box(Vector3(0.010, 0.012, CASE_DEPTH - WALL_THICK * 2.4), divider_mat)
-	div_z.position = Vector3(0.0, -0.050, 0.0)
-	rig_root.add_child(div_z)
 
 	# Base walls (left, right, back, front)
 	var half_w: float = CASE_WIDTH * 0.5

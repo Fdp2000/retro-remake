@@ -250,5 +250,99 @@ func test_top_down_ui_three_zone_layout_and_carried_briefcase_lid() -> void:
 	drawer.set("drawer_visual_ratio", 1.0)
 	ui.refresh_view()
 	assert_false(ui._briefcase_lid_cover.visible, "Carried Briefcase lid fully open at 100%")
+	assert_true(ui._briefcase_felt_canvas != null and is_instance_valid(ui._briefcase_felt_canvas), "Left Open Carried Briefcase uses freeform felt canvas (no 2x2 GridContainer)")
+	assert_eq(ui._left_content_box.find_children("*", "GridContainer", true, false).size(), 0, "Zero GridContainer slots in Left Carried Briefcase UI")
+
+	# Freeform rearrangement inside carried Briefcase via request_move_briefcase_item
+	p1.request_move_briefcase_item("KEY", Vector2(0.77, 0.28))
+	assert_true(p1.briefcase_item_positions["KEY"].is_equal_approx(Vector2(0.77, 0.28)), "request_move_briefcase_item persisted exact normalized position")
 	ui.close_view()
 	assert_false(ui.visible, "TopDownContainerUI closes cleanly")
+
+
+func test_floor_objective_blocked_while_carrying_briefcase() -> void:
+	var host_root: Node = EditorInterface.get_base_control()
+	var arena := track(Node3D.new()) as Node3D
+	arena.name = "BriefcaseArenaBlockObj"
+	var players_node := Node3D.new()
+	players_node.name = "Players"
+	arena.add_child(players_node)
+	host_root.add_child(arena)
+
+	var p1: CharacterBody3D = _instantiate_live_player("1")
+	players_node.add_child(p1)
+	p1.pickup_item("BRIEFCASE", ["KEY"])
+
+	var money_pickup: StaticBody3D = track(load("res://entities/props/world_item_pickup.gd").new()) as StaticBody3D
+	money_pickup.name = "FloorMoneyPickup"
+	money_pickup.item_id = "MONEY"
+	arena.add_child(money_pickup)
+
+	var prompt: String = money_pickup.get_interaction_prompt_for_player(p1)
+	assert_true(prompt.contains("Drop Briefcase"), "Floor Objective prompt instructs player to drop Briefcase [Q]")
+
+	# Attempting to pick up floor MONEY while carrying BRIEFCASE must do nothing & keep pickup intact
+	money_pickup._execute_server_pickup(1)
+	assert_false(money_pickup._is_consumed, "Floor MONEY pickup NOT consumed while carrying Briefcase")
+	assert_eq(p1.left_hand_item_id, "BRIEFCASE", "Player still holds BRIEFCASE")
+	assert_eq(p1.briefcase_objectives.size(), 1, "MONEY was NOT auto-packed from the floor")
+
+
+func test_briefcase_freeform_xy_persistence_and_disjoint_layers() -> void:
+	MatchManager.start_new_match([1, 2], 7004)
+	var host_root: Node = EditorInterface.get_base_control()
+	var arena := track(Node3D.new()) as Node3D
+	arena.name = "BriefcaseArenaFreeform"
+	var players_node := Node3D.new()
+	players_node.name = "Players"
+	arena.add_child(players_node)
+	host_root.add_child(arena)
+
+	var p1: CharacterBody3D = _instantiate_live_player("1")
+	players_node.add_child(p1)
+
+	var briefcase_pickup: StaticBody3D = _instantiate_floor_briefcase(arena, ["PASSPORT", "MONEY"])
+	var bc_container: Node = briefcase_pickup.get_briefcase_container()
+	bc_container.open_container(1, false, p1)
+
+	# Verify 3D Briefcase rig has NO 4-slot divider meshes
+	var tray: Node3D = bc_container.get_tray_node()
+	var rig: Node = tray.get_node_or_null("BriefcaseVisualRig")
+	assert_true(rig != null, "BriefcaseVisualRig built")
+	# BaseFloor, FeltLiner, 4 BaseWalls, 3 Handle parts, 2 Clasps, LidPivot = 12 children (no 2 divider boxes)
+	assert_eq(rig.get_child_count(), 12, "3D Briefcase has zero divider meshes inside interior")
+
+	# Deposit KEY from Left Hand at exact custom normalized spot (0.22, 0.78)
+	p1.pickup_item("KEY")
+	assert_true(bc_container.deposit_left_hand_item(1, p1, Vector2(0.22, 0.78)), "Deposited KEY at custom freeform spot")
+	# Drag KEY freely to (0.81, 0.25) and check disjoint layer heights
+	assert_true(bc_container.move_stored_item(1, "KEY", Vector2(0.81, 0.25)), "Moved KEY freely to (0.81, 0.25)")
+	# Plant a Bomb at (0.79, 0.27) directly underneath KEY on Layer 0
+	p1.pickup_item("BOMB")
+	assert_true(bc_container.plant_trap_from_jacket(1, 0, "TRAY", p1, Vector2(0.79, 0.27)), "Planted BOMB freely at (0.79, 0.27)")
+
+	var contents_root: Node3D = tray.get_node_or_null("ContentsRoot") as Node3D
+	assert_true(contents_root != null, "ContentsRoot present")
+	var bomb_node: Node3D = contents_root.get_node_or_null("TrayTimeBomb") as Node3D
+	var passport_node: Node3D = contents_root.get_node_or_null("TrayItem_0_PASSPORT") as Node3D
+	var money_node: Node3D = contents_root.get_node_or_null("TrayItem_1_MONEY") as Node3D
+	var key_node: Node3D = contents_root.get_node_or_null("TrayItem_2_KEY") as Node3D
+	assert_true(bomb_node != null and passport_node != null and money_node != null and key_node != null, "All 3D layered nodes built")
+	assert_true(bomb_node.position.y < passport_node.position.y, "Bomb sits below Item Layer 1")
+	assert_true(passport_node.position.y < money_node.position.y and money_node.position.y < key_node.position.y, "Each item occupies a strictly disjoint increasing Y layer")
+
+	# Close -> Carry -> Drop -> Re-open preserves exact freeform coordinates!
+	bc_container.close_container(1, p1)
+	briefcase_pickup._execute_server_pickup(1)
+	assert_eq(p1.left_hand_item_id, "BRIEFCASE", "Picked up Briefcase")
+	assert_true(p1.briefcase_item_positions["KEY"].is_equal_approx(Vector2(0.81, 0.25)), "Carried Briefcase kept KEY custom pos (0.81, 0.25)")
+	assert_true(p1.briefcase_bomb_norm_pos.is_equal_approx(Vector2(0.79, 0.27)), "Carried Briefcase kept Bomb custom pos (0.79, 0.27)")
+
+	p1.server_request_hand_action("DROP_LEFT")
+	assert_eq(p1.left_hand_item_id, "NONE", "Dropped Briefcase to floor")
+	var dropped_node: StaticBody3D = arena.get_node_or_null("Dropped_1_BRIEFCASE_1") as StaticBody3D
+	assert_true(dropped_node != null, "Dropped Briefcase spawned in arena")
+	var dropped_container: Node = dropped_node.get_briefcase_container()
+	var dropped_positions: Dictionary = dropped_container.get("item_positions") as Dictionary
+	assert_true((dropped_positions["KEY"] as Vector2).is_equal_approx(Vector2(0.81, 0.25)), "Re-opened dropped Briefcase preserved KEY pos (0.81, 0.25)")
+	assert_true((dropped_container.get("bomb_norm_pos") as Vector2).is_equal_approx(Vector2(0.79, 0.27)), "Re-opened dropped Briefcase preserved Bomb pos (0.79, 0.27)")

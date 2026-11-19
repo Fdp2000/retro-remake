@@ -73,6 +73,8 @@ var live_bomb_fuse_remaining: float = 0.0
 var occupied_by_peer_id: int = 0
 var searched_by_peers: Dictionary = {} # peer_id -> bool
 var clutter_positions: Array[Vector2] = []
+var item_positions: Dictionary = {} # String item_id -> Vector2 norm [0.08..0.92]
+var bomb_norm_pos: Vector2 = BRIEFCASE_BUILDER.DEFAULT_BOMB_NORM_POS
 var linked_briefcase_pickup: Node = null
 
 var _occupant_player_override: Node = null
@@ -99,6 +101,7 @@ func _ready() -> void:
 		collision_layer = 0
 	collision_mask = 0
 	_init_clutter_if_empty()
+	_ensure_item_positions()
 	_tray_drawer_node = get_node_or_null("TrayPivot") as Node3D
 	_top_down_vantage = get_node_or_null("TopDownVantage") as Marker3D
 	if not Engine.is_editor_hint():
@@ -128,6 +131,17 @@ func _init_clutter_if_empty() -> void:
 	for i in range(maxi(clutter_count, 0)):
 		var base_pos: Vector2 = DEFAULT_CLUTTER_POSITIONS[i % DEFAULT_CLUTTER_POSITIONS.size()]
 		clutter_positions.append(base_pos)
+
+
+func _ensure_item_positions() -> void:
+	var next_positions: Dictionary = {}
+	for i in range(stored_items.size()):
+		var item_id: String = str(stored_items[i]).to_upper()
+		if item_positions.has(item_id) and item_positions[item_id] is Vector2:
+			next_positions[item_id] = BRIEFCASE_BUILDER.clamp_norm(item_positions[item_id] as Vector2)
+		else:
+			next_positions[item_id] = BRIEFCASE_BUILDER.DEFAULT_ITEM_NORM_POSITIONS[i % BRIEFCASE_BUILDER.DEFAULT_ITEM_NORM_POSITIONS.size()]
+	item_positions = next_positions
 
 
 func get_interaction_prompt() -> String:
@@ -225,18 +239,18 @@ func request_rearm_spring(caller_peer_id: int) -> void:
 		rearm_unlatched_spring_on_lip(caller_peer_id)
 
 
-func request_loot_item(caller_peer_id: int, item_id: String, target_slot: int = -1) -> void:
+func request_loot_item(caller_peer_id: int, item_id: String, target_slot: int = -1, target_briefcase_norm: Vector2 = Vector2(-1.0, -1.0)) -> void:
 	if _is_peer_connected():
-		_server_loot_item.rpc_id(1, caller_peer_id, item_id, target_slot)
+		_server_loot_item.rpc_id(1, caller_peer_id, item_id, target_slot, target_briefcase_norm)
 	else:
-		loot_item_to_player(caller_peer_id, item_id, target_slot)
+		loot_item_to_player(caller_peer_id, item_id, target_slot, null, target_briefcase_norm)
 
 
-func request_deposit_left_hand_item(caller_peer_id: int) -> void:
+func request_deposit_left_hand_item(caller_peer_id: int, norm_pos: Vector2 = Vector2(-1.0, -1.0)) -> void:
 	if _is_peer_connected():
-		_server_deposit_left_hand_item.rpc_id(1, caller_peer_id)
+		_server_deposit_left_hand_item.rpc_id(1, caller_peer_id, norm_pos)
 	else:
-		deposit_left_hand_item(caller_peer_id)
+		deposit_left_hand_item(caller_peer_id, null, norm_pos)
 
 
 func request_deposit_briefcase_item(caller_peer_id: int, obj_id: String) -> void:
@@ -246,11 +260,25 @@ func request_deposit_briefcase_item(caller_peer_id: int, obj_id: String) -> void
 		deposit_briefcase_item(caller_peer_id, obj_id)
 
 
-func request_plant_trap(caller_peer_id: int, slot_index: int, target_zone: String) -> void:
+func request_move_stored_item(caller_peer_id: int, item_id: String, norm_pos: Vector2) -> void:
 	if _is_peer_connected():
-		_server_plant_trap.rpc_id(1, caller_peer_id, slot_index, target_zone)
+		_server_move_stored_item.rpc_id(1, caller_peer_id, item_id, norm_pos)
 	else:
-		plant_trap_from_jacket(caller_peer_id, slot_index, target_zone)
+		move_stored_item(caller_peer_id, item_id, norm_pos)
+
+
+func request_move_planted_bomb(caller_peer_id: int, norm_pos: Vector2) -> void:
+	if _is_peer_connected():
+		_server_move_planted_bomb.rpc_id(1, caller_peer_id, norm_pos)
+	else:
+		move_planted_bomb(caller_peer_id, norm_pos)
+
+
+func request_plant_trap(caller_peer_id: int, slot_index: int, target_zone: String, norm_pos: Vector2 = Vector2(-1.0, -1.0)) -> void:
+	if _is_peer_connected():
+		_server_plant_trap.rpc_id(1, caller_peer_id, slot_index, target_zone, norm_pos)
+	else:
+		plant_trap_from_jacket(caller_peer_id, slot_index, target_zone, null, norm_pos)
 
 
 func request_grab_lit_bomb(caller_peer_id: int) -> void:
@@ -266,6 +294,7 @@ func request_grab_lit_bomb(caller_peer_id: int) -> void:
 
 func focus_container(peer_id: int, player_override: Node = null) -> bool:
 	_init_clutter_if_empty()
+	_ensure_item_positions()
 	if occupied_by_peer_id != 0 and occupied_by_peer_id != peer_id:
 		return false
 
@@ -418,6 +447,7 @@ func _trigger_spring_trap_ko(_peer_id: int, player: Node) -> void:
 
 func open_container(peer_id: int, is_slow_peek: bool, player_override: Node = null) -> Dictionary:
 	_init_clutter_if_empty()
+	_ensure_item_positions()
 	var result: Dictionary = {
 		"opened": false,
 		"reason": "",
@@ -578,7 +608,13 @@ func rearm_unlatched_spring_on_lip(peer_id: int) -> bool:
 	return true
 
 
-func loot_item_to_player(peer_id: int, item_id: String, target_jacket_slot: int = -1, player_override: Node = null) -> bool:
+func loot_item_to_player(
+	peer_id: int,
+	item_id: String,
+	target_jacket_slot: int = -1,
+	player_override: Node = null,
+	target_briefcase_norm: Vector2 = Vector2(-1.0, -1.0)
+) -> bool:
 	if occupied_by_peer_id != peer_id:
 		return false
 	var upper: String = item_id.to_upper()
@@ -595,11 +631,13 @@ func loot_item_to_player(peer_id: int, item_id: String, target_jacket_slot: int 
 		var held_left: String = str(player.get("left_hand_item_id")).to_upper()
 		if held_left == "BRIEFCASE":
 			if player.has_method("server_pack_objective_into_briefcase"):
-				if not bool(player.server_pack_objective_into_briefcase(upper)):
+				if not bool(player.server_pack_objective_into_briefcase(upper, target_briefcase_norm)):
 					return false
 			elif not _give_item_to_player(player, upper, target_jacket_slot):
 				return false
 			stored_items.remove_at(idx)
+			item_positions.erase(upper)
+			_ensure_item_positions()
 			_sync_back_to_briefcase_pickup()
 			_sync_state_to_peers()
 			return true
@@ -607,12 +645,17 @@ func loot_item_to_player(peer_id: int, item_id: String, target_jacket_slot: int 
 			if held_left == upper:
 				return false
 			if player.has_method("server_swap_left_hand_objective"):
+				var prev_pos: Variant = item_positions.get(upper, null)
 				var prev_obj: String = str(player.server_swap_left_hand_objective(upper))
 				if prev_obj == "NONE":
 					return false
 				stored_items.remove_at(idx)
+				item_positions.erase(upper)
 				if not (prev_obj in stored_items):
 					stored_items.append(prev_obj)
+					if prev_pos is Vector2:
+						item_positions[prev_obj] = prev_pos as Vector2
+				_ensure_item_positions()
 				_sync_back_to_briefcase_pickup()
 				_sync_state_to_peers()
 				return true
@@ -621,12 +664,14 @@ func loot_item_to_player(peer_id: int, item_id: String, target_jacket_slot: int 
 		return false
 
 	stored_items.remove_at(idx)
+	item_positions.erase(upper)
+	_ensure_item_positions()
 	_sync_back_to_briefcase_pickup()
 	_sync_state_to_peers()
 	return true
 
 
-func deposit_left_hand_item(peer_id: int, player_override: Node = null) -> bool:
+func deposit_left_hand_item(peer_id: int, player_override: Node = null, norm_pos: Vector2 = Vector2(-1.0, -1.0)) -> bool:
 	if occupied_by_peer_id != peer_id:
 		return false
 	if drawer_visual_ratio < 0.35:
@@ -655,6 +700,9 @@ func deposit_left_hand_item(peer_id: int, player_override: Node = null) -> bool:
 		return false
 
 	stored_items.append(taken)
+	if is_briefcase_container and norm_pos.x >= 0.0 and norm_pos.y >= 0.0:
+		item_positions[taken] = BRIEFCASE_BUILDER.clamp_norm(norm_pos)
+	_ensure_item_positions()
 	if AudioBridge != null:
 		AudioBridge.request_world_cue("paper_rustle", _safe_global_pos(), 4.0, peer_id)
 	_sync_back_to_briefcase_pickup()
@@ -679,13 +727,48 @@ func deposit_briefcase_item(peer_id: int, obj_id: String, player_override: Node 
 		return false
 
 	stored_items.append(upper)
+	_ensure_item_positions()
 	if AudioBridge != null:
 		AudioBridge.request_world_cue("paper_rustle", _safe_global_pos(), 4.0, peer_id)
 	_sync_state_to_peers()
 	return true
 
 
-func plant_trap_from_jacket(peer_id: int, slot_index: int, target_zone: String, player_override: Node = null) -> bool:
+func move_stored_item(peer_id: int, item_id: String, new_norm_pos: Vector2) -> bool:
+	if occupied_by_peer_id != peer_id:
+		return false
+	var upper: String = item_id.to_upper()
+	if not (upper in stored_items):
+		return false
+	item_positions[upper] = BRIEFCASE_BUILDER.clamp_norm(new_norm_pos)
+	_ensure_item_positions()
+	if AudioBridge != null:
+		AudioBridge.request_world_cue("paper_rustle", _safe_global_pos(), 4.0, peer_id)
+	_sync_back_to_briefcase_pickup()
+	_sync_state_to_peers()
+	return true
+
+
+func move_planted_bomb(peer_id: int, new_norm_pos: Vector2) -> bool:
+	if occupied_by_peer_id != peer_id:
+		return false
+	if not (staged_bomb_in_tray or armed_bomb or live_bomb_lit):
+		return false
+	bomb_norm_pos = BRIEFCASE_BUILDER.clamp_norm(new_norm_pos)
+	if AudioBridge != null:
+		AudioBridge.request_world_cue("paper_rustle", _safe_global_pos(), 4.0, peer_id)
+	_sync_back_to_briefcase_pickup()
+	_sync_state_to_peers()
+	return true
+
+
+func plant_trap_from_jacket(
+	peer_id: int,
+	slot_index: int,
+	target_zone: String,
+	player_override: Node = null,
+	norm_pos: Vector2 = Vector2(-1.0, -1.0)
+) -> bool:
 	if occupied_by_peer_id != peer_id:
 		return false
 	var player: Node = player_override if player_override != null else (_occupant_player_override if _occupant_player_override != null else _find_player_node(peer_id))
@@ -713,6 +796,10 @@ func plant_trap_from_jacket(peer_id: int, slot_index: int, target_zone: String, 
 		_consume_jacket_slot(player, slot_index)
 		staged_bomb_in_tray = true
 		bomb_owner_peer_id = peer_id
+		if norm_pos.x >= 0.0 and norm_pos.y >= 0.0:
+			bomb_norm_pos = BRIEFCASE_BUILDER.clamp_norm(norm_pos)
+		else:
+			bomb_norm_pos = BRIEFCASE_BUILDER.DEFAULT_BOMB_NORM_POS
 		if AudioBridge != null and GameConfig != null:
 			AudioBridge.request_world_cue("trap_arm", _safe_global_pos(), GameConfig.audio_radius_trap_setup, peer_id)
 		_sync_back_to_briefcase_pickup()
@@ -830,6 +917,8 @@ func _sync_back_to_briefcase_pickup() -> void:
 			if PICKUP_SCRIPT.is_objective_item(item):
 				packed.append(item)
 		linked_briefcase_pickup.set("packed_objectives", packed)
+		linked_briefcase_pickup.set("packed_item_positions", item_positions.duplicate())
+		linked_briefcase_pickup.set("bomb_norm_pos", bomb_norm_pos)
 		linked_briefcase_pickup.set("armed_spring", armed_spring or staged_spring_on_lip)
 		linked_briefcase_pickup.set("spring_owner_peer_id", spring_owner_peer_id)
 		linked_briefcase_pickup.set("armed_bomb", armed_bomb or staged_bomb_in_tray)
@@ -997,43 +1086,63 @@ func _server_rearm_spring(caller_peer_id: int) -> void:
 
 
 @rpc("any_peer", "call_local", "reliable")
-func _server_loot_item(caller_peer_id: int, item_id: String, target_slot: int) -> void:
+func _server_loot_item(caller_peer_id: int, item_id: String, target_slot: int, target_briefcase_norm: Vector2 = Vector2(-1.0, -1.0)) -> void:
 	if _is_peer_connected() and not multiplayer.is_server():
 		return
-	var sender: int = multiplayer.get_remote_sender_id()
+	var sender: int = multiplayer.get_remote_sender_id() if (_is_peer_connected() and multiplayer != null) else 0
 	if sender != 0:
 		caller_peer_id = sender
-	loot_item_to_player(caller_peer_id, item_id, target_slot)
+	loot_item_to_player(caller_peer_id, item_id, target_slot, null, target_briefcase_norm)
 
 
 @rpc("any_peer", "call_local", "reliable")
-func _server_deposit_left_hand_item(caller_peer_id: int) -> void:
+func _server_deposit_left_hand_item(caller_peer_id: int, norm_pos: Vector2 = Vector2(-1.0, -1.0)) -> void:
 	if _is_peer_connected() and not multiplayer.is_server():
 		return
-	var sender: int = multiplayer.get_remote_sender_id()
+	var sender: int = multiplayer.get_remote_sender_id() if (_is_peer_connected() and multiplayer != null) else 0
 	if sender != 0:
 		caller_peer_id = sender
-	deposit_left_hand_item(caller_peer_id)
+	deposit_left_hand_item(caller_peer_id, null, norm_pos)
 
 
 @rpc("any_peer", "call_local", "reliable")
 func _server_deposit_briefcase_item(caller_peer_id: int, obj_id: String) -> void:
 	if _is_peer_connected() and not multiplayer.is_server():
 		return
-	var sender: int = multiplayer.get_remote_sender_id()
+	var sender: int = multiplayer.get_remote_sender_id() if (_is_peer_connected() and multiplayer != null) else 0
 	if sender != 0:
 		caller_peer_id = sender
 	deposit_briefcase_item(caller_peer_id, obj_id)
 
 
 @rpc("any_peer", "call_local", "reliable")
-func _server_plant_trap(caller_peer_id: int, slot_index: int, target_zone: String) -> void:
+func _server_move_stored_item(caller_peer_id: int, item_id: String, norm_pos: Vector2) -> void:
 	if _is_peer_connected() and not multiplayer.is_server():
 		return
-	var sender: int = multiplayer.get_remote_sender_id()
+	var sender: int = multiplayer.get_remote_sender_id() if (_is_peer_connected() and multiplayer != null) else 0
 	if sender != 0:
 		caller_peer_id = sender
-	plant_trap_from_jacket(caller_peer_id, slot_index, target_zone)
+	move_stored_item(caller_peer_id, item_id, norm_pos)
+
+
+@rpc("any_peer", "call_local", "reliable")
+func _server_move_planted_bomb(caller_peer_id: int, norm_pos: Vector2) -> void:
+	if _is_peer_connected() and not multiplayer.is_server():
+		return
+	var sender: int = multiplayer.get_remote_sender_id() if (_is_peer_connected() and multiplayer != null) else 0
+	if sender != 0:
+		caller_peer_id = sender
+	move_planted_bomb(caller_peer_id, norm_pos)
+
+
+@rpc("any_peer", "call_local", "reliable")
+func _server_plant_trap(caller_peer_id: int, slot_index: int, target_zone: String, norm_pos: Vector2 = Vector2(-1.0, -1.0)) -> void:
+	if _is_peer_connected() and not multiplayer.is_server():
+		return
+	var sender: int = multiplayer.get_remote_sender_id() if (_is_peer_connected() and multiplayer != null) else 0
+	if sender != 0:
+		caller_peer_id = sender
+	plant_trap_from_jacket(caller_peer_id, slot_index, target_zone, null, norm_pos)
 
 
 @rpc("any_peer", "call_local", "reliable")
@@ -1049,6 +1158,8 @@ func _server_grab_lit_bomb(caller_peer_id: int) -> void:
 func _sync_state_to_peers() -> void:
 	var state_dict: Dictionary = {
 		"stored_items": stored_items.duplicate(),
+		"item_positions": item_positions.duplicate(),
+		"bomb_norm_pos": bomb_norm_pos,
 		"armed_spring": armed_spring,
 		"spring_unlatched": spring_unlatched,
 		"staged_spring_on_lip": staged_spring_on_lip,
@@ -1071,9 +1182,24 @@ func _sync_state_to_peers() -> void:
 @rpc("authority", "call_local", "reliable")
 func _rpc_sync_container_state(state_dict: Dictionary) -> void:
 	var prev_occ: int = occupied_by_peer_id
-	stored_items.clear()
+	var next_items: Array[String] = []
 	for it in state_dict.get("stored_items", []):
-		stored_items.append(str(it))
+		next_items.append(str(it))
+	stored_items = next_items
+
+	var raw_positions: Variant = state_dict.get("item_positions", {})
+	var next_positions: Dictionary = {}
+	if raw_positions is Dictionary:
+		for k in (raw_positions as Dictionary).keys():
+			var pos_val: Variant = (raw_positions as Dictionary)[k]
+			if pos_val is Vector2:
+				next_positions[str(k).to_upper()] = BRIEFCASE_BUILDER.clamp_norm(pos_val as Vector2)
+	item_positions = next_positions
+	_ensure_item_positions()
+
+	var raw_bpos: Variant = state_dict.get("bomb_norm_pos", BRIEFCASE_BUILDER.DEFAULT_BOMB_NORM_POS)
+	bomb_norm_pos = BRIEFCASE_BUILDER.clamp_norm(raw_bpos as Vector2) if raw_bpos is Vector2 else BRIEFCASE_BUILDER.DEFAULT_BOMB_NORM_POS
+
 	armed_spring = bool(state_dict.get("armed_spring", false))
 	spring_unlatched = bool(state_dict.get("spring_unlatched", false))
 	staged_spring_on_lip = bool(state_dict.get("staged_spring_on_lip", false))
@@ -1295,6 +1421,7 @@ func pick_drawer_object_at_ray(ray_origin: Vector3, ray_dir: Vector3) -> Diction
 func _rebuild_3d_interior() -> void:
 	if not is_inside_tree():
 		return
+	_ensure_item_positions()
 	_ensure_3d_tray_structure()
 	if _contents_root == null:
 		return
@@ -1334,15 +1461,20 @@ func _rebuild_3d_interior() -> void:
 		lip_area.add_child(spring_mesh)
 		_contents_root.add_child(lip_area)
 
-	# 2. Lit or Planted Time Bomb in Tray
+	# 2. Lit or Planted Time Bomb in Tray (Layer 0 in Briefcase so Objectives can layer cleanly above)
 	if live_bomb_lit or armed_bomb or staged_bomb_in_tray:
 		var bomb_area := Area3D.new()
 		bomb_area.name = "TrayTimeBomb"
 		bomb_area.collision_layer = DRAWER_CONTENTS_MASK
 		bomb_area.collision_mask = 0
-		bomb_area.position = Vector3(0.0, -0.025, 0.0) if is_briefcase_container else Vector3(0.0, -0.015, -0.04)
+		if is_briefcase_container:
+			var b_xz: Vector2 = BRIEFCASE_BUILDER.norm_to_briefcase_local_xz(bomb_norm_pos)
+			bomb_area.position = Vector3(b_xz.x, BRIEFCASE_BUILDER.BOMB_LAYER_Y, b_xz.y)
+		else:
+			bomb_area.position = Vector3(0.0, -0.015, -0.04)
 		bomb_area.set_meta("container_role", "lit_bomb" if live_bomb_lit else "planted_bomb")
-		var bomb_size := Vector3(0.15, 0.15, 0.15) if is_briefcase_container else Vector3(0.16, 0.16, 0.16)
+		bomb_area.set_meta("base_y", bomb_area.position.y)
+		var bomb_size := Vector3(0.14, 0.018, 0.14) if is_briefcase_container else Vector3(0.16, 0.16, 0.16)
 		bomb_area.set_meta("exact_aabb", AABB(-bomb_size * 0.5, bomb_size))
 
 		var bomb_col := CollisionShape3D.new()
@@ -1352,14 +1484,22 @@ func _rebuild_3d_interior() -> void:
 		bomb_area.add_child(bomb_col)
 
 		var bomb_mesh := PICKUP_SCRIPT.build_item_mesh("LIVE_BOMB" if live_bomb_lit else "BOMB")
-		bomb_mesh.scale = Vector3(0.48, 0.48, 0.48) if is_briefcase_container else Vector3(0.55, 0.55, 0.55)
+		bomb_mesh.scale = Vector3(0.48, 0.06, 0.48) if is_briefcase_container else Vector3(0.55, 0.55, 0.55)
 		bomb_area.add_child(bomb_mesh)
 		_contents_root.add_child(bomb_area)
 
-	# 3. Bottom Layer (Layer 0) — Stored Objectives & Gadgets (strictly below -0.039)
+	# 3. Stored Objectives & Gadgets — Freeform XZ + Disjoint Vertical Layers in Briefcase
 	for i in range(stored_items.size()):
 		var item_id: String = str(stored_items[i]).to_upper()
-		var xz: Vector2 = BRIEFCASE_BUILDER.BRIEFCASE_SLOT_OFFSETS[i % BRIEFCASE_BUILDER.BRIEFCASE_SLOT_OFFSETS.size()] if is_briefcase_container else norm_to_tray_local_xz(ITEM_TRAY_POSITIONS[i % ITEM_TRAY_POSITIONS.size()])
+		var xz := Vector2.ZERO
+		var item_y: float = -0.048
+		if is_briefcase_container:
+			var fallback_norm: Vector2 = BRIEFCASE_BUILDER.DEFAULT_ITEM_NORM_POSITIONS[i % BRIEFCASE_BUILDER.DEFAULT_ITEM_NORM_POSITIONS.size()]
+			var norm_pos: Vector2 = item_positions.get(item_id, fallback_norm) as Vector2
+			xz = BRIEFCASE_BUILDER.norm_to_briefcase_local_xz(norm_pos)
+			item_y = BRIEFCASE_BUILDER.get_item_layer_y(i)
+		else:
+			xz = norm_to_tray_local_xz(ITEM_TRAY_POSITIONS[i % ITEM_TRAY_POSITIONS.size()])
 		var layout: Dictionary = _get_stored_item_tray_layout(item_id)
 		var exact_size: Vector3 = layout["size"] as Vector3
 
@@ -1367,10 +1507,10 @@ func _rebuild_3d_interior() -> void:
 		item_area.name = "TrayItem_%d_%s" % [i, item_id]
 		item_area.collision_layer = DRAWER_CONTENTS_MASK
 		item_area.collision_mask = 0
-		item_area.position = Vector3(xz.x, -0.044 if is_briefcase_container else -0.048, xz.y)
+		item_area.position = Vector3(xz.x, item_y, xz.y)
 		item_area.set_meta("container_role", "loot_item")
 		item_area.set_meta("item_id", item_id)
-		item_area.set_meta("base_y", item_area.position.y)
+		item_area.set_meta("base_y", item_y)
 		item_area.set_meta("exact_aabb", AABB(-exact_size * 0.5, exact_size))
 
 		var item_col := CollisionShape3D.new()

@@ -119,9 +119,13 @@ func test_left_hand_objectives_and_briefcase_packing() -> void:
 	assert_true("PASSPORT" in p.briefcase_objectives and "MONEY" in p.briefcase_objectives, "Both PASSPORT and MONEY packed")
 	assert_true(is_equal_approx(p.get_current_move_speed(), 4.5 * 0.90), "Briefcase applies 0.90x move speed multiplier")
 
-	# 4. Pick up PLANS while holding BRIEFCASE -> Auto-packs PLANS into Briefcase
-	var r4: Dictionary = p.pickup_item("PLANS")
-	assert_true(bool(r4["picked"]), "PLANS auto-packed into held Briefcase")
+	# 4. Floor pickup of PLANS while holding BRIEFCASE is blocked (must drop Briefcase or pack in container view)
+	var r4_blocked: Dictionary = p.pickup_item("PLANS")
+	assert_false(bool(r4_blocked["picked"]), "Floor pickup of PLANS rejected while carrying BRIEFCASE")
+	assert_eq(p.briefcase_objectives.size(), 2, "Briefcase count unchanged after blocked floor pickup")
+
+	# Packing PLANS inside container view packs it into Briefcase
+	assert_true(p.server_pack_objective_into_briefcase("PLANS"), "PLANS packed into held Briefcase via container packing")
 	assert_eq(p.left_hand_item_id, "BRIEFCASE", "Still holding BRIEFCASE")
 	assert_eq(p.briefcase_objectives.size(), 3, "Briefcase now holds 3/4 Objectives")
 
