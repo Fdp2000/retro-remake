@@ -37,7 +37,8 @@ const CUE_SYNTH_PRESETS: Dictionary = {
 	"sneeze": [520.0, 280.0, 0.38, 0.60],
 	"sniffle_warning": [650.0, 780.0, 0.12, 0.50],
 	"clock_bonus_ding": [880.0, 1320.0, 0.18, 0.02],
-	"crt_static": [1200.0, 1200.0, 0.15, 0.95]
+	"crt_static": [1200.0, 1200.0, 0.15, 0.95],
+	"crt_click_off": [900.0, 320.0, 0.10, 0.85]
 }
 
 var _cached_streams: Dictionary = {}

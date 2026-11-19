@@ -166,6 +166,7 @@ var _club_qte_ui: ClubQTEBarUI = null
 var _watch_bluff_ui: SpyWatchBluffUI = null
 var _crt_replay_ui: CRTReplayMonitorUI = null
 var _ragdoll_ctrl: SpyRagdollController = null
+var _crt_body_visual_layer: int = 1
 var _camera_tween: Tween = null
 var _bonus_toast_timer: float = 0.0
 var ko_remaining_seconds: float = 0.0
@@ -269,6 +270,7 @@ func _ready() -> void:
 		hud.visible = true
 		if _ragdoll_ctrl != null:
 			_ragdoll_ctrl.set_first_person_local(true)
+		apply_local_camera_cull_mask()
 		_sync_camera_to_ragdoll_head()
 		ensure_overlay_uis()
 		if MatchManager != null:
@@ -310,6 +312,8 @@ func ensure_overlay_uis() -> void:
 		_crt_replay_ui = CRT_REPLAY_UI_SCRIPT.new()
 		_crt_replay_ui.name = "CRTReplayMonitorUI"
 		target_hud.add_child(_crt_replay_ui)
+	if _crt_replay_ui != null:
+		_crt_replay_ui.setup_for_owner(self)
 
 
 # ==========================================
@@ -918,6 +922,12 @@ func _dispatch_crt_replay_to_attacker(attacker_id: int, reason: String, victim_i
 
 @rpc("any_peer", "call_local", "reliable")
 func notify_crt_replay(reason: String, victim_peer_id: int) -> void:
+	if _is_peer_connected():
+		var sender_id: int = multiplayer.get_remote_sender_id()
+		if sender_id != 0 and sender_id != 1:
+			return
+		if not is_multiplayer_authority():
+			return
 	ensure_overlay_uis()
 	if _crt_replay_ui != null:
 		_crt_replay_ui.trigger_replay(reason, victim_peer_id)
@@ -1984,6 +1994,51 @@ func _update_mesh_color() -> void:
 			mesh_instance.visible = false
 
 
+func _set_visual_layer_recursive(node: Node, layer_mask: int) -> void:
+	if node is VisualInstance3D:
+		(node as VisualInstance3D).layers = layer_mask
+	for child in node.get_children():
+		_set_visual_layer_recursive(child, layer_mask)
+
+
+func apply_local_camera_cull_mask() -> void:
+	var cam: Camera3D = camera if camera != null else get_node_or_null("Head/Camera3D") as Camera3D
+	if cam == null:
+		return
+	var all_layers: int = GameConfig.VISUAL_LAYER_ALL if GameConfig != null else 0xFFFFF
+	var local_bit: int = GameConfig.VISUAL_LAYER_LOCAL_SPY_BODY if GameConfig != null else (1 << 10)
+	var is_local_fp: bool = (_ragdoll_ctrl != null and _ragdoll_ctrl.is_first_person_local) or (is_inside_tree() and not Engine.is_editor_hint() and is_multiplayer_authority())
+	cam.cull_mask = (all_layers & ~local_bit) if is_local_fp else all_layers
+
+
+func set_crt_body_visual_layer(layer_mask: int) -> void:
+	_crt_body_visual_layer = layer_mask if layer_mask > 0 else 1
+	_ensure_ragdoll_controller()
+	if _ragdoll_ctrl != null:
+		_ragdoll_ctrl.set_body_visual_layer(_crt_body_visual_layer)
+	var b_socket: Marker3D = back_club_socket if back_club_socket != null else get_node_or_null("VisualRig/BackClubSocket") as Marker3D
+	if b_socket != null:
+		_set_visual_layer_recursive(b_socket, _crt_body_visual_layer)
+	var w_socket: Marker3D = spy_wearable_socket if spy_wearable_socket != null else get_node_or_null("VisualRig/SpyWearableSocket") as Marker3D
+	if w_socket != null:
+		_set_visual_layer_recursive(w_socket, _crt_body_visual_layer)
+
+
+func get_crt_body_visual_layer() -> int:
+	if _ragdoll_ctrl != null:
+		return _ragdoll_ctrl.body_visual_layer
+	return _crt_body_visual_layer
+
+
+func get_crt_pov_transform() -> Transform3D:
+	if _ragdoll_ctrl != null and _ragdoll_ctrl.skeleton != null:
+		return _ragdoll_ctrl.get_head_camera_world_transform()
+	if head != null and head.is_inside_tree():
+		return head.global_transform
+	var stand_y: float = GameConfig.standing_neck_y if GameConfig != null else 1.6
+	return Transform3D(Basis.from_euler(Vector3(head_pitch, rotation.y, 0.0)), _safe_global_pos() + Vector3(0.0, stand_y, 0.0))
+
+
 func _setup_wearable_visual() -> void:
 	var w_socket: Marker3D = spy_wearable_socket if spy_wearable_socket != null else get_node_or_null("VisualRig/SpyWearableSocket") as Marker3D
 	if w_socket == null or w_socket.get_child_count() > 0:
@@ -1996,6 +2051,7 @@ func _setup_wearable_visual() -> void:
 	var mat := StandardMaterial3D.new()
 	mat.albedo_color = Color(0.10, 0.85, 0.75)
 	watch_mi.material_override = mat
+	_set_visual_layer_recursive(watch_mi, get_crt_body_visual_layer())
 	w_socket.add_child(watch_mi)
 
 
@@ -2010,6 +2066,7 @@ func _refresh_hand_and_back_sockets() -> void:
 		if right_hand_item_id != "CLUB":
 			var club_back: MeshInstance3D = PICKUP_SCRIPT.build_item_mesh("CLUB")
 			club_back.name = "HolsteredClubMesh"
+			_set_visual_layer_recursive(club_back, get_crt_body_visual_layer())
 			b_socket.add_child(club_back)
 
 	if l_socket != null:

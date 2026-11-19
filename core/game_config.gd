@@ -39,6 +39,19 @@ const LAYER_RAGDOLL_KO: int = 1 << 3         # Layer 4: Active during 15.0s Phys
 const LAYER_TRIGGERS: int = 1 << 4           # Layer 5: RoomZones, DoorBashDetector, Tripwire, Splash, Bomb Catch
 
 # ==========================================
+# 3D Visual Render Layer Bitmasks (Camera3D.cull_mask / VisualInstance3D.layers)
+# ==========================================
+const VISUAL_LAYER_ALL: int = 0xFFFFF                 # All 20 Godot visual layers
+const VISUAL_LAYER_WORLD: int = 1 << 0                # Layer 1: World geometry, doors, props, traps, held items
+const VISUAL_LAYER_LOCAL_SPY_BODY: int = 1 << 10      # Layer 11: Local spy's own Head/Eyes/Body (hidden from local cam, visible to rival CRT cam)
+const VISUAL_LAYER_REMOTE_SPY_BASE_BIT: int = 11      # Layers 12-14 (bits 11..13): Up to 3 remote rivals' Head/Eyes/Body
+const VISUAL_LAYER_REMOTE_SPY_SLOTS: int = 3
+
+
+static func get_remote_spy_visual_layer(slot_index: int) -> int:
+	return 1 << (VISUAL_LAYER_REMOTE_SPY_BASE_BIT + posmod(slot_index, VISUAL_LAYER_REMOTE_SPY_SLOTS))
+
+# ==========================================
 # Mouse Sensitivity & Per-User DPI Normalization
 # ==========================================
 @export_group("Mouse & Look Controls")
@@ -176,6 +189,8 @@ const LAYER_TRIGGERS: int = 1 << 4           # Layer 5: RoomZones, DoorBashDetec
 @export var crt_replay_duration: float = 3.0
 @export var crt_replay_frame_count: int = 36
 @export var crt_viewport_size: Vector2i = Vector2i(240, 135)
+## Seconds of live post-impact ragdoll footage appended onto the 3.0s CRT replay after the trap hits.
+@export var crt_replay_post_hit_seconds: float = 1.0
 
 @export var anti_camp_warning_seconds: float = 15.0
 @export var anti_camp_sneeze_seconds: float = 20.0

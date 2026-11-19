@@ -316,11 +316,15 @@ func test_ragdoll_skeleton_head_camera_pelvis_sync_and_secondary_hit() -> void:
 	assert_true(spy2._ragdoll_ctrl != null and spy2._ragdoll_ctrl.skeleton != null, "Spy 2 mounts AgentPurple Skeleton3D")
 	assert_eq(spy2._ragdoll_ctrl.physical_bones.size(), 13, "13 continuous PhysicalBone3D nodes built on Agent Skeleton3D")
 
-	# Verify local first-person hides Head, Eyes, and Body meshes so nothing blocks the camera
+	# Verify local first-person isolates Head, Eyes, and Body onto VISUAL_LAYER_LOCAL_SPY_BODY
+	# so local FPS camera never clips its own head while rival CRT Trap-Cam can still render this spy.
 	spy1._ragdoll_ctrl.set_first_person_local(true)
 	var fp_head_mesh: MeshInstance3D = spy1._ragdoll_ctrl.skeleton.get_node("Head") as MeshInstance3D
 	var fp_body_mesh: MeshInstance3D = spy1._ragdoll_ctrl.skeleton.get_node("Body") as MeshInstance3D
-	assert_true(not fp_head_mesh.visible and not fp_body_mesh.visible, "Local first-person hides 3D Head and Body meshes so view is never obstructed")
+	assert_true(fp_head_mesh.visible and fp_body_mesh.visible, "Local 3D Head and Body remain visible on dedicated layer so rival CRT Trap-Cam can render the trap owner")
+	assert_eq(fp_head_mesh.layers, GameConfig.VISUAL_LAYER_LOCAL_SPY_BODY, "Local Head mesh isolated onto VISUAL_LAYER_LOCAL_SPY_BODY")
+	assert_eq(fp_body_mesh.layers, GameConfig.VISUAL_LAYER_LOCAL_SPY_BODY, "Local Body mesh isolated onto VISUAL_LAYER_LOCAL_SPY_BODY")
+	assert_eq(spy1.camera.cull_mask & GameConfig.VISUAL_LAYER_LOCAL_SPY_BODY, 0, "Local Camera3D excludes VISUAL_LAYER_LOCAL_SPY_BODY so FPS view is never obstructed")
 
 	# Verify permanent head-bone camera starts at exact standing neck position (0, 1.6, -3.0) with zero jump on KO
 	var pre_ko_cam_pos: Vector3 = spy2._ragdoll_ctrl.get_head_camera_world_transform().origin
@@ -359,3 +363,80 @@ func test_ragdoll_skeleton_head_camera_pelvis_sync_and_secondary_hit() -> void:
 	assert_true(not spy2._ragdoll_ctrl.is_ragdoll_active, "Wake-up stops ragdoll simulation")
 	assert_eq(spy2.stance_state, GameConfig.Stance.WALK, "Wake-up restores WALK stance")
 	assert_true(spy2.wakeup_immunity_remaining > 1.5, "Wake-up grants 2.0s blink immunity")
+
+
+func test_crt_trap_cam_rival_subviewport_layers_and_post_hit_tail() -> void:
+	var spy1: CharacterBody3D = _spawn_spy(1, Vector3(0.0, 0.0, 0.0))
+	var spy2: CharacterBody3D = _spawn_spy(2, Vector3(0.0, 0.0, -3.0))
+	spy1._ensure_ragdoll_controller()
+	spy2._ensure_ragdoll_controller()
+	spy1._ragdoll_ctrl.set_first_person_local(true)
+	spy2._ragdoll_ctrl.set_first_person_local(false)
+
+	var crt: CRTReplayMonitorUI = spy1._crt_replay_ui
+	assert_true(crt != null, "Local spy mounts CRTReplayMonitorUI")
+	crt.sync_rival_rigs()
+	crt.update_rival_camera_transforms()
+
+	assert_true(crt.get_rival_rig(1).is_empty(), "CRT monitor never builds a SubViewport for owner self")
+	var rig2: Dictionary = crt.get_rival_rig(2)
+	assert_true(not rig2.is_empty(), "CRT monitor creates a dedicated SubViewport rig for remote rival Spy 2")
+
+	var vp2: SubViewport = rig2.get("viewport") as SubViewport
+	var cam2: Camera3D = rig2.get("camera") as Camera3D
+	assert_true(vp2 != null and cam2 != null, "Rival SubViewport and Camera3D exist")
+	assert_eq(vp2.size, Vector2i(240, 135), "Rival CRT SubViewport renders at low-res 240x135")
+	assert_true(vp2.render_target_update_mode != SubViewport.UPDATE_ALWAYS, "Rival CRT SubViewport never runs UPDATE_ALWAYS")
+	assert_true(cam2.current, "Rival CRT Camera3D is active inside its SubViewport")
+
+	var expected_pov: Transform3D = spy2.get_crt_pov_transform()
+	assert_true(cam2.global_transform.origin.distance_to(expected_pov.origin) < 0.02, "Rival CRT Camera3D tracks rival spine.006 head anchor")
+
+	var rival_layer: int = spy2.get_crt_body_visual_layer()
+	assert_true(rival_layer != GameConfig.VISUAL_LAYER_LOCAL_SPY_BODY, "Remote rival body uses a distinct visual layer from local player")
+	assert_eq(cam2.cull_mask & rival_layer, 0, "Rival CRT SubViewport excludes rival's own Head/Eyes/Body meshes")
+	assert_true((cam2.cull_mask & GameConfig.VISUAL_LAYER_LOCAL_SPY_BODY) != 0, "Rival CRT SubViewport includes local trap owner's body layer")
+	assert_true((spy1.camera.cull_mask & rival_layer) != 0, "Local FPS Camera3D renders remote rival body layer normally")
+
+	# Push 40 synthetic 240x135 images and confirm 36-frame ring buffer cap
+	for _i in range(40):
+		var frame := Image.create(240, 135, false, Image.FORMAT_RGB8)
+		crt.push_frame(frame, 2)
+	assert_eq(crt.get_buffer_size(2), 36, "Rival CRT ring buffer enforces 36-frame circular cap")
+
+	# Self-inflicted trap must NOT trigger CRT replay
+	spy1.apply_trap_ko("SPRING", 1)
+	assert_false(crt.is_replaying(), "Self-inflicted trap KO does not open CRT Trap-Cam replay")
+	spy1.wake_up_from_ko()
+	spy1.wakeup_immunity_remaining = 0.0
+
+	# Trap hitting rival opens 2.0s pre-impact + 1.0s post-impact CRT replay
+	AudioBridge.clear_recent_cues()
+	spy2.apply_trap_ko("SPRING", 1)
+	assert_true(crt.is_replaying(), "Rival trap KO triggers CRT Trap-Cam replay on trap owner's HUD")
+	assert_eq(crt.get_active_victim_peer_id(), 2, "CRT replay locks onto hit rival peer ID")
+	assert_eq(crt.get_playback_frame_count(), 24, "CRT replay slices 24 pre-impact frames (2.0s at 12 FPS)")
+	assert_eq(crt.get_post_capture_remaining(), 12, "CRT replay reserves 12 post-impact frames (1.0s ragdoll tail)")
+
+	# Verify camera continues tracking rival head bone during active ragdoll KO
+	crt.update_rival_camera_transforms()
+	var ko_head_xform: Transform3D = spy2._ragdoll_ctrl.get_head_camera_world_transform()
+	assert_true(cam2.global_transform.origin.distance_to(ko_head_xform.origin) < 0.02, "CRT Camera3D tracks rival spine.006 bone during KO ragdoll")
+
+	# Feed 12 live post-impact frames and confirm seamless append to 36 total frames
+	for _j in range(12):
+		var tail_frame := Image.create(240, 135, false, Image.FORMAT_RGB8)
+		crt.push_frame(tail_frame, 2)
+	assert_eq(crt.get_playback_frame_count(), 36, "Post-impact frames append up to full 36-frame 3.0s CRT replay")
+	assert_eq(crt.get_post_capture_remaining(), 0, "Post-impact capture counter reaches 0 after 12 frames")
+
+	# Advancing 3.1s closes replay and emits crt_click_off
+	crt.step_replay_playback(3.1)
+	assert_false(crt.is_replaying(), "CRT Trap-Cam closes automatically after 3.0s duration")
+	var cues: Array[Dictionary] = AudioBridge.get_recent_cues()
+	var saw_click_off: bool = false
+	for c in cues:
+		if str(c.get("cue_id", "")) == "crt_click_off":
+			saw_click_off = true
+			break
+	assert_true(saw_click_off, "Closing CRT replay emits crt_click_off local audio cue")

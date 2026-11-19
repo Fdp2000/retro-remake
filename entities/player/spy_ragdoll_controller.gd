@@ -32,6 +32,7 @@ var simulator: PhysicalBoneSimulator3D = null
 var physical_bones: Dictionary = {} # bone_name -> PhysicalBone3D
 var is_ragdoll_active: bool = false
 var is_first_person_local: bool = false
+var body_visual_layer: int = 1
 var _walk_cycle_phase: float = 0.0
 var _crouch_blend: float = 0.0
 var _pelvis_sync_target: Vector3 = Vector3.ZERO
@@ -52,8 +53,14 @@ func _physics_process(_delta: float) -> void:
 
 func setup_for_role(role: int, local_first_person: bool = false) -> void:
 	is_first_person_local = local_first_person
+	var local_layer: int = GameConfig.VISUAL_LAYER_LOCAL_SPY_BODY if GameConfig != null else (1 << 10)
+	if is_first_person_local:
+		body_visual_layer = local_layer
+	elif body_visual_layer == local_layer:
+		body_visual_layer = 1
 	if agent_instance != null and is_instance_valid(agent_instance) and current_role == role:
 		_apply_first_person_visibility_mode()
+		_sync_owner_camera_cull_mask()
 		return
 
 	if is_ragdoll_active:
@@ -85,6 +92,7 @@ func setup_for_role(role: int, local_first_person: bool = false) -> void:
 		_build_physical_bone_simulator()
 		_apply_idle_standing_pose(0.0, 0.0)
 	_apply_first_person_visibility_mode()
+	_sync_owner_camera_cull_mask()
 
 
 func _configure_meshes_cull_margin() -> void:
@@ -108,22 +116,43 @@ func _calibrate_permanent_head_camera_anchor() -> void:
 	_head_eye_bone_local = head_in_ctrl.affine_inverse() * desired_in_ctrl
 
 
+func set_body_visual_layer(layer_mask: int) -> void:
+	body_visual_layer = layer_mask if layer_mask > 0 else 1
+	_apply_first_person_visibility_mode()
+
+
 func set_first_person_local(local_fp: bool) -> void:
 	is_first_person_local = local_fp
+	var local_layer: int = GameConfig.VISUAL_LAYER_LOCAL_SPY_BODY if GameConfig != null else (1 << 10)
+	if is_first_person_local:
+		body_visual_layer = local_layer
+	elif body_visual_layer == local_layer:
+		body_visual_layer = 1
 	_apply_first_person_visibility_mode()
+	_sync_owner_camera_cull_mask()
+
+
+func _sync_owner_camera_cull_mask() -> void:
+	var owner_node: Node = get_parent()
+	if owner_node != null and owner_node.name == "VisualRig":
+		owner_node = owner_node.get_parent()
+	if owner_node != null and owner_node.has_method("apply_local_camera_cull_mask"):
+		owner_node.apply_local_camera_cull_mask()
 
 
 func _apply_first_person_visibility_mode() -> void:
 	if skeleton == null:
 		return
-	# Hide the local player's own 3D Head, Eyes, and Body meshes in first person
-	# so nothing ever clips into or blocks the permanent head-bone camera view.
-	for mesh_name in ["Head", "Eyes", "Body"]:
-		var m: MeshInstance3D = skeleton.get_node_or_null(mesh_name) as MeshInstance3D
-		if m != null:
-			m.visible = not is_first_person_local
+	# Isolate Head/Eyes/Body onto dedicated visual render layers instead of setting visible=false,
+	# so local FPS camera never clips its own head while rival CRT Trap-Cams can still render this spy.
+	for child in skeleton.get_children():
+		if child is MeshInstance3D and child.name != "SkeletonKeepAlive":
+			var m: MeshInstance3D = child as MeshInstance3D
+			m.visible = true
+			m.layers = body_visual_layer
+			m.extra_cull_margin = 16384.0 if (is_first_person_local and m.name == "Body") else 64.0
 
-	# Ensure a skinned keep-alive MeshInstance3D stays in the frustum when local meshes are hidden
+	# Ensure a skinned keep-alive MeshInstance3D stays in the frustum when local meshes are layer-culled
 	# so Godot's renderer never culls Skeleton3D / PhysicalBoneSimulator3D updates during local KO!
 	var keep_alive: MeshInstance3D = skeleton.get_node_or_null("SkeletonKeepAlive") as MeshInstance3D
 	var body_mesh: MeshInstance3D = skeleton.get_node_or_null("Body") as MeshInstance3D
@@ -143,6 +172,7 @@ func _apply_first_person_visibility_mode() -> void:
 		keep_alive.material_override = ka_mat
 		skeleton.add_child(keep_alive)
 	if keep_alive != null:
+		keep_alive.layers = body_visual_layer
 		keep_alive.visible = is_first_person_local
 
 
