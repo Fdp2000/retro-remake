@@ -163,6 +163,7 @@ static func get_remote_spy_visual_layer(slot_index: int) -> int:
 @export var club_melee_range: float = 2.0
 @export var club_overcharge_stumble_duration: float = 2.5
 @export var club_charge_exit_lerp_duration: float = 0.40
+@export var debug_club_hit_gizmo: bool = false
 
 @export var ko_ragdoll_duration: float = 15.0
 @export var ko_wakeup_blend_duration: float = 0.35
