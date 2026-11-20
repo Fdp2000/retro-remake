@@ -595,7 +595,7 @@ func trigger_held_briefcase_spring_ko() -> void:
 	apply_trap_ko("SPRING", owner_id, back_dir * 13.5 + Vector3(0.0, 6.0, 0.0))
 
 
-func ignite_held_briefcase_bomb(is_slow_peek: bool) -> void:
+func ignite_held_briefcase_bomb(_is_slow_peek: bool = false) -> void:
 	var inv: SpyInventoryComponent = _inv()
 	if left_hand_item_id != "BRIEFCASE" or not inv.briefcase_armed_bomb:
 		return
@@ -603,8 +603,7 @@ func ignite_held_briefcase_bomb(is_slow_peek: bool) -> void:
 	inv.briefcase_live_bomb_lit = true
 	var min_f: float = GameConfig.time_bomb_fuse_min if GameConfig != null else 2.5
 	var max_f: float = GameConfig.time_bomb_fuse_max if GameConfig != null else 4.0
-	var base_fuse: float = randf_range(min_f, max_f)
-	inv.briefcase_live_bomb_fuse_remaining = maxf(base_fuse - 0.70, 0.5) if is_slow_peek else base_fuse
+	inv.briefcase_live_bomb_fuse_remaining = randf_range(min_f, max_f)
 	if AudioBridge != null:
 		var fuse_rad: float = GameConfig.audio_radius_bomb_fuse if GameConfig != null else 10.0
 		AudioBridge.request_world_cue("bomb_hiss", _safe_global_pos(), fuse_rad, inv.briefcase_bomb_owner_id)

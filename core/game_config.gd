@@ -141,7 +141,7 @@ static func get_remote_spy_visual_layer(slot_index: int) -> int:
 @export var tripwire_min_span: float = 0.40
 @export var tripwire_max_span: float = 2.50
 @export var tripwire_height: float = 0.35
-@export var time_bomb_fuse_min: float = 2.5
+@export var time_bomb_fuse_min: float = 3.3
 @export var time_bomb_fuse_max: float = 4.0
 @export var time_bomb_throw_distance: float = 9.0
 @export var time_bomb_throw_speed: float = 9.5

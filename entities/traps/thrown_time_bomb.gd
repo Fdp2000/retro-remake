@@ -144,8 +144,16 @@ static func detonate_blast_at(tree: SceneTree, world_3d: World3D, blast_pos: Vec
 		if p is Node3D and (p as Node3D).global_position.distance_to(blast_pos) <= blast_radius:
 			if not _is_point_blast_occluded(world_3d, blast_pos, (p as Node3D).global_position, exclude_rid):
 				if p.has_method("apply_trap_ko"):
-					var away_dir: Vector3 = ((p as Node3D).global_position + Vector3(0.0, 0.9, 0.0) - blast_pos).normalized()
-					var blast_kick: Vector3 = away_dir * 16.5 + Vector3(0.0, 7.5, 0.0)
+					var p3d: Node3D = p as Node3D
+					var away_horiz: Vector3 = p3d.global_position - blast_pos
+					away_horiz.y = 0.0
+					if away_horiz.length_squared() < 0.02:
+						away_horiz = p3d.global_transform.basis.z
+						away_horiz.y = 0.0
+					if away_horiz.length_squared() < 0.0001:
+						away_horiz = Vector3(0.0, 0.0, 1.0)
+					away_horiz = away_horiz.normalized()
+					var blast_kick: Vector3 = away_horiz * 12.0 + Vector3(0.0, 4.5, 0.0)
 					p.apply_trap_ko("BOMB", bomb_owner_id, blast_kick)
 
 

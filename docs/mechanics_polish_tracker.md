@@ -60,7 +60,7 @@ One mechanic at a time. For each one we: **review the design → you test it →
 | # | Mechanic | Status | Notes |
 |---|---|---|---|
 | E1 | Spring Trap: arm in drawer, fast open = KO, slow open = see & unlatch < 42% (else KO) | ✅ | Armed Springs trigger KO if still un-disarmed at `SPRING_TRIGGER_VISUAL_RATIO` (`0.42`) during Slow Open; clicking the peeking 3D `LipSpringTrap` or carried Briefcase unlatch button between `15%` and `42%` unlatches safely and lets Slow Open continues to `100%` |
-| E2 | Time Bomb: arm in drawer/briefcase, fuse lights on open (2.5–4.0s) | ✅ | |
+| E2 | Time Bomb: arm in drawer/briefcase, fuse lights on open (3.3–4.0s) | ✅ | Removed `step_open_drawer`; fuse lights immediately at `0%` on both Fast Slam and Committed Slow Open |
 
 ## F. Knockout (the payoff for everything)
 | # | Mechanic | Status | Notes |
@@ -77,11 +77,11 @@ One mechanic at a time. For each one we: **review the design → you test it →
 | G1 | Water Bucket: `Hold LMB` 0.8s rig on closed door, 10° ajar tell | ✅ | |
 | G2 | Water Bucket: drops past 28° (4° same-side), KO within 1.2m vs harmless spill | ✅ | |
 | G3 | Water Bucket: look at bucket + `Hold E` 1.0s steal (stays ajar) | ✅ | |
-| G4 | Tripwire: `Hold LMB` 0.8s place on floor | 🟡 | |
-| G5 | Tripwire: walk/sprint = KO, jump / crouch = safe, crouch + `Hold E` steal | 🟡 | |
-| G6 | Lit Bomb: click in drawer → auto-close → live bomb in FPS hand | 🟡 | |
-| G7 | Lit Bomb: `LMB` throw (9m arc), mid-air catch by rival, floor re-grab | 🟡 | |
-| G8 | Lit Bomb: 5m blast, blocked by walls / closed doors, self-detonates if held | 🟡 | Wall blocking is **not tested** |
+| G4 | Tripwire: two-point pole-and-wire placement (`Hold LMB` 0.4s per pole, 0.4m–2.5m span) | ✅ | |
+| G5 | Tripwire: walk/sprint = KO, jump / crouch = safe, crouch + `Hold E` steal | ✅ | |
+| G6 | Lit Bomb: click in drawer → auto-close → live bomb in FPS hand | ✅ | |
+| G7 | Lit Bomb: `LMB` throw (9m arc), mid-air catch by rival, floor re-grab | ✅ | |
+| G8 | Lit Bomb: 5m blast, blocked by walls / closed doors, self-detonates if held | ✅ | Fixed in-hand detonation launching ragdoll straight up into roof (now horizontal/backward `12.0` + `4.5` up) |
 | G9 | DVD Dart Gun: bouncing reticle 320 px/s | 🟡 | |
 | G10 | DVD Dart Gun: 1 shot → KO → gun breaks | 🟡 | Test no longer checks the KO |
 | G11 | Owner-trigger parity (your own traps hit you too) | 🟡 | Cross-cutting, check per trap |
@@ -133,3 +133,4 @@ flowchart LR
 | 2026-11-19 | B3, D3, D7, I5 | Signed off B3, D3, D7 ✅ (future 3D pocket/hand visuals noted); built real rival head-camera `SubViewport` CRT Trap-Cam Replay (`I5` 🟡) with visual-layer self-occlusion & retro CRT shader bezel |
 | 2026-11-19 | J1–J3, J5 | Wired Full Match Mode vs. Sandbox Gym Mode, fixed `FurnitureSpawner`/`MatchSpawner` drawer overlap, connected clock elimination item scatter & KO lock, and built `MatchEndOverlayUI` with instant Rematch & Mode Switch 🟡 |
 | 2026-11-20 | C1–C4, D1–D8, E1–E2 | Groups C (Doors), D (Drawers & Search), and E (Drawer Traps) signed off ✅ |
+| 2026-11-20 | E2, G6–G8 | Signed off Lit Bomb (`G6–G8`) ✅; removed `step_open_drawer`, lit bomb fuse immediately on slow/fast open (`3.3–4.0s`), and fixed self-detonation roof-stuck ragdoll impulse |

@@ -86,7 +86,6 @@ var _tray_drawer_node: Node3D = null
 var _top_down_vantage: Marker3D = null
 var _slide_tween: Tween = null
 var _tray_target_z: float = DRAWER_CLOSED_Z
-var _is_preview_sliding: bool = false
 var _opened_effects_applied: bool = false
 var is_slow_opening: bool = false
 var _slow_open_peer_id: int = 0
@@ -422,13 +421,6 @@ func request_focus_container(caller_peer_id: int) -> void:
 		focus_container(caller_peer_id)
 
 
-func request_step_open_drawer(caller_peer_id: int, delta: float) -> void:
-	if _is_peer_connected():
-		_server_step_open_drawer.rpc_id(1, caller_peer_id, delta)
-	else:
-		step_open_drawer(caller_peer_id, delta)
-
-
 func request_start_slow_open(caller_peer_id: int) -> void:
 	if _is_peer_connected():
 		_server_start_slow_open.rpc_id(1, caller_peer_id)
@@ -448,10 +440,7 @@ func request_interaction(caller_peer_id: int) -> void:
 
 
 func request_hold_interaction(caller_peer_id: int) -> void:
-	if _is_peer_connected():
-		_server_open_container.rpc_id(1, caller_peer_id, true)
-	else:
-		open_container(caller_peer_id, true)
+	request_start_slow_open(caller_peer_id)
 
 
 func request_close_container(caller_peer_id: int) -> void:
@@ -552,7 +541,6 @@ func focus_container(peer_id: int, player_override: Node = null) -> bool:
 	var already_this_occupant: bool = (occupied_by_peer_id == peer_id)
 	occupied_by_peer_id = peer_id
 	_occupant_player_override = player_override
-	_is_preview_sliding = false
 
 	if not already_this_occupant:
 		# Both Drawers and Floor Briefcases start at Stage 1 Closed (0%) so player chooses Fast (Tap E) vs Slow (Hold E)
@@ -592,10 +580,12 @@ func start_slow_open(peer_id: int, player_override: Node = null) -> bool:
 		_occupant_player_override = player_override
 	is_slow_opening = true
 	_slow_open_peer_id = peer_id
-	_is_preview_sliding = false
 	drawer_open_progress = clampf(drawer_open_progress, 0.0, 1.0)
 	drawer_visual_ratio = _eval_slow_open_ratio(drawer_open_progress)
 	_apply_open_visual_ratio(drawer_visual_ratio)
+	var player: Node = player_override if player_override != null else (_occupant_player_override if _occupant_player_override != null else _find_player_node(peer_id))
+	if _ignite_armed_bombs_on_open(peer_id, player):
+		_sync_back_to_briefcase_pickup()
 	_sync_state_to_peers()
 	return true
 
@@ -644,84 +634,36 @@ func _step_committed_slow_open(delta: float) -> void:
 		slide_progressed.emit()
 
 
-func step_open_drawer(peer_id: int, delta: float, player_override: Node = null) -> void:
-	if occupied_by_peer_id != peer_id:
-		return
-
-	var slow_dur: float = GameConfig.drawer_slow_peek_hold_time if GameConfig != null else 2.50
-	drawer_open_progress = clampf(drawer_open_progress + delta / maxf(slow_dur, 0.25), 0.0, 1.0)
-	drawer_visual_ratio = _eval_slow_open_ratio(drawer_open_progress)
-	_apply_open_visual_ratio(drawer_visual_ratio)
-
-	var player: Node = player_override if player_override != null else (_occupant_player_override if _occupant_player_override != null else _find_player_node(peer_id))
-
-	if armed_spring and drawer_visual_ratio >= SPRING_TRIGGER_VISUAL_RATIO:
-		_trigger_spring_trap_ko(peer_id, player)
-		return
-	if (
-		not is_briefcase_container
-		and player != null
-		and player.has_method("has_held_briefcase_armed_spring")
-		and bool(player.has_held_briefcase_armed_spring())
-		and drawer_visual_ratio >= SPRING_TRIGGER_VISUAL_RATIO
-	):
-		_trigger_held_briefcase_spring_from_drawer(peer_id, player)
-		return
-
-	if drawer_visual_ratio >= 0.45 and not _opened_effects_applied:
-		_activate_opened_drawer_effects(peer_id, true, player)
-		if drawer_open_progress < 0.999:
-			_sync_state_to_peers()
-			return
-
-	if drawer_open_progress >= 0.999:
-		drawer_open_progress = 1.0
-		drawer_visual_ratio = 1.0
-		is_slow_opening = false
-		_slow_open_peer_id = 0
-		_apply_open_visual_ratio(1.0)
-		_activate_opened_drawer_effects(peer_id, true, player)
-		_sync_back_to_briefcase_pickup()
-		_sync_state_to_peers()
-		return
-
-	if _is_peer_connected():
-		_rpc_sync_drawer_slide.rpc(drawer_open_progress, drawer_visual_ratio)
-	else:
-		state_changed.emit()
-
-
-func begin_open_preview(peer_id: int, player_override: Node = null) -> bool:
-	return focus_container(peer_id, player_override)
-
-
-func _activate_opened_drawer_effects(peer_id: int, is_slow_peek: bool, player: Node = null) -> Dictionary:
-	var out: Dictionary = {"lit_bomb": false, "awarded_bonus": false}
-	if _opened_effects_applied:
-		return out
-	_opened_effects_applied = true
-
+func _ignite_armed_bombs_on_open(peer_id: int, player: Node = null) -> bool:
+	var lit: bool = false
 	if armed_bomb:
 		armed_bomb = false
 		live_bomb_lit = true
 		var min_f: float = GameConfig.time_bomb_fuse_min if GameConfig != null else 2.5
 		var max_f: float = GameConfig.time_bomb_fuse_max if GameConfig != null else 4.0
-		var base_fuse: float = randf_range(min_f, max_f)
-		if is_slow_peek:
-			live_bomb_fuse_remaining = maxf(base_fuse - 0.70, 0.5)
-		else:
-			live_bomb_fuse_remaining = base_fuse
+		live_bomb_fuse_remaining = randf_range(min_f, max_f)
 		if AudioBridge != null:
 			var fuse_rad: float = GameConfig.audio_radius_bomb_fuse if GameConfig != null else 10.0
 			AudioBridge.request_world_cue("bomb_hiss", _safe_global_pos(), fuse_rad, bomb_owner_peer_id)
-		out["lit_bomb"] = true
+		lit = true
 
 	# Simultaneous carried-Briefcase Time Bomb ignition when opening a Drawer while holding Briefcase
 	var resolved_player: Node = player if player != null else (_occupant_player_override if _occupant_player_override != null else _find_player_node(peer_id))
 	if not is_briefcase_container and resolved_player != null and resolved_player.has_method("has_held_briefcase_armed_bomb") and bool(resolved_player.has_held_briefcase_armed_bomb()):
 		if resolved_player.has_method("ignite_held_briefcase_bomb"):
-			resolved_player.ignite_held_briefcase_bomb(is_slow_peek)
-			out["lit_bomb"] = true
+			resolved_player.ignite_held_briefcase_bomb(false)
+			lit = true
+
+	return lit
+
+
+func _activate_opened_drawer_effects(peer_id: int, _is_slow_peek: bool, player: Node = null) -> Dictionary:
+	var out: Dictionary = {"lit_bomb": false, "awarded_bonus": false}
+	if _opened_effects_applied:
+		return out
+	_opened_effects_applied = true
+
+	out["lit_bomb"] = _ignite_armed_bombs_on_open(peer_id, player)
 
 	if not is_briefcase_container and not searched_by_peers.has(peer_id):
 		searched_by_peers[peer_id] = true
@@ -792,7 +734,6 @@ func open_container(peer_id: int, is_slow_peek: bool, player_override: Node = nu
 		return result
 
 	var player: Node = player_override if player_override != null else _find_player_node(peer_id)
-	_is_preview_sliding = false
 
 	if not is_slow_peek and not _opened_effects_applied and AudioBridge != null:
 		var slam_rad: float = GameConfig.audio_radius_drawer_fast if GameConfig != null else 10.0
@@ -850,7 +791,6 @@ func close_container(peer_id: int, player_override: Node = null, force: bool = f
 
 	is_slow_opening = false
 	_slow_open_peer_id = 0
-	_is_preview_sliding = false
 	_opened_effects_applied = false
 	drawer_open_progress = 0.0
 	drawer_visual_ratio = 0.0
@@ -1365,23 +1305,6 @@ func _server_start_slow_open(caller_peer_id: int) -> void:
 		caller_peer_id = sender
 	start_slow_open(caller_peer_id)
 
-
-@rpc("any_peer", "call_local", "reliable")
-func _server_step_open_drawer(caller_peer_id: int, delta: float) -> void:
-	if _is_peer_connected() and not multiplayer.is_server():
-		return
-	var sender: int = multiplayer.get_remote_sender_id()
-	if sender != 0:
-		caller_peer_id = sender
-	step_open_drawer(caller_peer_id, delta)
-
-
-@rpc("authority", "call_local", "unreliable_ordered")
-func _rpc_sync_drawer_slide(open_prog: float, vis_ratio: float) -> void:
-	drawer_open_progress = clampf(open_prog, 0.0, 1.0)
-	drawer_visual_ratio = clampf(vis_ratio, 0.0, 1.0)
-	_apply_open_visual_ratio(drawer_visual_ratio)
-	state_changed.emit()
 
 @rpc("any_peer", "call_local", "reliable")
 func _server_open_container(caller_peer_id: int, is_slow_peek: bool) -> void:

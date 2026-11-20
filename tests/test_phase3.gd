@@ -235,6 +235,31 @@ func test_drawer_time_bomb_ignition_and_hot_potato_grab() -> void:
 	assert_eq(p1.right_hand_item_id, "LIVE_BOMB", "Active hand holds LIVE_BOMB")
 	assert_eq(p1.jacket_slots[1], "TRIPWIRE", "Coat Slot 2 TRIPWIRE stayed safely tucked")
 
+	# Committed Slow Open also ignites the bomb fuse immediately at 0% open (no step_open_drawer)
+	assert_false(drawer.has_method("step_open_drawer"), "step_open_drawer removed from SearchableContainer")
+	assert_false(drawer.has_method("request_step_open_drawer"), "request_step_open_drawer removed from SearchableContainer")
+	drawer.set("armed_bomb", true)
+	drawer.set("bomb_owner_peer_id", 2)
+	assert_true(drawer.focus_container(1, p1), "Focused drawer for committed slow open")
+	assert_true(drawer.start_slow_open(1, p1), "Started committed slow open on bomb-rigged drawer")
+	assert_true(drawer.is_slow_opening, "Container is in committed slow open")
+	assert_false(drawer.armed_bomb, "armed_bomb cleared immediately on start_slow_open")
+	assert_true(drawer.live_bomb_lit, "Bomb fuse ignited the instant slow open began")
+	assert_true(drawer.live_bomb_fuse_remaining >= 3.3 and drawer.live_bomb_fuse_remaining <= 4.0, "Slow-open bomb fuse starts in full 3.3s-4.0s range")
+
+	# Briefcase committed slow open also ignites bomb immediately at 0% open
+	var bc: StaticBody3D = _instantiate_container()
+	bc.set("is_briefcase_container", true)
+	bc.set("armed_bomb", true)
+	bc.set("bomb_owner_peer_id", 2)
+	assert_true(bc.focus_container(1, p1), "Focused briefcase for committed slow open")
+	assert_true(bc.start_slow_open(1, p1), "Started committed slow open on bomb-rigged briefcase")
+	assert_false(bc.armed_bomb, "Briefcase armed_bomb cleared immediately on start_slow_open")
+	assert_true(bc.live_bomb_lit, "Briefcase bomb fuse ignited the instant slow open began")
+	assert_true(bc.live_bomb_fuse_remaining >= 3.3 and bc.live_bomb_fuse_remaining <= 4.0, "Briefcase slow-open bomb fuse starts in full 3.3s-4.0s range")
+	bc.close_container(1, p1, true)
+	drawer.close_container(1, p1, true)
+
 
 func test_airport_exit_door_victory_validation() -> void:
 	MatchManager.start_new_match([1, 2], 555)
@@ -323,14 +348,15 @@ func test_drawer_3d_interior_layers_and_immediate_preview() -> void:
 	lip_node = contents_root.get_node_or_null("LipSpringTrap") as Node3D
 	assert_true(lip_node != null, "LipSpringTrap rebuilt intact after clutter layer cap check")
 
-	# 4. Slow Ease-In pull: 1.4s of 2.8s moves less than 35% visually, safely revealing front spring without triggering KO
-	drawer.step_open_drawer(1, 1.4, p1)
-	assert_true(drawer.drawer_visual_ratio > 0.20 and drawer.drawer_visual_ratio < 0.35, "Slow ease-in opens extra slowly early (< 0.35 at half hold time)")
+	# 4. Committed Slow Ease-In pull: 1.4s of 2.5s moves less than 35% visually, safely revealing front spring without triggering KO
+	assert_true(drawer.start_slow_open(1, p1), "start_slow_open initiates committed slow open")
+	drawer._step_committed_slow_open(1.4)
+	assert_true(drawer.drawer_visual_ratio > 0.20 and drawer.drawer_visual_ratio < 0.35, "Slow ease-in opens extra slowly early (< 0.35 at 1.4s)")
 	assert_eq(p1.stance_state, GameConfig.Stance.DRAWER_LOCK, "Slow ease-in stops safely shy of spring trigger threshold")
 	assert_true(drawer.unlatch_spring(1), "Player can unlatch revealed spring trap mid-pull")
 
 	# Analytical exact-AABB picking & disjoint clutter strata when fully opened
-	drawer.step_open_drawer(1, 1.5, p1)
+	drawer._step_committed_slow_open(1.5)
 	var tray_after: Node3D = drawer.get_tray_node()
 	tray_after.position.z = drawer.DRAWER_OPEN_Z
 	var cRoot: Node3D = tray_after.get_node("ContentsRoot") as Node3D
