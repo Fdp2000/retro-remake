@@ -418,6 +418,29 @@ func get_pelvis_world_position() -> Vector3:
 	return global_position if is_inside_tree() else position
 
 
+func get_bone_world_transform(bone_name: String) -> Transform3D:
+	if is_ragdoll_active:
+		var pb: PhysicalBone3D = physical_bones.get(bone_name) as PhysicalBone3D
+		if pb != null and pb.is_inside_tree():
+			return pb.global_transform
+	if skeleton != null and skeleton.is_inside_tree():
+		var idx: int = skeleton.find_bone(bone_name)
+		if idx != -1:
+			return skeleton.global_transform * skeleton.get_bone_global_pose(idx)
+	return global_transform if is_inside_tree() else transform
+
+
+func compute_bone_local_offset(bone_name: String, ctrl_local_transform: Transform3D) -> Transform3D:
+	if skeleton == null:
+		return Transform3D.IDENTITY
+	var idx: int = skeleton.find_bone(bone_name)
+	if idx == -1:
+		return Transform3D.IDENTITY
+	var rot_pi := Transform3D(Basis.from_euler(Vector3(0.0, PI, 0.0)), Vector3.ZERO)
+	var bone_in_ctrl: Transform3D = rot_pi * skeleton.get_bone_global_rest(idx)
+	return bone_in_ctrl.affine_inverse() * ctrl_local_transform
+
+
 func get_head_camera_world_transform() -> Transform3D:
 	if is_ragdoll_active:
 		var head_pb: PhysicalBone3D = physical_bones.get("spine.006") as PhysicalBone3D

@@ -17,6 +17,7 @@ const SHOVE_PHYSICS = preload("res://entities/props/container_shove_physics.gd")
 const TOP_DOWN_UI_SCRIPT = preload("res://ui/top_down_container_ui.gd")
 const DVD_RETICLE_UI_SCRIPT = preload("res://ui/dvd_dart_reticle_ui.gd")
 const CLUB_QTE_UI_SCRIPT = preload("res://ui/club_qte_bar_ui.gd")
+const CLUB_HIT_GIZMO_SCRIPT = preload("res://entities/player/club_hit_gizmo.gd")
 const WATCH_BLUFF_UI_SCRIPT = preload("res://ui/spy_watch_bluff_ui.gd")
 const CRT_REPLAY_UI_SCRIPT = preload("res://ui/crt_replay_monitor_ui.gd")
 const RAGDOLL_CTRL_SCRIPT = preload("res://entities/player/spy_ragdoll_controller.gd")
@@ -164,9 +165,13 @@ var active_container: Node = null
 var _container_ui: TopDownContainerUI = null
 var _dvd_reticle_ui: DVDDartReticleUI = null
 var _club_qte_ui: ClubQTEBarUI = null
+var _club_hit_gizmo: ClubHitGizmo = null
 var _watch_bluff_ui: SpyWatchBluffUI = null
 var _crt_replay_ui: CRTReplayMonitorUI = null
 var _ragdoll_ctrl: SpyRagdollController = null
+var _back_club_bone_offset: Transform3D = Transform3D.IDENTITY
+var _wearable_bone_offset: Transform3D = Transform3D.IDENTITY
+var _socket_offsets_calibrated: bool = false
 var _tripwire_ctrl: TripwirePlacementController = null
 var _crt_body_visual_layer: int = 1
 var _camera_tween: Tween = null
@@ -1069,6 +1074,7 @@ func _rpc_apply_ko_state(
 		if right_hand_socket != null:
 			right_hand_socket.visible = false
 		_sync_camera_to_ragdoll_head()
+		_sync_visual_rig_sockets_to_skeleton()
 	else:
 		if _ragdoll_ctrl != null:
 			_ragdoll_ctrl.stop_ragdoll()
@@ -1098,6 +1104,7 @@ func _rpc_apply_ko_state(
 		if right_hand_socket != null:
 			right_hand_socket.visible = true
 		_sync_camera_to_ragdoll_head()
+		_sync_visual_rig_sockets_to_skeleton()
 	_update_hud_status()
 
 
@@ -1173,6 +1180,23 @@ func _sync_camera_to_ragdoll_head() -> void:
 		var lock_stance: int = GameConfig.Stance.DRAWER_LOCK if GameConfig != null else 3
 		if camera != null and stance_state != lock_stance:
 			camera.transform = Transform3D.IDENTITY
+
+
+func _sync_visual_rig_sockets_to_skeleton() -> void:
+	if _ragdoll_ctrl == null or _ragdoll_ctrl.skeleton == null or not is_inside_tree():
+		return
+	var b_socket: Marker3D = back_club_socket if back_club_socket != null else get_node_or_null("VisualRig/BackClubSocket") as Marker3D
+	var w_socket: Marker3D = spy_wearable_socket if spy_wearable_socket != null else get_node_or_null("VisualRig/SpyWearableSocket") as Marker3D
+	if not _socket_offsets_calibrated:
+		_socket_offsets_calibrated = true
+		if b_socket != null:
+			_back_club_bone_offset = _ragdoll_ctrl.compute_bone_local_offset("spine.002", b_socket.transform)
+		if w_socket != null:
+			_wearable_bone_offset = _ragdoll_ctrl.compute_bone_local_offset("forearm.L", w_socket.transform)
+	if b_socket != null and b_socket.is_inside_tree():
+		b_socket.global_transform = _ragdoll_ctrl.get_bone_world_transform("spine.002") * _back_club_bone_offset
+	if w_socket != null and w_socket.is_inside_tree():
+		w_socket.global_transform = _ragdoll_ctrl.get_bone_world_transform("forearm.L") * _wearable_bone_offset
 
 
 func get_ragdoll_pelvis_world_position() -> Vector3:
@@ -2051,6 +2075,9 @@ func _server_execute_club_slam(cam_origin: Vector3, cam_forward: Vector3) -> voi
 	var space: PhysicsDirectSpaceState3D = get_world_3d().direct_space_state if get_world_3d() != null else null
 	var fwd_flat: Vector3 = Vector3(cam_forward.x, 0.0, cam_forward.z).normalized()
 
+	var show_gizmo: bool = GameConfig != null and GameConfig.debug_club_hit_gizmo
+	var gizmo_rays: Array[Dictionary] = []
+
 	for p in get_tree().get_nodes_in_group("spy_players"):
 		if p == self or not (p is Node3D):
 			continue
@@ -2061,14 +2088,28 @@ func _server_execute_club_slam(cam_origin: Vector3, cam_forward: Vector3) -> voi
 			continue
 		var dir_flat: Vector3 = Vector3(delta_vec.x, 0.0, delta_vec.z).normalized()
 		if dist > 0.75 and fwd_flat.length_squared() > 0.01 and fwd_flat.dot(dir_flat) < 0.25:
+			if show_gizmo:
+				gizmo_rays.append({"to": target_pos, "hit": false})
 			continue
 		if space != null:
 			var query := PhysicsRayQueryParameters3D.create(cam_origin, target_pos, env_mask, [get_rid()])
-			if not space.intersect_ray(query).is_empty():
+			var env_hit: Dictionary = space.intersect_ray(query)
+			if not env_hit.is_empty():
+				if show_gizmo:
+					gizmo_rays.append({"to": env_hit.get("position", target_pos), "hit": false})
 				continue
+		if show_gizmo:
+			gizmo_rays.append({"to": target_pos, "hit": true})
 		if p.has_method("apply_trap_ko"):
 			var club_kick: Vector3 = fwd_flat * 14.5 + Vector3(0.0, 4.8, 0.0)
 			p.apply_trap_ko("CLUB", my_id, club_kick)
+
+	if show_gizmo:
+		if _club_hit_gizmo == null or not is_instance_valid(_club_hit_gizmo):
+			_club_hit_gizmo = CLUB_HIT_GIZMO_SCRIPT.new()
+			_club_hit_gizmo.name = "ClubHitGizmo"
+			add_child(_club_hit_gizmo)
+		_club_hit_gizmo.show_slam_impact(cam_origin, fwd_flat, melee_range, 0.25, gizmo_rays)
 
 
 @rpc("any_peer", "call_local", "reliable")
@@ -3281,6 +3322,12 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("drop_right_hand") and not event.is_echo():
 		_trigger_hand_action("DROP_RIGHT")
 		return
+	if event is InputEventKey and event.pressed and not event.is_echo() and event.keycode == KEY_F7:
+		if GameConfig != null:
+			GameConfig.debug_club_hit_gizmo = not GameConfig.debug_club_hit_gizmo
+			print("[ClubHitGizmo] ", "ON" if GameConfig.debug_club_hit_gizmo else "OFF")
+		return
+
 	if event.is_action_pressed("toggle_club") and not event.is_echo():
 		reset_anti_camp()
 		_trigger_hand_action("TOGGLE_CLUB")
@@ -3402,6 +3449,7 @@ func _physics_process(delta: float) -> void:
 			_ragdoll_ctrl.step_remote_pelvis_pull(delta)
 		elif is_multiplayer_authority():
 			_sync_camera_to_ragdoll_head()
+		_sync_visual_rig_sockets_to_skeleton()
 		return
 
 	if not _is_peer_connected() or not is_multiplayer_authority():
@@ -3415,6 +3463,7 @@ func _physics_process(delta: float) -> void:
 			var remote_spd: float = Vector2(position.x - prev_pos.x, position.z - prev_pos.z).length() / maxf(delta, 0.001)
 			_ragdoll_ctrl.update_locomotion_pose(delta, remote_spd, stance_state == crouch_val, head_pitch, is_charging_club)
 			_sync_camera_to_ragdoll_head()
+			_sync_visual_rig_sockets_to_skeleton()
 		elif head != null:
 			head.rotation.x = lerp_angle(head.rotation.x, head_pitch, 20.0 * delta)
 		return
@@ -3486,6 +3535,7 @@ func _physics_process(delta: float) -> void:
 		var local_horiz_spd: float = Vector2(velocity.x, velocity.z).length()
 		_ragdoll_ctrl.update_locomotion_pose(delta, local_horiz_spd, stance_state == crouch_val, head_pitch, is_charging_club)
 		_sync_camera_to_ragdoll_head()
+		_sync_visual_rig_sockets_to_skeleton()
 
 	if stance_state == (GameConfig.Stance.SPRINT if GameConfig != null else 1) and door_bash_detector != null:
 		for body in door_bash_detector.get_overlapping_bodies():
