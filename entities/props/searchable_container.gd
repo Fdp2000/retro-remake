@@ -100,6 +100,7 @@ var _lid_tween: Tween = null
 var _clutter_yaws: Array[float] = []
 var _layout_randomized: bool = false
 var _has_player_modified_layout: bool = false
+var _is_focused_closed: bool = false
 
 
 func _ready() -> void:
@@ -499,6 +500,17 @@ func request_deposit_briefcase_item(caller_peer_id: int, obj_id: String, norm_po
 		deposit_briefcase_item(caller_peer_id, obj_id, null, norm_pos)
 
 
+func request_deposit_jacket_item(caller_peer_id: int, slot_index: int, norm_pos: Vector2 = Vector2(-1.0, -1.0)) -> void:
+	if _is_peer_connected():
+		_server_deposit_jacket_item.rpc_id(1, caller_peer_id, slot_index, norm_pos)
+	else:
+		deposit_jacket_item(caller_peer_id, slot_index, null, norm_pos)
+
+
+func request_stash_jacket_item(caller_peer_id: int, slot_index: int, norm_pos: Vector2 = Vector2(-1.0, -1.0)) -> void:
+	request_deposit_jacket_item(caller_peer_id, slot_index, norm_pos)
+
+
 func request_move_stored_item(caller_peer_id: int, item_id: String, norm_pos: Vector2) -> void:
 	if _is_peer_connected():
 		_server_move_stored_item.rpc_id(1, caller_peer_id, item_id, norm_pos)
@@ -544,6 +556,7 @@ func focus_container(peer_id: int, player_override: Node = null) -> bool:
 
 	if not already_this_occupant:
 		# Both Drawers and Floor Briefcases start at Stage 1 Closed (0%) so player chooses Fast (Tap E) vs Slow (Hold E)
+		_is_focused_closed = true
 		is_slow_opening = false
 		_slow_open_peer_id = 0
 		drawer_open_progress = 0.0
@@ -578,6 +591,7 @@ func start_slow_open(peer_id: int, player_override: Node = null) -> bool:
 	occupied_by_peer_id = peer_id
 	if player_override != null:
 		_occupant_player_override = player_override
+	_is_focused_closed = false
 	is_slow_opening = true
 	_slow_open_peer_id = peer_id
 	drawer_open_progress = clampf(drawer_open_progress, 0.0, 1.0)
@@ -763,6 +777,7 @@ func open_container(peer_id: int, is_slow_peek: bool, player_override: Node = nu
 
 	drawer_open_progress = 1.0
 	drawer_visual_ratio = 1.0
+	_is_focused_closed = false
 
 	# 2 & 3. Armed Bomb Ignition + First-Visit Exploration Bonus (+10s)
 	var eff: Dictionary = _activate_opened_drawer_effects(peer_id, is_slow_peek, player)
@@ -792,6 +807,7 @@ func close_container(peer_id: int, player_override: Node = null, force: bool = f
 	is_slow_opening = false
 	_slow_open_peer_id = 0
 	_opened_effects_applied = false
+	_is_focused_closed = false
 	drawer_open_progress = 0.0
 	drawer_visual_ratio = 0.0
 	if staged_spring_on_lip:
@@ -932,11 +948,97 @@ func loot_item_to_player(
 				_sync_state_to_peers()
 				return true
 
+	if PICKUP_SCRIPT.is_gadget_item(upper):
+		var raw_slots: Variant = player.get("jacket_slots")
+		if raw_slots is Array:
+			var slot_arr: Array = raw_slots as Array
+			var empty_idx: int = -1
+			for i in range(slot_arr.size()):
+				var s_val: String = str(slot_arr[i]).to_upper()
+				if s_val == "NONE" or s_val.is_empty():
+					empty_idx = i
+					break
+
+			if empty_idx != -1:
+				var dest_slot: int = empty_idx
+				if target_jacket_slot >= 0 and target_jacket_slot < slot_arr.size():
+					var target_val: String = str(slot_arr[target_jacket_slot]).to_upper()
+					if target_val == "NONE" or target_val.is_empty():
+						dest_slot = target_jacket_slot
+				var next_slots: Array[String] = []
+				for s in slot_arr:
+					next_slots.append(str(s).to_upper())
+				next_slots[dest_slot] = upper
+				player.set("jacket_slots", next_slots)
+				player.set("active_jacket_slot", dest_slot)
+				player.set("right_hand_mode", 0)
+				if player.has_method("cancel_tripwire_placement"):
+					player.cancel_tripwire_placement()
+				if player.has_method("_sync_inventory_state_to_peers"):
+					player._sync_inventory_state_to_peers()
+				stored_items.remove_at(idx)
+				if not (upper in stored_items):
+					item_positions.erase(upper)
+				_has_player_modified_layout = true
+				_ensure_item_positions()
+				_sync_back_to_briefcase_pickup()
+				_sync_state_to_peers()
+				return true
+
+			# All 3 Inner Jacket slots are occupied: swap directly between jacket slot and drawer (unless BUCKET)
+			if is_briefcase_container:
+				return false
+			var swap_slot: int = -1
+			if target_jacket_slot >= 0 and target_jacket_slot < slot_arr.size():
+				swap_slot = target_jacket_slot
+			else:
+				var active_idx: int = clampi(int(player.get("active_jacket_slot")), 0, slot_arr.size() - 1)
+				if str(slot_arr[active_idx]).to_upper() != "BUCKET":
+					swap_slot = active_idx
+				else:
+					for i in range(slot_arr.size()):
+						var cand: String = str(slot_arr[i]).to_upper()
+						if cand != "BUCKET" and cand != "NONE" and not cand.is_empty():
+							swap_slot = i
+							break
+			if swap_slot < 0 or swap_slot >= slot_arr.size():
+				return false
+			var existing: String = str(slot_arr[swap_slot]).to_upper()
+			if existing == "BUCKET" or existing == "NONE" or existing.is_empty():
+				return false
+
+			var prev_pos: Variant = item_positions.get(upper, null)
+			var next_swap_slots: Array[String] = []
+			for s in slot_arr:
+				next_swap_slots.append(str(s).to_upper())
+			next_swap_slots[swap_slot] = upper
+			player.set("jacket_slots", next_swap_slots)
+			player.set("active_jacket_slot", swap_slot)
+			player.set("right_hand_mode", 0)
+			if player.has_method("cancel_tripwire_placement"):
+				player.cancel_tripwire_placement()
+			if player.has_method("_sync_inventory_state_to_peers"):
+				player._sync_inventory_state_to_peers()
+
+			stored_items[idx] = existing
+			if not (upper in stored_items):
+				item_positions.erase(upper)
+			if prev_pos is Vector2:
+				item_positions[existing] = _clamp_container_norm(prev_pos as Vector2)
+			_has_player_modified_layout = true
+			_ensure_item_positions()
+			if AudioBridge != null:
+				AudioBridge.request_world_cue("paper_rustle", _safe_global_pos(), 4.0, peer_id)
+			_sync_back_to_briefcase_pickup()
+			_sync_state_to_peers()
+			return true
+
 	if not _give_item_to_player(player, upper, target_jacket_slot):
 		return false
 
 	stored_items.remove_at(idx)
-	item_positions.erase(upper)
+	if not (upper in stored_items):
+		item_positions.erase(upper)
 	_has_player_modified_layout = true
 	_ensure_item_positions()
 	_sync_back_to_briefcase_pickup()
@@ -1009,6 +1111,54 @@ func deposit_briefcase_item(peer_id: int, obj_id: String, player_override: Node 
 		AudioBridge.request_world_cue("paper_rustle", _safe_global_pos(), 4.0, peer_id)
 	_sync_state_to_peers()
 	return true
+
+
+func deposit_jacket_item(
+	peer_id: int,
+	slot_index: int,
+	player_override: Node = null,
+	norm_pos: Vector2 = Vector2(-1.0, -1.0)
+) -> bool:
+	if occupied_by_peer_id != peer_id or is_briefcase_container:
+		return false
+	if is_slow_opening or (_is_focused_closed and drawer_visual_ratio < 0.35):
+		return false
+	var player: Node = player_override if player_override != null else (_occupant_player_override if _occupant_player_override != null else _find_player_node(peer_id))
+	if player == null:
+		return false
+
+	var slots: Variant = player.get("jacket_slots")
+	if not (slots is Array) or slot_index < 0 or slot_index >= (slots as Array).size():
+		return false
+
+	var gadget_id: String = str((slots as Array)[slot_index]).to_upper()
+	if gadget_id != "DART_GUN" and gadget_id != "TRIPWIRE":
+		return false
+
+	_consume_jacket_slot(player, slot_index)
+	if gadget_id == "TRIPWIRE" and player.has_method("cancel_tripwire_placement"):
+		player.cancel_tripwire_placement()
+
+	stored_items.append(gadget_id)
+	if norm_pos.x >= 0.0 and norm_pos.y >= 0.0:
+		item_positions[gadget_id] = _clamp_container_norm(norm_pos)
+	elif not item_positions.has(gadget_id):
+		item_positions[gadget_id] = ITEM_TRAY_POSITIONS[(stored_items.size() - 1) % ITEM_TRAY_POSITIONS.size()]
+	_has_player_modified_layout = true
+	_ensure_item_positions()
+	if AudioBridge != null:
+		AudioBridge.request_world_cue("paper_rustle", _safe_global_pos(), 4.0, peer_id)
+	_sync_state_to_peers()
+	return true
+
+
+func stash_jacket_item(
+	peer_id: int,
+	slot_index: int,
+	player_override: Node = null,
+	norm_pos: Vector2 = Vector2(-1.0, -1.0)
+) -> bool:
+	return deposit_jacket_item(peer_id, slot_index, player_override, norm_pos)
 
 
 func move_stored_item(peer_id: int, item_id: String, new_norm_pos: Vector2) -> bool:
@@ -1085,6 +1235,9 @@ func plant_trap_from_jacket(
 		_sync_back_to_briefcase_pickup()
 		_sync_state_to_peers()
 		return true
+
+	if (trap_id == "DART_GUN" or trap_id == "TRIPWIRE") and not is_briefcase_container and (zone == "TRAY" or zone == "STASH" or zone.is_empty()):
+		return deposit_jacket_item(peer_id, slot_index, player, norm_pos)
 
 	return false
 
@@ -1182,10 +1335,13 @@ func _give_item_to_player(player: Node, item_id: String, target_jacket_slot: int
 
 
 func _consume_jacket_slot(player: Node, slot_index: int) -> void:
-	var slots: Array = player.get("jacket_slots")
-	if slots is Array and slot_index >= 0 and slot_index < slots.size():
-		slots[slot_index] = "NONE"
-		player.set("jacket_slots", slots)
+	var slots: Variant = player.get("jacket_slots")
+	if slots is Array and slot_index >= 0 and slot_index < (slots as Array).size():
+		var next_slots: Array[String] = []
+		for s in (slots as Array):
+			next_slots.append(str(s).to_upper())
+		next_slots[slot_index] = "NONE"
+		player.set("jacket_slots", next_slots)
 		if player.has_method("_sync_inventory_state_to_peers"):
 			player._sync_inventory_state_to_peers()
 
@@ -1397,6 +1553,16 @@ func _server_deposit_briefcase_item(caller_peer_id: int, obj_id: String, norm_po
 
 
 @rpc("any_peer", "call_local", "reliable")
+func _server_deposit_jacket_item(caller_peer_id: int, slot_index: int, norm_pos: Vector2 = Vector2(-1.0, -1.0)) -> void:
+	if _is_peer_connected() and not multiplayer.is_server():
+		return
+	var sender: int = multiplayer.get_remote_sender_id() if (_is_peer_connected() and multiplayer != null) else 0
+	if sender != 0:
+		caller_peer_id = sender
+	deposit_jacket_item(caller_peer_id, slot_index, null, norm_pos)
+
+
+@rpc("any_peer", "call_local", "reliable")
 func _server_move_stored_item(caller_peer_id: int, item_id: String, norm_pos: Vector2) -> void:
 	if _is_peer_connected() and not multiplayer.is_server():
 		return
@@ -1500,6 +1666,7 @@ func _rpc_sync_container_state(state_dict: Dictionary) -> void:
 	else:
 		drawer_open_progress = clampf(synced_prog, 0.0, 1.0)
 		drawer_visual_ratio = clampf(synced_vis, 0.0, 1.0)
+	_is_focused_closed = (occupied_by_peer_id != 0 and not is_slow_opening and drawer_visual_ratio < 0.35)
 
 	var raw_clutter: Array = state_dict.get("clutter_positions", [])
 	if is_briefcase_container:

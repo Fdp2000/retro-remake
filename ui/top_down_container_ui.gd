@@ -196,9 +196,7 @@ func update_external_3d_item_drag(item_id: String, screen_pos: Vector2) -> void:
 			var over_right: bool = is_point_over_right_panel(screen_pos)
 			var r_border: Color = Color(0.35, 1.0, 0.55, 1.0) if over_right else Color(0.45, 0.78, 1.0, 0.90)
 			_apply_panel_style(_right_panel, Color(0.12, 0.16, 0.22, 0.94), r_border)
-			for p in _coat_slot_panels:
-				if p != null and is_instance_valid(p) and p.get_global_rect().has_point(screen_pos):
-					_apply_panel_style(p, Color(0.18, 0.30, 0.24, 0.98), Color(0.35, 1.0, 0.55, 1.0))
+			_highlight_coat_slot_panels(screen_pos)
 	else:
 		var over_left: bool = is_point_over_left_panel(screen_pos)
 		var l_border: Color = Color(0.35, 1.0, 0.55, 1.0) if over_left else Color(0.95, 0.82, 0.30, 0.90)
@@ -1101,6 +1099,28 @@ func _refresh_jacket_panel(is_briefcase: bool, vis_ratio: float) -> void:
 				wait_lbl.modulate = Color(0.70, 0.74, 0.78)
 				wait_lbl.text = "Open container to plant Bomb"
 				row.add_child(wait_lbl)
+			elif (slot_item == "DART_GUN" or slot_item == "TRIPWIRE") and not is_briefcase and can_plant:
+				var stash_hint := Label.new()
+				stash_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+				stash_hint.add_theme_font_size_override("font_size", 11)
+				stash_hint.modulate = Color(0.45, 0.96, 0.60)
+				stash_hint.text = "← Drag into Drawer to stash"
+				stash_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
+				row.add_child(stash_hint)
+
+				card.mouse_default_cursor_shape = Control.CURSOR_DRAG
+				var captured_gadget: String = slot_item
+				card.gui_input.connect(func(ev: InputEvent):
+					if ev is InputEventMouseButton and (ev as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT and (ev as InputEventMouseButton).pressed:
+						_start_drag("COAT_SLOT", captured_gadget, get_viewport().get_mouse_position(), slot_idx)
+				)
+			elif (slot_item == "DART_GUN" or slot_item == "TRIPWIRE") and not is_briefcase and not can_plant:
+				var wait_lbl := Label.new()
+				wait_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+				wait_lbl.add_theme_font_size_override("font_size", 11)
+				wait_lbl.modulate = Color(0.70, 0.74, 0.78)
+				wait_lbl.text = "Open drawer to stash %s" % PICKUP_SCRIPT.get_display_name(slot_item)
+				row.add_child(wait_lbl)
 
 			# Keep crisp one-click fallback button too for rapid arming
 			if slot_item == "SPRING" and can_arm_spring:
@@ -1143,10 +1163,13 @@ func _refresh_jacket_panel(is_briefcase: bool, vis_ratio: float) -> void:
 # ==========================================
 
 func _start_drag(source: String, item_id: String, screen_pos: Vector2, slot_idx: int) -> void:
+	var upper_id: String = item_id.to_upper()
+	if source == "COAT_SLOT" and upper_id == "BUCKET":
+		return
 	_drag_active = true
 	_drag_moved = false
 	_drag_source = source
-	_drag_item_id = item_id.to_upper()
+	_drag_item_id = upper_id
 	_drag_slot_index = slot_idx
 	_drag_start_pos = screen_pos
 	_ui_drag_samples.clear()
@@ -1181,7 +1204,14 @@ func _update_drop_zone_highlights(screen_pos: Vector2) -> void:
 	var over_center: bool = not over_left and not over_right and not (_top_bar != null and _top_bar.get_global_rect().has_point(screen_pos))
 
 	# Show center drop guide whenever dragging INTO the 3D container
-	var wants_center: bool = _drag_source in ["LEFT_HAND", "CARRIED_BRIEFCASE_OBJ", "COAT_SLOT", "CONTAINER_SPRING"]
+	var coat_can_drop_center: bool = (
+		_drag_item_id in ["SPRING", "BOMB"]
+		or (not is_briefcase and _drag_item_id in ["DART_GUN", "TRIPWIRE"])
+	)
+	var wants_center: bool = (
+		_drag_source in ["LEFT_HAND", "CARRIED_BRIEFCASE_OBJ", "CONTAINER_SPRING"]
+		or (_drag_source == "COAT_SLOT" and coat_can_drop_center)
+	)
 	if _center_drop_frame != null:
 		_center_drop_frame.visible = wants_center and not (over_felt and _drag_source == "CARRIED_BRIEFCASE_OBJ")
 		if _center_drop_frame.visible and _center_drop_label != null:
@@ -1190,7 +1220,10 @@ func _update_drop_zone_highlights(screen_pos: Vector2) -> void:
 			elif _drag_source == "CARRIED_BRIEFCASE_OBJ":
 				_center_drop_label.text = "Drop to Stash inside Drawer"
 			elif _drag_source == "COAT_SLOT":
-				_center_drop_label.text = "Drop to Arm %s in %s" % [PICKUP_SCRIPT.get_display_name(_drag_item_id), "Briefcase" if is_briefcase else "Drawer"]
+				if _drag_item_id in ["DART_GUN", "TRIPWIRE"]:
+					_center_drop_label.text = "Drop to Stash %s in Drawer" % PICKUP_SCRIPT.get_display_name(_drag_item_id)
+				else:
+					_center_drop_label.text = "Drop to Arm %s in %s" % [PICKUP_SCRIPT.get_display_name(_drag_item_id), "Briefcase" if is_briefcase else "Drawer"]
 			elif _drag_source == "CONTAINER_SPRING":
 				_center_drop_label.text = "Drop back on Latch to Re-Arm Spring"
 		_center_drop_frame.modulate = Color(1.0, 1.0, 1.0, 1.0) if over_center else Color(0.85, 0.85, 0.85, 0.55)
@@ -1225,9 +1258,34 @@ func _update_drop_zone_highlights(screen_pos: Vector2) -> void:
 		if right_valid:
 			var border: Color = Color(0.35, 1.0, 0.55, 1.0) if over_right else Color(0.45, 0.78, 1.0, 0.90)
 			_apply_panel_style(_right_panel, Color(0.12, 0.16, 0.22, 0.94), border)
-			for p in _coat_slot_panels:
-				if p != null and is_instance_valid(p) and p.get_global_rect().has_point(screen_pos):
-					_apply_panel_style(p, Color(0.18, 0.30, 0.24, 0.98), Color(0.35, 1.0, 0.55, 1.0))
+			_highlight_coat_slot_panels(screen_pos)
+
+
+func _highlight_coat_slot_panels(screen_pos: Vector2) -> void:
+	var target_idx: int = _find_coat_slot_at_pos(screen_pos)
+	if target_idx < 0 or target_idx >= _coat_slot_panels.size():
+		return
+	var p: PanelContainer = _coat_slot_panels[target_idx]
+	if p == null or not is_instance_valid(p):
+		return
+	var slots: Variant = _player.get("jacket_slots") if _player != null else null
+	var all_full: bool = true
+	var slot_item: String = "NONE"
+	if slots is Array:
+		var slot_arr: Array = slots as Array
+		if target_idx < slot_arr.size():
+			slot_item = str(slot_arr[target_idx]).to_upper()
+		for s in slot_arr:
+			var s_up: String = str(s).to_upper()
+			if s_up == "NONE" or s_up.is_empty():
+				all_full = false
+				break
+	else:
+		all_full = false
+	if all_full and slot_item == "BUCKET":
+		_apply_panel_style(p, Color(0.30, 0.14, 0.14, 0.98), Color(1.0, 0.35, 0.30, 1.0))
+	else:
+		_apply_panel_style(p, Color(0.18, 0.30, 0.24, 0.98), Color(0.35, 1.0, 0.55, 1.0))
 
 
 func _reset_panel_highlights() -> void:
@@ -1237,6 +1295,18 @@ func _reset_panel_highlights() -> void:
 		_apply_panel_style(_briefcase_felt_panel, Color(0.14, 0.21, 0.18, 0.98), Color(0.46, 0.28, 0.14, 0.95))
 	if _right_panel != null:
 		_apply_panel_style(_right_panel, Color(0.10, 0.11, 0.14, 0.90), Color(0.36, 0.42, 0.52, 0.85))
+	var slots: Variant = _player.get("jacket_slots") if _player != null else null
+	var slot_arr: Array = slots as Array if slots is Array else []
+	for i in range(_coat_slot_panels.size()):
+		var p: PanelContainer = _coat_slot_panels[i]
+		if p == null or not is_instance_valid(p):
+			continue
+		var slot_item: String = str(slot_arr[i]).to_upper() if i < slot_arr.size() else "NONE"
+		if slot_item != "NONE" and not slot_item.is_empty():
+			var item_col: Color = PICKUP_SCRIPT.ITEM_COLORS.get(slot_item, Color(0.75, 0.75, 0.80))
+			_apply_panel_style(p, Color(0.15, 0.16, 0.20, 0.95), item_col)
+		else:
+			_apply_panel_style(p, Color(0.11, 0.12, 0.15, 0.88), Color(0.32, 0.36, 0.42, 0.65))
 
 
 func _get_briefcase_canvas_norm_pos(screen_pos: Vector2) -> Vector2:
@@ -1313,6 +1383,12 @@ func _finish_drag(release_pos: Vector2) -> void:
 					elif is_briefcase and _player.has_method("project_screen_pos_to_briefcase_norm"):
 						bomb_norm = _player.project_screen_pos_to_briefcase_norm(release_pos)
 					_container.request_plant_trap(_local_peer_id, slot_idx, "TRAY", bomb_norm)
+				elif not is_briefcase and (item_id == "DART_GUN" or item_id == "TRIPWIRE"):
+					var stash_norm := Vector2(-1.0, -1.0)
+					if _player.has_method("project_screen_pos_to_container_norm"):
+						stash_norm = _player.project_screen_pos_to_container_norm(release_pos)
+					if _container.has_method("request_deposit_jacket_item"):
+						_container.request_deposit_jacket_item(_local_peer_id, slot_idx, stash_norm)
 			elif over_left and holding_briefcase and not is_briefcase and _player.has_method("request_briefcase_trap_action"):
 				if item_id == "SPRING":
 					_player.request_briefcase_trap_action("PLANT_SPRING", slot_idx)
@@ -1351,6 +1427,17 @@ func _find_coat_slot_at_pos(screen_pos: Vector2) -> int:
 		var p: PanelContainer = _coat_slot_panels[i]
 		if p != null and is_instance_valid(p) and p.get_global_rect().has_point(screen_pos):
 			return i
+	if _jacket_slots_box != null and is_instance_valid(_jacket_slots_box) and _jacket_slots_box.get_global_rect().has_point(screen_pos):
+		var best_idx: int = -1
+		var best_dy: float = INF
+		for i in range(_coat_slot_panels.size()):
+			var p: PanelContainer = _coat_slot_panels[i]
+			if p != null and is_instance_valid(p):
+				var dy: float = absf(p.get_global_rect().get_center().y - screen_pos.y)
+				if dy < best_dy:
+					best_dy = dy
+					best_idx = i
+		return best_idx
 	return -1
 
 

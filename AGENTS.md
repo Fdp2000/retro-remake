@@ -3,7 +3,7 @@
 ## 1. Workflow & Boundaries (Strict)
 - **Read-Only Paths:** Never edit `res://scenes/NoahWorkspace/`, `res://scenes/AgnetesTests/`, raw imported art/scenes in `res://Assets/`, or `res://docs/` unless explicitly asked.
 - **Playtest Override:** Live user feedback overrides GDD details. Never treat `res://docs/` as rigid node-tree mandates.
-- **Testing:** Do not run `test_phase1.gd`–`test_phase4.gd` (or `test_run` suites) automatically; only run tests when explicitly requested by the user.
+- **Testing:** Never read, create, edit, or run test files/suites (including `res://tests/`, `test_run`, or `test_manage` tools) unless explicitly requested by the user.
 
 ## 2. Engine & Code Standards
 - **Godot 4.7.2 (Strict Typed GDScript 2.0):** Use static typing and Godot 4 annotations (`@export`, `@onready`, `@rpc`).
