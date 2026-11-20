@@ -21,6 +21,7 @@ const WATCH_BLUFF_UI_SCRIPT = preload("res://ui/spy_watch_bluff_ui.gd")
 const CRT_REPLAY_UI_SCRIPT = preload("res://ui/crt_replay_monitor_ui.gd")
 const RAGDOLL_CTRL_SCRIPT = preload("res://entities/player/spy_ragdoll_controller.gd")
 const TRIPWIRE_SCRIPT = preload("res://entities/traps/tripwire_trap.gd")
+const TRIPWIRE_PLACEMENT_SCRIPT = preload("res://entities/player/tripwire_placement_controller.gd")
 const THROWN_BOMB_SCRIPT = preload("res://entities/traps/thrown_time_bomb.gd")
 const TAP_RELEASE_THRESHOLD: float = 0.20
 const PELVIS_SYNC_INTERVAL: float = 0.20
@@ -166,6 +167,7 @@ var _club_qte_ui: ClubQTEBarUI = null
 var _watch_bluff_ui: SpyWatchBluffUI = null
 var _crt_replay_ui: CRTReplayMonitorUI = null
 var _ragdoll_ctrl: SpyRagdollController = null
+var _tripwire_ctrl: TripwirePlacementController = null
 var _crt_body_visual_layer: int = 1
 var _camera_tween: Tween = null
 var _bonus_toast_timer: float = 0.0
@@ -202,8 +204,6 @@ var _lmb_trap_hold_active: bool = false
 var _lmb_trap_hold_elapsed: float = 0.0
 var _lmb_trap_mode: String = ""
 var _lmb_trap_target: Object = null
-var _lmb_trap_pos: Vector3 = Vector3.ZERO
-var _lmb_trap_yaw: float = 0.0
 var anti_camp_timer: float = 0.0
 var anti_camp_sniffle_warned: bool = false
 var _last_room_key: String = ""
@@ -278,6 +278,7 @@ func _ready() -> void:
 		apply_local_camera_cull_mask()
 		_sync_camera_to_ragdoll_head()
 		ensure_overlay_uis()
+		_ensure_tripwire_controller()
 		if MatchManager != null:
 			if not MatchManager.clock_updated.is_connected(_on_match_clock_updated):
 				MatchManager.clock_updated.connect(_on_match_clock_updated)
@@ -411,17 +412,62 @@ func _inv() -> SpyInventoryComponent:
 	return inventory
 
 
+func _ensure_tripwire_controller() -> TripwirePlacementController:
+	if _tripwire_ctrl == null or not is_instance_valid(_tripwire_ctrl):
+		var existing: Node = get_node_or_null("TripwirePlacementController")
+		if existing is TripwirePlacementController:
+			_tripwire_ctrl = existing as TripwirePlacementController
+		else:
+			_tripwire_ctrl = TRIPWIRE_PLACEMENT_SCRIPT.new() as TripwirePlacementController
+			_tripwire_ctrl.name = "TripwirePlacementController"
+			add_child(_tripwire_ctrl)
+	_tripwire_ctrl.setup(self)
+	return _tripwire_ctrl
+
+
+func handle_tripwire_cancel_input(is_rmb_pressed: bool, is_cancel_pressed: bool) -> bool:
+	if _tripwire_ctrl == null or not is_instance_valid(_tripwire_ctrl):
+		return false
+	if is_rmb_pressed:
+		if _tripwire_ctrl.has_placed_first_pole():
+			cancel_tripwire_placement()
+			return true
+		elif _tripwire_ctrl.is_holding_lmb():
+			_tripwire_ctrl.cancel_lmb_hold()
+			if hold_progress_bar != null and not _lmb_trap_hold_active and not _interact_key_down:
+				hold_progress_bar.visible = false
+			return true
+	if is_cancel_pressed and _tripwire_ctrl.has_placed_first_pole():
+		cancel_tripwire_placement()
+		return true
+	return false
+
+
+func cancel_tripwire_placement(require_lmb_release: bool = false) -> void:
+	if _tripwire_ctrl != null and is_instance_valid(_tripwire_ctrl):
+		_tripwire_ctrl.cancel_placement(require_lmb_release)
+	if hold_progress_bar != null and not _lmb_trap_hold_active and not _interact_key_down:
+		hold_progress_bar.visible = false
+
+
 func pickup_item(new_item_id: String, extra_briefcase_items: Array = [], extra_briefcase_positions: Dictionary = {}) -> Dictionary:
+	var upper_id: String = new_item_id.to_upper()
 	var res: Dictionary = _inv().pickup_item(new_item_id, extra_briefcase_items, extra_briefcase_positions)
 	if bool(res["picked"]):
+		if PICKUP_SCRIPT.is_gadget_item(upper_id) or upper_id == "LIVE_BOMB":
+			cancel_tripwire_placement()
 		_refresh_hand_and_back_sockets()
 		_update_hud_status()
 	return res
 
 
 func select_jacket_slot(slot_index: int) -> bool:
+	var clamped_idx: int = clampi(slot_index, 0, SpyInventoryComponent.JACKET_SLOT_COUNT - 1)
+	var changed: bool = (clamped_idx != active_jacket_slot or right_hand_mode != SpyInventoryComponent.RightHandMode.JACKET_SLOT)
 	var ok: bool = _inv().select_jacket_slot(slot_index)
 	if ok:
+		if changed:
+			cancel_tripwire_placement()
 		_refresh_hand_and_back_sockets()
 		_update_hud_status()
 	return ok
@@ -430,6 +476,7 @@ func select_jacket_slot(slot_index: int) -> bool:
 func cycle_jacket_slot(step: int) -> bool:
 	var ok: bool = _inv().cycle_jacket_slot(step)
 	if ok:
+		cancel_tripwire_placement()
 		_refresh_hand_and_back_sockets()
 		_update_hud_status()
 	return ok
@@ -446,12 +493,14 @@ func drop_left_hand_item() -> Dictionary:
 func drop_right_hand_item() -> Dictionary:
 	var res: Dictionary = _inv().drop_right_hand_item()
 	if str(res["dropped_item_id"]) != "NONE":
+		cancel_tripwire_placement()
 		_refresh_hand_and_back_sockets()
 		_update_hud_status()
 	return res
 
 
 func toggle_personal_club() -> Dictionary:
+	cancel_tripwire_placement()
 	var res: Dictionary = _inv().toggle_personal_club()
 	_refresh_hand_and_back_sockets()
 	_update_hud_status()
@@ -459,6 +508,7 @@ func toggle_personal_club() -> Dictionary:
 
 
 func start_club_charge() -> Dictionary:
+	cancel_tripwire_placement()
 	var res: Dictionary = _inv().start_club_charge()
 	if _inv().is_charging_club and stance_state == (GameConfig.Stance.SPRINT if GameConfig != null else 1):
 		stance_state = GameConfig.Stance.WALK if GameConfig != null else 0
@@ -475,6 +525,7 @@ func stop_club_charge() -> void:
 
 
 func force_drop_all_hands() -> Array[Dictionary]:
+	cancel_tripwire_placement()
 	var drops: Array[Dictionary] = _inv().force_drop_all_hands()
 	_refresh_hand_and_back_sockets()
 	_update_hud_status()
@@ -743,6 +794,7 @@ func enter_container_view(container: Node) -> void:
 	_clear_drag_3d_state()
 	_lmb_trap_hold_active = false
 	_lmb_trap_hold_elapsed = 0.0
+	cancel_tripwire_placement()
 	if _dvd_reticle_ui != null:
 		_dvd_reticle_ui.set_active(false)
 	if _club_qte_ui != null:
@@ -829,6 +881,7 @@ func apply_trap_ko(_reason: String, _attacker_peer_id: int = 0, custom_impulse: 
 	live_bomb_owner_peer_id = 0
 	_lmb_trap_hold_active = false
 	_lmb_trap_hold_elapsed = 0.0
+	cancel_tripwire_placement()
 	if _dvd_reticle_ui != null:
 		_dvd_reticle_ui.set_active(false)
 	if _club_qte_ui != null:
@@ -1205,6 +1258,7 @@ func reset_for_rematch(spawn_local_pos: Vector3, spawn_yaw: float = 0.0) -> void
 	_club_whiff_recovery = 0.0
 	_lmb_trap_hold_active = false
 	_lmb_trap_hold_elapsed = 0.0
+	cancel_tripwire_placement()
 	anti_camp_timer = 0.0
 	anti_camp_sniffle_warned = false
 	head_pitch = 0.0
@@ -1499,7 +1553,11 @@ func _sync_inventory_state_to_peers() -> void:
 func _rpc_sync_inventory(l_item: String, b_objs: Array, j_slots: Array, a_slot: int, r_mode: int, charging: bool, b_traps: Dictionary = {}) -> void:
 	if not _is_authorized_state_rpc():
 		return
+	var prev_slot: int = active_jacket_slot
+	var prev_mode: int = right_hand_mode
 	_inv().apply_sync_state(l_item, b_objs, j_slots, a_slot, r_mode, charging, b_traps)
+	if right_hand_item_id != "TRIPWIRE" or active_jacket_slot != prev_slot or right_hand_mode != prev_mode:
+		cancel_tripwire_placement()
 	_refresh_hand_and_back_sockets()
 	_update_hud_status()
 	if _container_ui != null and _container_ui.visible:
@@ -1728,46 +1786,73 @@ func _rpc_server_rig_bucket_on_door(door_path: NodePath) -> void:
 			AudioBridge.request_world_cue("trap_arm", (door_node as Node3D).global_position, 6.0, name.to_int())
 
 
+func deploy_tripwire_between(pole1_pos: Vector3, pole2_pos: Vector3) -> void:
+	reset_anti_camp()
+	if _is_peer_connected() and not multiplayer.is_server():
+		_rpc_server_deploy_tripwire.rpc_id(1, pole1_pos, pole2_pos)
+	else:
+		_rpc_server_deploy_tripwire(pole1_pos, pole2_pos)
+
+
 @rpc("any_peer", "call_local", "reliable")
-func _rpc_server_deploy_tripwire(place_pos: Vector3, place_yaw: float) -> void:
+func _rpc_server_deploy_tripwire(pole1_pos: Vector3, pole2_pos: Vector3) -> void:
 	if _is_peer_connected() and not multiplayer.is_server():
 		return
 	var sender_id: int = multiplayer.get_remote_sender_id()
 	if sender_id != 0 and sender_id != name.to_int():
 		return
+	var ko_stance: int = GameConfig.Stance.KO if GameConfig != null else 4
+	var lock_stance: int = GameConfig.Stance.DRAWER_LOCK if GameConfig != null else 3
+	if stance_state == ko_stance or stance_state == lock_stance or is_clock_eliminated:
+		return
+	var min_span: float = GameConfig.tripwire_min_span if GameConfig != null else 0.40
+	var max_span: float = GameConfig.tripwire_max_span if GameConfig != null else 2.50
+	var span: float = pole1_pos.distance_to(pole2_pos)
+	if span < min_span - 0.02 or span > max_span + 0.02:
+		return
+	var horiz_span: float = Vector2(pole2_pos.x - pole1_pos.x, pole2_pos.z - pole1_pos.z).length()
+	if absf(pole2_pos.y - pole1_pos.y) > TripwirePlacementController.MAX_POLE_HEIGHT_DELTA or horiz_span < TripwirePlacementController.MIN_HORIZ_SPAN:
+		return
+	if is_inside_tree() and get_world_3d() != null:
+		var exclude: Array[RID] = [get_rid()]
+		if TripwirePlacementController.is_wire_obstructed(pole1_pos, pole2_pos, get_world_3d(), exclude):
+			return
 	if _inv().consume_active_jacket_slot("TRIPWIRE") == "NONE":
 		return
 	_sync_inventory_state_to_peers()
 	_action_counter += 1
 	var trap_name: String = "Tripwire_%s_%d" % [name, _action_counter]
+	var mid_pos: Vector3 = (pole1_pos + pole2_pos) * 0.5
 	if AudioBridge != null:
-		AudioBridge.request_world_cue("trap_arm", place_pos, 6.0, name.to_int())
+		AudioBridge.request_world_cue("trap_arm", mid_pos, 6.0, name.to_int())
 	if _is_peer_connected():
-		_rpc_spawn_tripwire.rpc(trap_name, place_pos, place_yaw, name.to_int())
+		_rpc_spawn_tripwire.rpc(trap_name, pole1_pos, pole2_pos, name.to_int())
 	else:
-		_spawn_tripwire_local(trap_name, place_pos, place_yaw, name.to_int())
+		_spawn_tripwire_local(trap_name, pole1_pos, pole2_pos, name.to_int())
 
 
 @rpc("any_peer", "call_local", "reliable")
-func _rpc_spawn_tripwire(trap_name: String, place_pos: Vector3, place_yaw: float, owner_id: int) -> void:
+func _rpc_spawn_tripwire(trap_name: String, pole1_pos: Vector3, pole2_pos: Vector3, owner_id: int) -> void:
 	if not _is_authorized_state_rpc():
 		return
-	_spawn_tripwire_local(trap_name, place_pos, place_yaw, owner_id)
+	_spawn_tripwire_local(trap_name, pole1_pos, pole2_pos, owner_id)
 
 
-func _spawn_tripwire_local(trap_name: String, place_pos: Vector3, place_yaw: float, owner_id: int) -> Node:
-	var target_root: Node = get_tree().current_scene if (is_inside_tree() and get_tree() != null) else get_parent()
+func _spawn_tripwire_local(trap_name: String, pole1_pos: Vector3, pole2_pos: Vector3, owner_id: int) -> Node:
+	var target_root: Node = get_tree().current_scene if (is_inside_tree() and get_tree() != null) else null
+	if target_root == null:
+		var parent_node: Node = get_parent()
+		if parent_node != null and parent_node.name == "Players" and parent_node.get_parent() != null:
+			target_root = parent_node.get_parent()
+		else:
+			target_root = parent_node
 	if target_root == null:
 		return null
 	var trap: StaticBody3D = TRIPWIRE_SCRIPT.new() as StaticBody3D
 	trap.name = trap_name
 	trap.set("owner_peer_id", owner_id)
+	trap.call("configure_endpoints", pole1_pos, pole2_pos)
 	target_root.add_child(trap)
-	if trap.is_inside_tree():
-		trap.global_position = place_pos
-	else:
-		trap.position = place_pos
-	trap.rotation.y = place_yaw
 	return trap
 
 
@@ -2077,15 +2162,8 @@ func _try_begin_primary_action() -> void:
 					_lmb_trap_mode = "BUCKET"
 					_lmb_trap_target = col
 		"TRIPWIRE":
-			if raycast != null and raycast.is_colliding():
-				var hit_col: Object = raycast.get_collider()
-				var hit_normal: Vector3 = raycast.get_collision_normal()
-				if hit_col is Node and ((hit_col as PhysicsBody3D).collision_layer & (GameConfig.LAYER_ENVIRONMENT if GameConfig != null else 1)) != 0 and hit_normal.y > 0.70:
-					_lmb_trap_hold_active = true
-					_lmb_trap_hold_elapsed = 0.0
-					_lmb_trap_mode = "TRIPWIRE"
-					_lmb_trap_pos = raycast.get_collision_point()
-					_lmb_trap_yaw = rotation.y
+			var tw_ctrl: TripwirePlacementController = _ensure_tripwire_controller()
+			tw_ctrl.begin_lmb_hold()
 
 
 func _update_lmb_trap_hold(delta: float) -> void:
@@ -2109,8 +2187,6 @@ func _update_lmb_trap_hold(delta: float) -> void:
 func _complete_lmb_trap_rig() -> void:
 	var mode: String = _lmb_trap_mode
 	var target_obj: Object = _lmb_trap_target
-	var place_pos: Vector3 = _lmb_trap_pos
-	var place_yaw: float = _lmb_trap_yaw
 	_lmb_trap_hold_active = false
 	_lmb_trap_hold_elapsed = 0.0
 	_lmb_trap_mode = ""
@@ -2124,11 +2200,6 @@ func _complete_lmb_trap_rig() -> void:
 			_rpc_server_rig_bucket_on_door.rpc_id(1, door_path)
 		else:
 			_rpc_server_rig_bucket_on_door(door_path)
-	elif mode == "TRIPWIRE":
-		if _is_peer_connected() and not multiplayer.is_server():
-			_rpc_server_deploy_tripwire.rpc_id(1, place_pos, place_yaw)
-		else:
-			_rpc_server_deploy_tripwire(place_pos, place_yaw)
 
 
 func _safe_global_pos() -> Vector3:
@@ -2412,6 +2483,7 @@ func _process(delta: float) -> void:
 	var ko_stance: int = GameConfig.Stance.KO if GameConfig != null else 4
 	if stance_state == ko_stance:
 		_reset_interact_hold()
+		cancel_tripwire_placement()
 		if _dvd_reticle_ui != null:
 			_dvd_reticle_ui.set_active(false)
 		_sync_camera_to_ragdoll_head()
@@ -2424,6 +2496,7 @@ func _process(delta: float) -> void:
 		_tick_active_interact_hold(delta)
 	if stance_state == lock_stance:
 		prompt_label.visible = false
+		cancel_tripwire_placement()
 		if _dvd_reticle_ui != null:
 			_dvd_reticle_ui.set_active(false)
 		if not _active_3d_slides.is_empty():
@@ -2442,6 +2515,22 @@ func _process(delta: float) -> void:
 			evaluate_club_release()
 
 	_update_lmb_trap_hold(delta)
+	var tw_ctrl: TripwirePlacementController = _ensure_tripwire_controller()
+	var tw_equipped: bool = (
+		right_hand_item_id == "TRIPWIRE"
+		and not is_clock_eliminated
+		and club_overcharge_stumble_remaining <= 0.0
+	)
+	tw_ctrl.step(
+		delta,
+		tw_equipped,
+		Input.is_action_pressed("primary_action"),
+		Input.mouse_mode == Input.MOUSE_MODE_CAPTURED,
+		true
+	)
+	if tw_ctrl.is_holding_lmb() and hold_progress_bar != null:
+		hold_progress_bar.visible = true
+		hold_progress_bar.value = tw_ctrl.get_hold_progress() * 100.0
 	_process_interaction_raycast()
 
 
@@ -2582,6 +2671,7 @@ func _process_interaction_raycast() -> void:
 			aiming_bucket_steal = _is_aiming_for_bucket_steal(target_collider, hit_point, direct_bucket_hit)
 
 	if live_bomb_remaining <= 0.0:
+		var tw_active_step2: bool = (_tripwire_ctrl != null and _tripwire_ctrl.has_placed_first_pole())
 		if is_interactable:
 			var p_text: String = "[Hold E 1.0s] Steal Rigged Water Bucket" if aiming_bucket_steal else (
 				target_collider.get_interaction_prompt_for_player(self) if target_collider.has_method("get_interaction_prompt_for_player") else (
@@ -2590,15 +2680,19 @@ func _process_interaction_raycast() -> void:
 			)
 			if right_hand_item_id == "BUCKET" and target_collider.has_method("rig_water_bucket") and not bool(target_collider.get("is_open")) and not bool(target_collider.get("has_rigged_bucket")):
 				p_text += "  |  [Hold LMB] Rig Water Bucket"
+			elif tw_active_step2:
+				p_text += "  |  [RMB] Cancel Tripwire"
 			prompt_label.text = p_text
 			prompt_label.visible = true
-		elif right_hand_item_id == "TRIPWIRE" and raycast != null and raycast.is_colliding() and raycast.get_collision_normal().y > 0.70:
-			prompt_label.text = "[Hold LMB] Rig Tripwire Here"
-			prompt_label.visible = true
+		elif right_hand_item_id == "TRIPWIRE" and _tripwire_ctrl != null:
+			var tw_prompt: String = _tripwire_ctrl.get_prompt_text()
+			prompt_label.text = tw_prompt
+			prompt_label.visible = not tw_prompt.is_empty()
 		else:
 			prompt_label.visible = false
 
-	if hold_progress_bar != null and not _lmb_trap_hold_active and not _interact_key_down:
+	var tw_holding: bool = (_tripwire_ctrl != null and _tripwire_ctrl.is_holding_lmb())
+	if hold_progress_bar != null and not _lmb_trap_hold_active and not tw_holding and not _interact_key_down:
 		hold_progress_bar.visible = false
 
 	var e_down: bool = _is_e_key_pressed()
@@ -2650,7 +2744,8 @@ func _reset_interact_hold() -> void:
 	_interact_hold_triggered = false
 	_interact_target = null
 	_interact_steal_bucket = false
-	if hold_progress_bar != null and not _lmb_trap_hold_active:
+	var tw_holding: bool = (_tripwire_ctrl != null and _tripwire_ctrl.is_holding_lmb())
+	if hold_progress_bar != null and not _lmb_trap_hold_active and not tw_holding:
 		hold_progress_bar.visible = false
 
 
@@ -3170,10 +3265,26 @@ func _unhandled_input(event: InputEvent) -> void:
 		_try_begin_primary_action()
 	elif event.is_action_released("primary_action"):
 		_lmb_trap_hold_active = false
+		if _tripwire_ctrl != null and is_instance_valid(_tripwire_ctrl):
+			_tripwire_ctrl.on_lmb_released()
 		if is_charging_club:
 			evaluate_club_release()
 
-	if event.is_action_pressed("ui_cancel") or (event is InputEventKey and event.pressed and not event.is_echo() and event.keycode == KEY_ESCAPE):
+	var is_rmb_cancel: bool = (
+		event is InputEventMouseButton
+		and event.button_index == MOUSE_BUTTON_RIGHT
+		and event.pressed
+		and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
+	)
+	var is_esc_cancel: bool = (
+		event.is_action_pressed("ui_cancel")
+		or (event is InputEventKey and event.pressed and not event.is_echo() and event.keycode == KEY_ESCAPE)
+	)
+	if handle_tripwire_cancel_input(is_rmb_cancel, is_esc_cancel):
+		get_viewport().set_input_as_handled()
+		return
+
+	if is_esc_cancel:
 		var scene: Node = get_tree().current_scene if get_tree() != null else null
 		if scene != null and scene.has_method("toggle_esc_menu"):
 			return
@@ -3205,6 +3316,8 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _trigger_hand_action(action_type: String, slot_arg: int = 0) -> void:
+	if action_type in ["SELECT_SLOT", "CYCLE_SLOT", "DROP_RIGHT", "TOGGLE_CLUB", "START_CLUB_CHARGE", "KO_SCATTER"]:
+		cancel_tripwire_placement()
 	if _is_peer_connected():
 		server_request_hand_action.rpc_id(1, action_type, slot_arg)
 	else:

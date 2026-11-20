@@ -8,6 +8,9 @@ extends StaticBody3D
 
 @export var owner_peer_id: int = 0
 @export var span_width: float = 1.10
+@export var start_point: Vector3 = Vector3.ZERO
+@export var end_point: Vector3 = Vector3.ZERO
+@export var use_endpoints: bool = false
 
 var wire_height: float = 0.35
 var _triggered_or_consumed: bool = false
@@ -19,17 +22,65 @@ func _ready() -> void:
 	collision_layer = GameConfig.LAYER_INTERACTABLE if GameConfig != null else 2
 	collision_mask = 0
 	wire_height = GameConfig.tripwire_height if GameConfig != null else 0.35
+	if use_endpoints:
+		_apply_endpoint_transform()
 	_ensure_nodes()
+
+
+func configure_endpoints(p1: Vector3, p2: Vector3) -> void:
+	start_point = p1
+	end_point = p2
+	use_endpoints = true
+	span_width = maxf(p1.distance_to(p2), 0.05)
+	wire_height = GameConfig.tripwire_height if GameConfig != null else 0.35
+	if is_node_ready():
+		_apply_endpoint_transform()
+		_rebuild_geometry()
+
+
+func _apply_endpoint_transform() -> void:
+	var delta: Vector3 = end_point - start_point
+	var horiz := Vector3(delta.x, 0.0, delta.z)
+	var horiz_len: float = horiz.length()
+	var mid: Vector3 = (start_point + end_point) * 0.5
+	if is_inside_tree():
+		global_position = mid
+	else:
+		position = mid
+	if horiz_len > 0.0001:
+		rotation.y = atan2(-horiz.z, horiz.x)
+
+
+func _compute_span_metrics() -> Dictionary:
+	var full_span: float = maxf(span_width, 0.05)
+	var horiz_len: float = full_span
+	var dy: float = 0.0
+	var local_p1 := Vector3(-full_span * 0.5, 0.0, 0.0)
+	var local_p2 := Vector3(full_span * 0.5, 0.0, 0.0)
+
+	if use_endpoints:
+		var delta: Vector3 = end_point - start_point
+		var horiz := Vector3(delta.x, 0.0, delta.z)
+		horiz_len = horiz.length()
+		dy = delta.y
+		full_span = maxf(delta.length(), 0.05)
+		var mid: Vector3 = (start_point + end_point) * 0.5
+		local_p1 = Vector3(-horiz_len * 0.5, start_point.y - mid.y, 0.0)
+		local_p2 = Vector3(horiz_len * 0.5, end_point.y - mid.y, 0.0)
+
+	var tilt: float = atan2(dy, maxf(horiz_len, 0.0001)) if use_endpoints else 0.0
+	return {
+		"full_span": full_span,
+		"local_p1": local_p1,
+		"local_p2": local_p2,
+		"tilt": tilt
+	}
 
 
 func _ensure_nodes() -> void:
 	if get_node_or_null("CollisionShape3D") == null:
 		var col := CollisionShape3D.new()
 		col.name = "CollisionShape3D"
-		var box := BoxShape3D.new()
-		box.size = Vector3(span_width + 0.16, 0.45, 0.24)
-		col.shape = box
-		col.position = Vector3(0.0, 0.22, 0.0)
 		add_child(col)
 
 	if get_node_or_null("Visuals") == null:
@@ -37,18 +88,56 @@ func _ensure_nodes() -> void:
 		vis.name = "Visuals"
 		add_child(vis)
 
+	_trigger_area = get_node_or_null("TriggerArea") as Area3D
+	if _trigger_area == null:
+		_trigger_area = Area3D.new()
+		_trigger_area.name = "TriggerArea"
+		_trigger_area.collision_layer = GameConfig.LAYER_TRIGGERS if GameConfig != null else 16
+		_trigger_area.collision_mask = GameConfig.LAYER_PLAYER if GameConfig != null else 4
+		var trig_col := CollisionShape3D.new()
+		trig_col.name = "TriggerShape"
+		_trigger_area.add_child(trig_col)
+		add_child(_trigger_area)
+
+	_rebuild_geometry()
+
+
+func _rebuild_geometry() -> void:
+	var metrics: Dictionary = _compute_span_metrics()
+	var full_span: float = float(metrics["full_span"])
+	var local_p1: Vector3 = metrics["local_p1"] as Vector3
+	var local_p2: Vector3 = metrics["local_p2"] as Vector3
+	var tilt: float = float(metrics["tilt"])
+
+	var col: CollisionShape3D = get_node_or_null("CollisionShape3D") as CollisionShape3D
+	if col != null:
+		var box := BoxShape3D.new()
+		box.size = Vector3(full_span + 0.16, 0.45, 0.24)
+		col.shape = box
+		col.position = Vector3(0.0, 0.22, 0.0)
+		col.rotation = Vector3(0.0, 0.0, tilt)
+
+	var vis: Node3D = get_node_or_null("Visuals") as Node3D
+	if vis != null:
+		for child in vis.get_children():
+			vis.remove_child(child)
+			child.queue_free()
+
+		var peg_h: float = wire_height + 0.05
 		var peg_mesh := CylinderMesh.new()
 		peg_mesh.top_radius = 0.025
 		peg_mesh.bottom_radius = 0.032
-		peg_mesh.height = wire_height + 0.05
+		peg_mesh.height = peg_h
 		var peg_mat := StandardMaterial3D.new()
 		peg_mat.albedo_color = Color(0.85, 0.45, 0.15)
 
-		for side in [-1.0, 1.0]:
+		for i in range(2):
 			var peg := MeshInstance3D.new()
+			peg.name = "Peg_%d" % i
 			peg.mesh = peg_mesh
 			peg.material_override = peg_mat
-			peg.position = Vector3(side * (span_width * 0.5), (wire_height + 0.05) * 0.5, 0.0)
+			var base_pt: Vector3 = local_p1 if i == 0 else local_p2
+			peg.position = base_pt + Vector3(0.0, peg_h * 0.5, 0.0)
 			vis.add_child(peg)
 
 		var wire_mi := MeshInstance3D.new()
@@ -56,9 +145,9 @@ func _ensure_nodes() -> void:
 		var wire_cyl := CylinderMesh.new()
 		wire_cyl.top_radius = 0.008
 		wire_cyl.bottom_radius = 0.008
-		wire_cyl.height = span_width
+		wire_cyl.height = full_span
 		wire_mi.mesh = wire_cyl
-		wire_mi.rotation.z = PI * 0.5
+		wire_mi.rotation = Vector3(0.0, 0.0, -PI * 0.5 + tilt)
 		wire_mi.position = Vector3(0.0, wire_height, 0.0)
 		var wire_mat := StandardMaterial3D.new()
 		wire_mat.albedo_color = Color(0.95, 0.32, 0.12)
@@ -68,19 +157,19 @@ func _ensure_nodes() -> void:
 		wire_mi.material_override = wire_mat
 		vis.add_child(wire_mi)
 
-	_trigger_area = get_node_or_null("TriggerArea") as Area3D
-	if _trigger_area == null:
-		_trigger_area = Area3D.new()
-		_trigger_area.name = "TriggerArea"
-		_trigger_area.collision_layer = GameConfig.LAYER_TRIGGERS if GameConfig != null else 16
-		_trigger_area.collision_mask = GameConfig.LAYER_PLAYER if GameConfig != null else 4
-		var trig_col := CollisionShape3D.new()
-		var trig_box := BoxShape3D.new()
-		trig_box.size = Vector3(span_width, 0.22, 0.14)
-		trig_col.shape = trig_box
-		trig_col.position = Vector3(0.0, wire_height, 0.0)
-		_trigger_area.add_child(trig_col)
-		add_child(_trigger_area)
+	var area: Area3D = _trigger_area if _trigger_area != null else get_node_or_null("TriggerArea") as Area3D
+	if area != null:
+		var trig_col: CollisionShape3D = null
+		for child in area.get_children():
+			if child is CollisionShape3D:
+				trig_col = child as CollisionShape3D
+				break
+		if trig_col != null:
+			var trig_box := BoxShape3D.new()
+			trig_box.size = Vector3(full_span, 0.22, 0.14)
+			trig_col.shape = trig_box
+			trig_col.position = Vector3(0.0, wire_height, 0.0)
+			trig_col.rotation = Vector3(0.0, 0.0, tilt)
 
 
 func _physics_process(_delta: float) -> void:
@@ -109,8 +198,16 @@ func try_trip_spy(body: Node) -> bool:
 
 	# Jumping over the 0.35m wire raises feet cleanly above trigger band
 	var base_y: float = global_position.y if is_inside_tree() else position.y
-	var spy_y: float = (body as Node3D).global_position.y if (body as Node3D).is_inside_tree() else (body as Node3D).position.y
-	if spy_y >= base_y + wire_height - 0.10:
+	var spy_pos: Vector3 = (body as Node3D).global_position if (body as Node3D).is_inside_tree() else (body as Node3D).position
+	if use_endpoints:
+		var seg_xz := Vector2(end_point.x - start_point.x, end_point.z - start_point.z)
+		var len_sq: float = seg_xz.length_squared()
+		var t: float = 0.5
+		if len_sq > 0.0001:
+			var rel_xz := Vector2(spy_pos.x - start_point.x, spy_pos.z - start_point.z)
+			t = clampf(rel_xz.dot(seg_xz) / len_sq, 0.0, 1.0)
+		base_y = lerpf(start_point.y, end_point.y, t)
+	if spy_pos.y >= base_y + wire_height - 0.10:
 		return false
 
 	_triggered_or_consumed = true

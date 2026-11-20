@@ -5,6 +5,7 @@ const CONTAINER_SCRIPT = preload("res://entities/props/searchable_container.gd")
 const PICKUP_SCRIPT = preload("res://entities/props/world_item_pickup.gd")
 const PICKUP_SCENE: PackedScene = preload("res://entities/props/world_item_pickup.tscn")
 const TRIPWIRE_SCRIPT = preload("res://entities/traps/tripwire_trap.gd")
+const TRIPWIRE_PLACEMENT_SCRIPT = preload("res://entities/player/tripwire_placement_controller.gd")
 const THROWN_BOMB_SCRIPT = preload("res://entities/traps/thrown_time_bomb.gd")
 const EMBASSY_DOOR_SCRIPT = preload("res://entities/props/embassy_door.gd")
 const INTERACTIVE_DOOR_SCRIPT = preload("res://scenes/BuildingComplex2/interactive_door.gd")
@@ -182,6 +183,232 @@ func test_tripwire_trip_jump_crouch_and_steal() -> void:
 	spy2.stance_state = GameConfig.Stance.CROUCH
 	assert_true(bool(trap2.call("try_steal_tripwire", 2, spy2)), "Spy2 steals Tripwire cleanly into jacket")
 	assert_true("TRIPWIRE" in spy2.jacket_slots, "Stolen Tripwire stored in Jacket Slot")
+
+
+func test_tripwire_two_point_pole_and_wire_placement() -> void:
+	var host_root: Node = EditorInterface.get_base_control()
+	var arena: Node3D = track(Node3D.new()) as Node3D
+	arena.name = "TripwirePlacementTestArena"
+	host_root.add_child(arena)
+
+	var floor_body: StaticBody3D = track(StaticBody3D.new()) as StaticBody3D
+	floor_body.collision_layer = GameConfig.LAYER_ENVIRONMENT
+	var floor_col := CollisionShape3D.new()
+	var floor_box := BoxShape3D.new()
+	floor_box.size = Vector3(20.0, 0.2, 20.0)
+	floor_col.shape = floor_box
+	floor_col.position = Vector3(0.0, -0.1, 0.0)
+	floor_body.add_child(floor_col)
+	arena.add_child(floor_body)
+
+	var wall_body: StaticBody3D = track(StaticBody3D.new()) as StaticBody3D
+	wall_body.collision_layer = GameConfig.LAYER_ENVIRONMENT
+	var wall_col := CollisionShape3D.new()
+	var wall_box := BoxShape3D.new()
+	wall_box.size = Vector3(0.2, 2.0, 4.0)
+	wall_col.shape = wall_box
+	wall_col.position = Vector3(5.0, 1.0, 0.0)
+	wall_body.add_child(wall_col)
+	arena.add_child(wall_body)
+
+	var interactable_body: StaticBody3D = track(StaticBody3D.new()) as StaticBody3D
+	interactable_body.collision_layer = GameConfig.LAYER_INTERACTABLE
+
+	var spy1: CharacterBody3D = _instantiate_live_scene("res://entities/player/player.tscn", "res://entities/player/player.gd") as CharacterBody3D
+	spy1.name = "1"
+	spy1.spy_role = 1
+	arena.add_child(spy1)
+	spy1.global_position = Vector3(0.0, 0.0, 0.0)
+	spy1.wakeup_immunity_remaining = 0.0
+	spy1.ensure_overlay_uis()
+
+	var spy2: CharacterBody3D = _instantiate_live_scene("res://entities/player/player.tscn", "res://entities/player/player.gd") as CharacterBody3D
+	spy2.name = "2"
+	spy2.spy_role = 2
+	arena.add_child(spy2)
+	spy2.global_position = Vector3(0.0, 0.0, -3.0)
+	spy2.wakeup_immunity_remaining = 0.0
+	spy2.ensure_overlay_uis()
+
+	spy1.pickup_item("TRIPWIRE")
+	spy1.pickup_item("SPRING")
+	spy1.select_jacket_slot(0)
+	assert_eq(spy1.right_hand_item_id, "TRIPWIRE", "Slot 0 equips TRIPWIRE")
+
+	var ctrl: TripwirePlacementController = spy1.call("_ensure_tripwire_controller") as TripwirePlacementController
+	assert_true(ctrl != null, "Player creates TripwirePlacementController")
+
+	# Step 1: Initialize into PLACING_FIRST_POLE and validate surface tints
+	ctrl.step(0.016, true, false, true, false)
+	assert_eq(ctrl.current_step, TripwirePlacementController.Step.PLACING_FIRST_POLE, "Equipping TRIPWIRE enters Step 1")
+
+	# Invalid wall normal (red)
+	assert_false(ctrl.evaluate_aim_from_hit(true, Vector3(0.0, 0.5, -1.0), Vector3(1.0, 0.0, 0.0), wall_body, 1.0), "Vertical wall is invalid for Pole 1")
+	ctrl._update_visuals(true)
+	assert_true(ctrl._ghost_pole_node.visible and ctrl._ghost_pole_node.material_override == ctrl._mat_invalid, "Ghost pole 1 tints red on wall")
+
+	# Invalid out of reach (red)
+	assert_false(ctrl.evaluate_aim_from_hit(true, Vector3(0.0, 0.0, -3.5), Vector3.UP, floor_body, 3.5), "Floor beyond interact_reach is invalid for Pole 1")
+	ctrl._update_visuals(true)
+	assert_eq(ctrl.invalid_reason, TripwirePlacementController.InvalidReason.OUT_OF_REACH, "Reports OUT_OF_REACH beyond interact_reach")
+	assert_true(ctrl._ghost_pole_node.material_override == ctrl._mat_invalid, "Ghost pole 1 tints red out of reach")
+
+	# Invalid non-environment layer (red)
+	assert_false(ctrl.evaluate_aim_from_hit(true, Vector3(0.0, 0.0, -1.0), Vector3.UP, interactable_body, 1.2), "LAYER_INTERACTABLE surface is invalid for Pole 1")
+
+	# Valid flat floor within reach (green)
+	var p1 := Vector3(-0.9, 0.0, -1.0)
+	assert_true(ctrl.evaluate_aim_from_hit(true, p1, Vector3.UP, floor_body, 1.5), "Flat LAYER_ENVIRONMENT floor within reach is valid")
+	ctrl._update_visuals(true)
+	assert_true(ctrl._ghost_pole_node.visible and ctrl._ghost_pole_node.material_override == ctrl._mat_valid, "Ghost pole 1 tints green on valid floor")
+
+	# Hold LMB < 0.4s does not place Pole 1
+	ctrl.begin_lmb_hold()
+	ctrl.step(0.25, true, true, true, false)
+	assert_false(ctrl.has_placed_first_pole(), "Holding < 0.4s does not place first pole")
+
+	# Hold LMB >= 0.4s places Pole 1 without consuming TRIPWIRE
+	ctrl.step(0.20, true, true, true, false)
+	assert_true(ctrl.has_placed_first_pole(), "Holding 0.4s places first pole")
+	assert_eq(ctrl.current_step, TripwirePlacementController.Step.PLACING_SECOND_POLE, "Transitions to Step 2")
+	assert_true(ctrl.first_pole_pos.is_equal_approx(p1), "First pole anchored at exact aim point")
+	assert_eq(spy1.jacket_slots[0], "TRIPWIRE", "Placing first pole does not consume TRIPWIRE")
+	assert_true(ctrl._placed_pole_node.visible, "Temporary placed first pole visual is visible")
+
+	# Still holding same LMB press does NOT start Pole 2 hold until released
+	ctrl.step(0.50, true, true, true, false)
+	assert_false(ctrl.is_holding_lmb(), "Must release LMB before charging second pole")
+	ctrl.step(0.016, true, false, true, false)
+
+	# Step 2: Distance checks (< 0.4m red, > 2.5m red)
+	var p2_close := p1 + Vector3(0.25, 0.0, 0.0)
+	assert_false(ctrl.evaluate_aim_from_hit(true, p2_close, Vector3.UP, floor_body, 1.4), "Span < 0.4m rejected")
+	assert_eq(ctrl.invalid_reason, TripwirePlacementController.InvalidReason.TOO_CLOSE, "Span < 0.4m reports TOO_CLOSE")
+	ctrl._update_visuals(true)
+	assert_true(ctrl._ghost_pole_node.material_override == ctrl._mat_invalid and ctrl._ghost_wire_node.material_override == ctrl._mat_invalid, "Ghost pole 2 & wire tint red when too close")
+
+	var p2_far := p1 + Vector3(2.8, 0.0, 0.0)
+	assert_false(ctrl.evaluate_aim_from_hit(true, p2_far, Vector3.UP, floor_body, 1.8), "Span > 2.5m rejected")
+	assert_eq(ctrl.invalid_reason, TripwirePlacementController.InvalidReason.TOO_FAR, "Span > 2.5m reports TOO_FAR")
+	ctrl._update_visuals(true)
+	assert_true(ctrl._ghost_pole_node.material_override == ctrl._mat_invalid and ctrl._ghost_wire_node.material_override == ctrl._mat_invalid, "Ghost pole 2 & wire tint red when too far")
+
+	# Step 2: Obstruction check through wall (unconditional assertion)
+	var wall_res: Dictionary = TripwirePlacementController.validate_second_pole(Vector3(4.2, 0.0, 0.0), Vector3(5.8, 0.0, 0.0), spy1.get_world_3d())
+	assert_false(bool(wall_res["valid"]), "Wall between poles fails validation")
+	assert_eq(int(wall_res["reason"]), TripwirePlacementController.InvalidReason.OBSTRUCTED, "Wall between poles reports OBSTRUCTED")
+	ctrl.first_pole_pos = Vector3(4.2, 0.0, 0.0)
+	assert_false(ctrl.evaluate_aim_from_hit(true, Vector3(5.8, 0.0, 0.0), Vector3.UP, floor_body, 1.5, spy1.get_world_3d()), "Controller Step 2 rejects obstructed path")
+	ctrl._update_visuals(true)
+	assert_true(ctrl._ghost_pole_node.material_override == ctrl._mat_invalid and ctrl._ghost_wire_node.material_override == ctrl._mat_invalid, "Ghost pole 2 & wire tint red when obstructed")
+	ctrl.first_pole_pos = p1
+
+	# Step 2: Valid angled span (1.8m X, -0.5m Z -> ~1.868m) -> green & deploy on 0.4s hold
+	var p2 := Vector3(0.9, 0.0, -1.5)
+	var expected_span: float = p1.distance_to(p2)
+	assert_true(ctrl.evaluate_aim_from_hit(true, p2, Vector3.UP, floor_body, 1.7, spy1.get_world_3d()), "Valid unobstructed span within 0.4m..2.5m passes")
+	ctrl._update_visuals(true)
+	assert_true(ctrl._ghost_pole_node.visible and ctrl._ghost_pole_node.material_override == ctrl._mat_valid, "Ghost pole 2 tints green when valid")
+	assert_true(ctrl._ghost_wire_node.visible and ctrl._ghost_wire_node.material_override == ctrl._mat_valid, "Ghost wire tints green when valid")
+	assert_true(ctrl.get_prompt_text().contains("Connect Wire"), "Step 2 prompt offers Connect Wire when valid")
+
+	ctrl.begin_lmb_hold()
+	ctrl.step(0.45, true, true, true, false)
+	assert_false(ctrl.has_placed_first_pole(), "Completing Step 2 clears temporary placement state")
+	assert_false(ctrl._placed_pole_node.visible, "Temporary first pole hidden after deployment")
+	assert_eq(spy1.jacket_slots[0], "NONE", "Completing Step 2 consumes TRIPWIRE from jacket slot")
+
+	var spawned_trap: StaticBody3D = null
+	for child in arena.get_children():
+		if String(child.name).begins_with("Tripwire_"):
+			spawned_trap = child as StaticBody3D
+			break
+	assert_true(spawned_trap != null, "Active TripwireTrap spawned in scene")
+	if spawned_trap != null:
+		track(spawned_trap)
+		assert_true(spawned_trap.global_position.is_equal_approx((p1 + p2) * 0.5), "Dynamic TripwireTrap positioned at exact midpoint")
+		assert_true(is_equal_approx(float(spawned_trap.get("span_width")), expected_span), "Dynamic TripwireTrap span_width matches exact pole distance")
+		var trig_area: Area3D = spawned_trap.get_node_or_null("TriggerArea") as Area3D
+		var trig_col: CollisionShape3D = trig_area.get_child(0) as CollisionShape3D
+		assert_true(is_equal_approx((trig_col.shape as BoxShape3D).size.x, expected_span), "TriggerArea BoxShape3D width matches dynamic pole distance")
+		var int_col: CollisionShape3D = spawned_trap.get_node_or_null("CollisionShape3D") as CollisionShape3D
+		assert_true(is_equal_approx((int_col.shape as BoxShape3D).size.x, expected_span + 0.16), "Interaction BoxShape3D width matches dynamic pole distance")
+
+		# Jump, crouch, and KO parity on dynamic trap
+		spy2.stance_state = GameConfig.Stance.CROUCH
+		spy2.global_position = (p1 + p2) * 0.5
+		assert_false(bool(spawned_trap.call("try_trip_spy", spy2)), "Crouching passes under dynamic Tripwire")
+		spy2.stance_state = GameConfig.Stance.WALK
+		spy2.global_position = (p1 + p2) * 0.5 + Vector3(0.0, 0.40, 0.0)
+		assert_false(bool(spawned_trap.call("try_trip_spy", spy2)), "Jumping clears dynamic Tripwire")
+		spy2.global_position = (p1 + p2) * 0.5
+		assert_true(bool(spawned_trap.call("try_trip_spy", spy2)), "Walking triggers dynamic Tripwire KO")
+		assert_eq(spy2.stance_state, GameConfig.Stance.KO, "Dynamic Tripwire inflicts 15s KO")
+
+	# Crouch-steal a dynamically configured TripwireTrap
+	var dyn_trap2: StaticBody3D = track(TRIPWIRE_SCRIPT.new()) as StaticBody3D
+	dyn_trap2.set("owner_peer_id", 1)
+	dyn_trap2.call("configure_endpoints", p1, p2)
+	arena.add_child(dyn_trap2)
+	spy2.wake_up_from_ko()
+	spy2.wakeup_immunity_remaining = 0.0
+	spy2.stance_state = GameConfig.Stance.CROUCH
+	assert_true(bool(dyn_trap2.call("try_steal_tripwire", 2, spy2)), "Crouching spy steals dynamically configured TripwireTrap")
+	assert_true("TRIPWIRE" in spy2.jacket_slots, "Stolen dynamic Tripwire stored in Jacket Slot")
+
+	# Cancellation paths keep TRIPWIRE unconsumed and clean up temporary pole
+	spy1.pickup_item("TRIPWIRE")
+	spy1.select_jacket_slot(0)
+	var cancel_checks: Array[String] = ["SLOT_SWITCH", "CLUB", "RMB_CANCEL", "ESC_CANCEL", "CONTAINER", "DROP", "KO"]
+	for check_name in cancel_checks:
+		ctrl.step(0.016, true, false, true, false)
+		ctrl.evaluate_aim_from_hit(true, p1, Vector3.UP, floor_body, 1.5)
+		ctrl.begin_lmb_hold()
+		ctrl.step(0.45, true, true, true, false)
+		ctrl.step(0.016, true, false, true, false)
+		assert_true(ctrl.has_placed_first_pole(), "First pole placed before %s cancel check" % check_name)
+
+		match check_name:
+			"SLOT_SWITCH":
+				spy1.select_jacket_slot(1)
+				assert_eq(spy1.jacket_slots[0], "TRIPWIRE", "Slot switch keeps TRIPWIRE unconsumed")
+				spy1.select_jacket_slot(0)
+			"CLUB":
+				spy1.toggle_personal_club()
+				assert_eq(spy1.jacket_slots[0], "TRIPWIRE", "Equipping Club keeps TRIPWIRE unconsumed")
+				spy1.toggle_personal_club()
+			"RMB_CANCEL":
+				assert_true(bool(spy1.call("handle_tripwire_cancel_input", true, false)), "RMB input handler consumes cancel mid-placement")
+				assert_eq(spy1.jacket_slots[0], "TRIPWIRE", "RMB/cancel keeps TRIPWIRE unconsumed")
+			"ESC_CANCEL":
+				assert_true(bool(spy1.call("handle_tripwire_cancel_input", false, true)), "Cancel/ESC handler consumes cancel mid-placement")
+				assert_eq(spy1.jacket_slots[0], "TRIPWIRE", "ESC/cancel keeps TRIPWIRE unconsumed")
+			"CONTAINER":
+				spy1.enter_container_view(null)
+				spy1.exit_container_view()
+				assert_eq(spy1.jacket_slots[0], "TRIPWIRE", "Container focus keeps TRIPWIRE unconsumed")
+			"DROP":
+				var drop_res: Dictionary = spy1.drop_right_hand_item()
+				assert_eq(str(drop_res["dropped_item_id"]), "TRIPWIRE", "Drop cleans up pole and drops TRIPWIRE")
+				spy1.pickup_item("TRIPWIRE")
+				spy1.select_jacket_slot(0)
+			"KO":
+				spy1.wakeup_immunity_remaining = 0.0
+				spy1.apply_trap_ko("SPRING", 2)
+				spy1.wake_up_from_ko()
+				spy1.wakeup_immunity_remaining = 0.0
+				spy1.pickup_item("TRIPWIRE")
+				spy1.select_jacket_slot(0)
+
+		assert_false(ctrl.has_placed_first_pole(), "Cancel (%s) clears first pole" % check_name)
+		assert_false(ctrl._placed_pole_node.visible, "Cancel (%s) hides first pole visual" % check_name)
+
+	# Host-authority server validation rejects out-of-range span
+	var pre_count: int = arena.get_child_count()
+	spy1._rpc_server_deploy_tripwire(Vector3.ZERO, Vector3(0.15, 0.0, 0.0))
+	spy1._rpc_server_deploy_tripwire(Vector3.ZERO, Vector3(3.10, 0.0, 0.0))
+	assert_eq(arena.get_child_count(), pre_count, "Server rejects invalid tripwire spans")
+	assert_eq(spy1.jacket_slots[0], "TRIPWIRE", "Server rejection does not consume TRIPWIRE")
 
 
 func test_thrown_time_bomb_midair_catch_and_occluded_blast() -> void:
