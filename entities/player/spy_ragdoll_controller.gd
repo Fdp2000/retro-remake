@@ -357,6 +357,14 @@ func _apply_impulse_to_bones(impulse: Vector3, reason: String) -> void:
 				pelvis_pb.linear_velocity = impulse * 0.90
 			if head_pb != null:
 				head_pb.linear_velocity = impulse * 1.25
+		"CLUB_OVERCHARGE":
+			if chest_pb != null:
+				chest_pb.linear_velocity = impulse * 0.85
+				chest_pb.angular_velocity = Vector3(impulse.z, 0.0, -impulse.x).normalized() * 3.0
+			if pelvis_pb != null:
+				pelvis_pb.linear_velocity = impulse * 0.65
+			if head_pb != null:
+				head_pb.linear_velocity = impulse * 0.90
 		_:
 			for b_key in physical_bones.keys():
 				var pb: PhysicalBone3D = physical_bones[b_key] as PhysicalBone3D

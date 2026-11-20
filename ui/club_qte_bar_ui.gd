@@ -3,14 +3,14 @@ class_name ClubQTEBarUI
 extends Control
 
 ## Two-Handed Club Charge QTE Bar (Doc 5 §2.B).
-## Fills over 1.6s with randomized 18% Green Sweet-Spot (55%–75%) and 100% Overcharge penalty.
+## Fills over 3.2s with randomized 9% Green Sweet-Spot (55%–75%) and 100% Overcharge penalty.
 
 const BAR_SIZE := Vector2(320.0, 24.0)
 
 var charge_ratio: float = 0.0
 var charge_elapsed: float = 0.0
 var green_start: float = 0.60
-var green_width: float = 0.18
+var green_width: float = 0.09
 var is_charging: bool = false
 
 var _bar_container: PanelContainer = null
@@ -95,7 +95,7 @@ func begin_charge(fixed_green_start: float = -1.0) -> void:
 		_build_visual()
 	var min_s: float = GameConfig.club_green_zone_min_start if GameConfig != null else 0.55
 	var max_s: float = GameConfig.club_green_zone_max_start if GameConfig != null else 0.75
-	green_width = GameConfig.club_green_zone_width if GameConfig != null else 0.18
+	green_width = GameConfig.club_green_zone_width if GameConfig != null else 0.09
 	green_start = clampf(fixed_green_start, 0.0, 0.90) if fixed_green_start >= 0.0 else randf_range(min_s, max_s)
 	charge_ratio = 0.0
 	charge_elapsed = 0.0
@@ -107,10 +107,16 @@ func begin_charge(fixed_green_start: float = -1.0) -> void:
 	_bar_container.visible = true
 
 
+func get_charge_to_green_progress() -> float:
+	if not is_charging:
+		return 1.0
+	return clampf(charge_ratio / maxf(green_start * 0.5, 0.001), 0.0, 1.0)
+
+
 func update_charge(delta: float) -> String:
 	if not is_charging:
 		return "IDLE"
-	var fill_dur: float = GameConfig.club_charge_fill_duration if GameConfig != null else 1.60
+	var fill_dur: float = GameConfig.club_charge_fill_duration if GameConfig != null else 3.20
 	charge_elapsed += delta
 	charge_ratio = clampf(charge_elapsed / maxf(fill_dur, 0.1), 0.0, 1.0)
 	if _cursor_rect != null:

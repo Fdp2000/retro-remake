@@ -200,6 +200,9 @@ var live_bomb_owner_peer_id: int = 0
 var club_overcharge_stumble_remaining: float = 0.0
 var _club_feint_cooldown: float = 0.0
 var _club_whiff_recovery: float = 0.0
+var _club_charge_exit_lerp_active: bool = false
+var _club_charge_exit_lerp_elapsed: float = 0.0
+var _club_charge_exit_start_speed: float = 0.0
 var _lmb_trap_hold_active: bool = false
 var _lmb_trap_hold_elapsed: float = 0.0
 var _lmb_trap_mode: String = ""
@@ -343,14 +346,22 @@ func update_stance_from_inputs(wants_sprint: bool, wants_crouch: bool) -> int:
 
 
 func get_current_move_speed() -> float:
+	var target_speed: float = speed * (0.30 if club_overcharge_stumble_remaining > 0.0 else 1.0)
 	if GameConfig != null:
+		var charge_progress: float = _club_qte_ui.get_charge_to_green_progress() if (_club_qte_ui != null and is_charging_club) else 1.0
 		var base: float = GameConfig.compute_final_move_speed(
 			stance_state,
 			left_hand_item_id == "BRIEFCASE",
-			is_charging_club
+			is_charging_club,
+			charge_progress
 		)
-		return base * (0.30 if club_overcharge_stumble_remaining > 0.0 else 1.0)
-	return speed * (0.30 if club_overcharge_stumble_remaining > 0.0 else 1.0)
+		target_speed = base * (0.30 if club_overcharge_stumble_remaining > 0.0 else 1.0)
+	if _club_charge_exit_lerp_active and not is_charging_club:
+		var exit_dur: float = GameConfig.club_charge_exit_lerp_duration if GameConfig != null else 0.40
+		var t: float = clampf(_club_charge_exit_lerp_elapsed / maxf(exit_dur, 0.001), 0.0, 1.0)
+		var exp_t: float = (exp(3.0 * t) - 1.0) / (exp(3.0) - 1.0)
+		return lerpf(_club_charge_exit_start_speed, target_speed, exp_t)
+	return target_speed
 
 
 func get_current_footstep_radius() -> float:
@@ -499,8 +510,17 @@ func drop_right_hand_item() -> Dictionary:
 	return res
 
 
+func _begin_club_charge_exit_lerp() -> void:
+	_club_charge_exit_start_speed = get_current_move_speed()
+	_club_charge_exit_lerp_elapsed = 0.0
+	_club_charge_exit_lerp_active = true
+
+
 func toggle_personal_club() -> Dictionary:
 	cancel_tripwire_placement()
+	var was_charging: bool = _inv().is_charging_club
+	if was_charging:
+		_begin_club_charge_exit_lerp()
 	var res: Dictionary = _inv().toggle_personal_club()
 	_refresh_hand_and_back_sockets()
 	_update_hud_status()
@@ -509,6 +529,8 @@ func toggle_personal_club() -> Dictionary:
 
 func start_club_charge() -> Dictionary:
 	cancel_tripwire_placement()
+	_club_charge_exit_lerp_active = false
+	_club_charge_exit_lerp_elapsed = 0.0
 	var res: Dictionary = _inv().start_club_charge()
 	if _inv().is_charging_club and stance_state == (GameConfig.Stance.SPRINT if GameConfig != null else 1):
 		stance_state = GameConfig.Stance.WALK if GameConfig != null else 0
@@ -519,6 +541,7 @@ func start_club_charge() -> Dictionary:
 
 func stop_club_charge() -> void:
 	if _inv().is_charging_club:
+		_begin_club_charge_exit_lerp()
 		_inv().stop_club_charge()
 		_refresh_hand_and_back_sockets()
 		_update_hud_status()
@@ -1255,6 +1278,9 @@ func reset_for_rematch(spawn_local_pos: Vector3, spawn_yaw: float = 0.0) -> void
 	club_overcharge_stumble_remaining = 0.0
 	_club_feint_cooldown = 0.0
 	_club_whiff_recovery = 0.0
+	_club_charge_exit_lerp_active = false
+	_club_charge_exit_lerp_elapsed = 0.0
+	_club_charge_exit_start_speed = 0.0
 	_lmb_trap_hold_active = false
 	_lmb_trap_hold_elapsed = 0.0
 	cancel_tripwire_placement()
@@ -1993,11 +2019,10 @@ func evaluate_club_release() -> String:
 			else:
 				_server_execute_club_slam(cam_origin, cam_forward)
 		"OVERCHARGE":
-			var stumble_dur: float = GameConfig.club_overcharge_stumble_duration if GameConfig != null else 2.0
+			var stumble_dur: float = GameConfig.club_overcharge_stumble_duration if GameConfig != null else 2.5
 			club_overcharge_stumble_remaining = stumble_dur
-			velocity += (-cam_forward * 3.2)
 			if _club_qte_ui != null:
-				_club_qte_ui.show_outcome("OVERCHARGED! STUMBLE (2.0s)", Color(1.0, 0.25, 0.22))
+				_club_qte_ui.show_outcome("OVERCHARGED! STUMBLE (2.5s)", Color(1.0, 0.25, 0.22))
 			if _is_peer_connected() and not multiplayer.is_server():
 				_rpc_server_club_overcharge.rpc_id(1)
 			else:
@@ -2050,13 +2075,26 @@ func _server_execute_club_slam(cam_origin: Vector3, cam_forward: Vector3) -> voi
 func _rpc_server_club_overcharge() -> void:
 	if _is_peer_connected() and not multiplayer.is_server():
 		return
+	var sender_id: int = multiplayer.get_remote_sender_id()
+	if sender_id != 0 and sender_id != name.to_int():
+		return
 	_server_execute_club_overcharge()
 
 
 func _server_execute_club_overcharge() -> void:
-	club_overcharge_stumble_remaining = GameConfig.club_overcharge_stumble_duration if GameConfig != null else 2.0
+	var ragdoll_dur: float = GameConfig.club_overcharge_stumble_duration if GameConfig != null else 2.5
+	club_overcharge_stumble_remaining = ragdoll_dur
 	if AudioBridge != null:
 		AudioBridge.request_world_cue("club_stumble", _safe_global_pos(), 8.0, name.to_int())
+	var back_dir: Vector3 = Vector3(global_transform.basis.z.x, 0.0, global_transform.basis.z.z).normalized() if is_inside_tree() else Vector3(0.0, 0.0, 1.0)
+	if back_dir.length_squared() < 0.01:
+		back_dir = Vector3(0.0, 0.0, 1.0)
+	var fall_impulse: Vector3 = back_dir * 4.0 + Vector3(0.0, 1.5, 0.0)
+	var start_pos: Vector3 = _safe_global_pos()
+	if _is_peer_connected():
+		_rpc_apply_ko_state.rpc(ragdoll_dur, 0.0, true, start_pos, rotation.y, fall_impulse, "CLUB_OVERCHARGE")
+	else:
+		_rpc_apply_ko_state(ragdoll_dur, 0.0, true, start_pos, rotation.y, fall_impulse, "CLUB_OVERCHARGE")
 
 
 func emit_watch_bluff(cue_id: String, target_pos: Vector3) -> void:
@@ -2478,6 +2516,12 @@ func _process(delta: float) -> void:
 		_club_whiff_recovery = maxf(_club_whiff_recovery - delta, 0.0)
 	if club_overcharge_stumble_remaining > 0.0:
 		club_overcharge_stumble_remaining = maxf(club_overcharge_stumble_remaining - delta, 0.0)
+	if _club_charge_exit_lerp_active:
+		var exit_dur: float = GameConfig.club_charge_exit_lerp_duration if GameConfig != null else 0.40
+		_club_charge_exit_lerp_elapsed += delta
+		if _club_charge_exit_lerp_elapsed >= exit_dur:
+			_club_charge_exit_lerp_active = false
+			_club_charge_exit_lerp_elapsed = 0.0
 
 	if _bonus_toast_timer > 0.0:
 		_bonus_toast_timer -= delta

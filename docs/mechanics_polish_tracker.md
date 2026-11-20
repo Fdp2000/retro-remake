@@ -89,8 +89,8 @@ One mechanic at a time. For each one we: **review the design → you test it →
 ## H. Club Melee
 | # | Mechanic | Status | Notes |
 |---|---|---|---|
-| H1 | Charge bar: 1.6s, random 18% green zone (55–75%), 0.35 move speed, drops Briefcase | 🟡 | |
-| H2 | Outcomes: feint (<0.2s), whiff (0.6s recovery), green = KO slam, 100% = overcharge stumble | 🟡 | |
+| H1 | Charge bar: 3.2s, random 9% green zone (55–75%), speed lerps to 0.35x by halfway to green_start (floored at walk*0.35), 0.4s exp exit lerp, drops Briefcase | ✅ | |
+| H2 | Outcomes: feint (<0.2s), whiff (0.6s recovery), green = KO slam, 100% = 2.5s minor backward ragdoll | ✅ | |
 | H3 | Slam hit detection: 2m forward, blocked by walls | 🟡 | |
 | H4 | Club animation / readable wind-up | 🟠 | Just rotates the held mesh |
 

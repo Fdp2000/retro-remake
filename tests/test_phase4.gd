@@ -473,23 +473,30 @@ func test_club_qte_feint_whiff_slam_and_overcharge() -> void:
 
 	# 2. Early Release Whiff (< green start 0.60)
 	assert_true(attacker.begin_club_qte_charge(0.60), "Start Club QTE for Whiff test")
-	attacker._club_qte_ui.update_charge(0.55)
+	assert_true(is_equal_approx(attacker.get_current_move_speed(), GameConfig.walk_speed), "Move speed starts at walk_speed at QTE start")
+	attacker._club_qte_ui.update_charge(0.48) # 0.48 / 3.20 = 0.15 -> half way to (green_start * 0.5 = 0.30)
+	var mid_expected: float = GameConfig.walk_speed * lerpf(GameConfig.speed_mult_normal, GameConfig.speed_mult_club_charge, 0.5)
+	assert_true(is_equal_approx(attacker.get_current_move_speed(), mid_expected), "Move speed linearly lerps toward speed_mult_club_charge over half of green_start")
+	attacker._club_qte_ui.update_charge(0.48) # 0.96 / 3.20 = 0.30 -> reaches speed_mult_club_charge at halfway to green_start
+	assert_true(is_equal_approx(attacker.get_current_move_speed(), GameConfig.walk_speed * GameConfig.speed_mult_club_charge), "Move speed reaches speed_mult_club_charge at halfway to green_start")
 	assert_eq(attacker.evaluate_club_release(), "WHIFF", "Release before green window evaluates to WHIFF")
 	attacker._club_whiff_recovery = 0.0
 
 	# 3. Green-Zone Release -> 2.0m KO Slam
 	assert_true(attacker.begin_club_qte_charge(0.60), "Start Club QTE for Green Slam test")
-	attacker._club_qte_ui.update_charge(1.10) # 1.10 / 1.60 = 0.6875 in [0.60, 0.78]
+	attacker._club_qte_ui.update_charge(2.05) # 2.05 / 3.20 = 0.640625 in [0.60, 0.69]
+	assert_true(is_equal_approx(attacker.get_current_move_speed(), GameConfig.walk_speed * GameConfig.speed_mult_club_charge), "Move speed reaches speed_mult_club_charge at green_start")
 	# Synchronous physics frame (no await allowed in test runner)
 	assert_eq(attacker.evaluate_club_release(), "KO_SLAM", "Release inside green window evaluates to KO_SLAM")
 	assert_eq(int(victim.get("stance_state")), int(GameConfig.Stance.KO), "Club KO_SLAM inflicts 15s KO on rival within 2.0m")
 
-	# 4. 100% Overcharge Self-Stumble
+	# 4. 100% Overcharge Self-Ragdoll (2.5s)
 	assert_true(attacker.begin_club_qte_charge(0.60), "Start Club QTE for Overcharge test")
-	var tick_res: String = attacker._club_qte_ui.update_charge(1.70)
+	var tick_res: String = attacker._club_qte_ui.update_charge(3.30)
 	assert_eq(tick_res, "OVERCHARGED", "Holding to 100% reports OVERCHARGED")
-	assert_eq(attacker.evaluate_club_release(), "OVERCHARGE", "Overcharge resolves self-stumble")
-	assert_true(attacker.club_overcharge_stumble_remaining >= 1.9, "Overcharge applies 2.0s self-stumble slowdown")
+	assert_eq(attacker.evaluate_club_release(), "OVERCHARGE", "Overcharge resolves self-ragdoll")
+	assert_eq(int(attacker.get("stance_state")), int(GameConfig.Stance.KO), "Overcharge enters minor ragdoll KO state")
+	assert_true(is_equal_approx(attacker.ko_remaining_seconds, 2.5), "Overcharge ragdoll lasts 2.5s")
 
 
 func test_watch_bluffs_anti_camp_sneeze_and_crt_replay() -> void:

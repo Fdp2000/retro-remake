@@ -74,7 +74,7 @@ static func get_remote_spy_visual_layer(slot_index: int) -> int:
 @export_group("Locomotion & Stances")
 @export var walk_speed: float = 4.5
 @export var sprint_speed: float = 6.8
-@export var crouch_speed: float = 3.4
+@export var crouch_speed: float = 2.5
 @export var jump_velocity: float = 4.2
 @export var standing_capsule_height: float = 1.8
 @export var crouched_capsule_height: float = 1.0
@@ -156,12 +156,13 @@ static func get_remote_spy_visual_layer(slot_index: int) -> int:
 @export var club_quick_tap_threshold: float = 0.20
 @export var club_feint_cooldown: float = 0.40
 @export var club_whiff_recovery_time: float = 0.60
-@export var club_charge_fill_duration: float = 1.60
-@export var club_green_zone_width: float = 0.18
+@export var club_charge_fill_duration: float = 3.20
+@export var club_green_zone_width: float = 0.09
 @export var club_green_zone_min_start: float = 0.55
 @export var club_green_zone_max_start: float = 0.75
 @export var club_melee_range: float = 2.0
-@export var club_overcharge_stumble_duration: float = 2.0
+@export var club_overcharge_stumble_duration: float = 2.5
+@export var club_charge_exit_lerp_duration: float = 0.40
 
 @export var ko_ragdoll_duration: float = 15.0
 @export var ko_wakeup_blend_duration: float = 0.35
@@ -252,7 +253,7 @@ func load_user_settings(path: String = USER_SETTINGS_PATH) -> bool:
 	return true
 
 
-func compute_final_move_speed(stance: int, has_briefcase: bool, is_charging_club: bool) -> float:
+func compute_final_move_speed(stance: int, has_briefcase: bool, is_charging_club: bool, club_charge_progress: float = 1.0) -> float:
 	if stance == Stance.DRAWER_LOCK or stance == Stance.KO:
 		return 0.0
 
@@ -267,5 +268,8 @@ func compute_final_move_speed(stance: int, has_briefcase: bool, is_charging_club
 			base_speed = crouch_speed
 
 	var hand_mult: float = speed_mult_briefcase if has_briefcase else speed_mult_normal
-	var action_mult: float = speed_mult_club_charge if is_charging_club else speed_mult_normal
-	return base_speed * hand_mult * action_mult
+	var action_mult: float = lerpf(speed_mult_normal, speed_mult_club_charge, clampf(club_charge_progress, 0.0, 1.0)) if is_charging_club else speed_mult_normal
+	var final_speed: float = base_speed * hand_mult * action_mult
+	if is_charging_club:
+		final_speed = maxf(final_speed, walk_speed * speed_mult_club_charge * hand_mult)
+	return final_speed
