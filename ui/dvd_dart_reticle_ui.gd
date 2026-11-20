@@ -42,10 +42,30 @@ func _build_visual() -> void:
 
 
 func set_active(active: bool) -> void:
+	var was_active: bool = is_reticle_active
 	is_reticle_active = active
 	visible = active
 	if active and _reticle_panel == null:
 		_build_visual()
+	if active and not was_active:
+		_randomize_spawn()
+
+
+func _randomize_spawn() -> void:
+	if _reticle_panel == null:
+		return
+	var bounds: Vector2 = get_viewport_rect().size if is_inside_tree() else Vector2(1280.0, 720.0)
+	if bounds.x < 100.0 or bounds.y < 100.0:
+		bounds = Vector2(1280.0, 720.0)
+	var max_x: float = maxf(bounds.x - RETICLE_SIZE.x, 10.0)
+	var max_y: float = maxf(bounds.y - RETICLE_SIZE.y, 10.0)
+	_reticle_panel.position = Vector2(randf_range(0.0, max_x), randf_range(0.0, max_y))
+	var spd: float = GameConfig.dvd_reticle_speed_px if GameConfig != null else 320.0
+	var sx: float = -1.0 if randi() % 2 == 0 else 1.0
+	var sy: float = -1.0 if randi() % 2 == 0 else 1.0
+	velocity = Vector2(sx, sy).normalized() * spd
+	_corner_flash_timer = 0.0
+	_reticle_panel.modulate = Color(0.75, 0.30, 1.0, 0.92)
 
 
 func _process(delta: float) -> void:

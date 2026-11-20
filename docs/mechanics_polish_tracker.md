@@ -82,9 +82,9 @@ One mechanic at a time. For each one we: **review the design → you test it →
 | G6 | Lit Bomb: click in drawer → auto-close → live bomb in FPS hand | ✅ | |
 | G7 | Lit Bomb: `LMB` throw (9m arc), mid-air catch by rival, floor re-grab | ✅ | |
 | G8 | Lit Bomb: 5m blast, blocked by walls / closed doors, self-detonates if held | ✅ | Fixed in-hand detonation launching ragdoll straight up into roof (now horizontal/backward `12.0` + `4.5` up) |
-| G9 | DVD Dart Gun: bouncing reticle 320 px/s | 🟡 | |
-| G10 | DVD Dart Gun: 1 shot → KO → gun breaks | 🟡 | Test no longer checks the KO |
-| G11 | Owner-trigger parity (your own traps hit you too) | 🟡 | Cross-cutting, check per trap |
+| G9 | DVD Dart Gun: bouncing reticle 320 px/s | ✅ | |
+| G10 | DVD Dart Gun: 1 shot → KO → gun breaks | ✅ | Test no longer checks the KO |
+| G11 | Owner-trigger parity (your own traps hit you too) | ✅ | Cross-cutting, check per trap |
 
 ## H. Club Melee
 | # | Mechanic | Status | Notes |

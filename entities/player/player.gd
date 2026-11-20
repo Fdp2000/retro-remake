@@ -2448,6 +2448,18 @@ func _set(property: StringName, value: Variant) -> bool:
 	return false
 
 
+func _is_aiming_dart_gun() -> bool:
+	var ko_val: int = GameConfig.Stance.KO if GameConfig != null else 4
+	var lock_val: int = GameConfig.Stance.DRAWER_LOCK if GameConfig != null else 3
+	return (
+		right_hand_item_id == "DART_GUN"
+		and stance_state != ko_val
+		and stance_state != lock_val
+		and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
+		and Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT)
+	)
+
+
 func _is_peer_connected() -> bool:
 	if Engine.is_editor_hint() or multiplayer == null or not multiplayer.has_multiplayer_peer():
 		return false
@@ -2504,10 +2516,7 @@ func _process(delta: float) -> void:
 		return
 
 	if _dvd_reticle_ui != null:
-		var holding_dart: bool = (right_hand_item_id == "DART_GUN")
-		_dvd_reticle_ui.set_active(holding_dart)
-		if holding_dart and get_viewport() != null:
-			_dvd_reticle_ui.step_bounce(delta, get_viewport().get_visible_rect().size)
+		_dvd_reticle_ui.set_active(_is_aiming_dart_gun())
 
 	if is_charging_club and _club_qte_ui != null:
 		if _club_qte_ui.update_charge(delta) == "OVERCHARGED":
@@ -3303,7 +3312,7 @@ func _unhandled_input(event: InputEvent) -> void:
 				Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 				return
 
-	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
+	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED and not _is_aiming_dart_gun():
 		var eff_sens: float = GameConfig.get_effective_mouse_sensitivity() if GameConfig != null else mouse_sensitivity
 		rotate_y(-event.relative.x * eff_sens)
 		head_pitch = clampf(head_pitch - event.relative.y * eff_sens, deg_to_rad(-89.0), deg_to_rad(89.0))
@@ -3371,11 +3380,14 @@ func _physics_process(delta: float) -> void:
 		and (MatchManager == null or MatchManager.match_state != MatchManager.MatchState.ENDED)
 		and not is_clock_eliminated
 	)
-	var wants_crouch: bool = controls_captured and (
-		(InputMap.has_action("crouch") and Input.is_action_pressed("crouch"))
-		or Input.is_key_pressed(KEY_CTRL)
+	var aiming_dart: bool = _is_aiming_dart_gun()
+	var wants_crouch: bool = (stance_state == crouch_val) if aiming_dart else (
+		controls_captured and (
+			(InputMap.has_action("crouch") and Input.is_action_pressed("crouch"))
+			or Input.is_key_pressed(KEY_CTRL)
+		)
 	)
-	var wants_sprint: bool = controls_captured and (
+	var wants_sprint: bool = controls_captured and not aiming_dart and (
 		(InputMap.has_action("sprint") and Input.is_action_pressed("sprint"))
 		or Input.is_key_pressed(KEY_SHIFT)
 	)
@@ -3391,6 +3403,7 @@ func _physics_process(delta: float) -> void:
 
 	var can_jump: bool = (
 		controls_captured
+		and not aiming_dart
 		and on_floor_now
 		and stance_state != (GameConfig.Stance.CROUCH if GameConfig != null else 2)
 		and stance_state != (GameConfig.Stance.DRAWER_LOCK if GameConfig != null else 3)
@@ -3402,7 +3415,7 @@ func _physics_process(delta: float) -> void:
 		velocity.y = GameConfig.jump_velocity if GameConfig != null else jump_velocity
 
 	var input_dir: Vector2 = Vector2.ZERO
-	if controls_captured:
+	if controls_captured and not aiming_dart:
 		if InputMap.has_action("move_forward") and InputMap.has_action("move_left"):
 			input_dir = Input.get_vector("move_left", "move_right", "move_forward", "move_back")
 		else:
