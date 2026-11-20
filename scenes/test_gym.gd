@@ -288,7 +288,7 @@ func _on_match_ended(winner_peer_id: int, reason: String) -> void:
 		for child in players_container.get_children():
 			var container: Variant = child.get("active_container")
 			if container != null and is_instance_valid(container) and container.has_method("close_container"):
-				container.call("close_container", child.name.to_int(), child)
+				container.call("close_container", child.name.to_int(), child, true)
 	if esc_menu != null:
 		esc_menu.visible = false
 	if not Engine.is_editor_hint():
@@ -410,6 +410,10 @@ func _reset_all_doors_for_round() -> void:
 				(bv as CanvasItem).visible = false
 			elif bv is Node3D:
 				(bv as Node3D).visible = false
+			if bv is Node:
+				var hcol: CollisionShape3D = (bv as Node).get_node_or_null("BucketHitbox/CollisionShape3D") as CollisionShape3D
+				if hcol != null:
+					hcol.disabled = true
 			if node.get("open_fraction") != null:
 				node.set("open_fraction", 0.0)
 				node.set("current_target_angle_rad", 0.0)

@@ -41,6 +41,8 @@ var _head_eye_bone_local: Transform3D = Transform3D.IDENTITY
 var _pending_impulse: Vector3 = Vector3.ZERO
 var _pending_reason: String = ""
 var _pending_impulse_frames: int = 0
+var _bucket_head_mount: MeshInstance3D = null
+var _bucket_on_head_active: bool = false
 
 
 func _physics_process(_delta: float) -> void:
@@ -73,6 +75,7 @@ func setup_for_role(role: int, local_first_person: bool = false) -> void:
 		agent_instance = null
 		skeleton = null
 		simulator = null
+		_bucket_head_mount = null
 		physical_bones.clear()
 
 	var packed: PackedScene = AGENT_PURPLE_SCENE if role == 2 else AGENT_GREEN_SCENE
@@ -91,6 +94,7 @@ func setup_for_role(role: int, local_first_person: bool = false) -> void:
 		_calibrate_permanent_head_camera_anchor()
 		_build_physical_bone_simulator()
 		_apply_idle_standing_pose(0.0, 0.0)
+		_ensure_bucket_head_mount()
 	_apply_first_person_visibility_mode()
 	_sync_owner_camera_cull_mask()
 
@@ -174,6 +178,46 @@ func _apply_first_person_visibility_mode() -> void:
 	if keep_alive != null:
 		keep_alive.layers = body_visual_layer
 		keep_alive.visible = is_first_person_local
+	if _bucket_head_mount != null and is_instance_valid(_bucket_head_mount):
+		_bucket_head_mount.layers = body_visual_layer
+
+
+func set_bucket_on_head(active: bool) -> void:
+	_bucket_on_head_active = active
+	if active:
+		_ensure_bucket_head_mount()
+	if _bucket_head_mount != null and is_instance_valid(_bucket_head_mount):
+		_bucket_head_mount.visible = active
+
+
+func _ensure_bucket_head_mount() -> void:
+	if skeleton == null or not is_instance_valid(skeleton):
+		return
+	if _bucket_head_mount != null and is_instance_valid(_bucket_head_mount):
+		return
+	var attach: BoneAttachment3D = skeleton.get_node_or_null("HeadBucketAttachment") as BoneAttachment3D
+	if attach == null:
+		attach = BoneAttachment3D.new()
+		attach.name = "HeadBucketAttachment"
+		attach.bone_name = "spine.006"
+		skeleton.add_child(attach)
+	var head_anchor: Node3D = attach.get_node_or_null("HeadAnchor") as Node3D
+	if head_anchor == null:
+		head_anchor = Node3D.new()
+		head_anchor.name = "HeadAnchor"
+		head_anchor.transform = _head_eye_bone_local
+		attach.add_child(head_anchor)
+	_bucket_head_mount = head_anchor.get_node_or_null("BucketHeadMount") as MeshInstance3D
+	if _bucket_head_mount == null:
+		const PICKUP_SCRIPT = preload("res://entities/props/world_item_pickup.gd")
+		_bucket_head_mount = PICKUP_SCRIPT.build_item_mesh("BUCKET")
+		_bucket_head_mount.name = "BucketHeadMount"
+		_bucket_head_mount.scale = Vector3(1.35, 1.10, 1.35)
+		_bucket_head_mount.position = Vector3(0.0, 0.08, 0.0)
+		_bucket_head_mount.rotation = Vector3(0.0, 0.0, PI)
+		_bucket_head_mount.layers = body_visual_layer
+		_bucket_head_mount.visible = _bucket_on_head_active
+		head_anchor.add_child(_bucket_head_mount)
 
 
 func _build_physical_bone_simulator() -> void:
@@ -321,6 +365,7 @@ func _apply_impulse_to_bones(impulse: Vector3, reason: String) -> void:
 
 
 func stop_ragdoll() -> void:
+	set_bucket_on_head(false)
 	_has_pelvis_sync_target = false
 	_pending_impulse_frames = 0
 	if simulator != null and is_ragdoll_active:

@@ -19,6 +19,7 @@ var _local_peer_id: int = 1
 var _top_bar: PanelContainer = null
 var _title_label: Label = null
 var _push_clutter_btn: Button = null
+var _close_btn: Button = null
 
 var _left_panel: PanelContainer = null
 var _left_title_label: Label = null
@@ -48,6 +49,7 @@ var _drag_slot_index: int = -1
 var _drag_start_pos: Vector2 = Vector2.ZERO
 var _ui_drag_samples: Array = []
 var _active_briefcase_slides: Dictionary = {} # key -> {"item_id": String, "pos": Vector2, "vel": Vector2}
+var _mid_slide_trap_revealed: bool = false
 
 
 func _ready() -> void:
@@ -119,16 +121,21 @@ func _input(event: InputEvent) -> void:
 
 func open_for_container(player_node: Node, container_node: Node, peer_id: int) -> void:
 	cancel_drag()
+	_mid_slide_trap_revealed = false
 	_player = player_node
 	_local_peer_id = peer_id
-	if _container != null and is_instance_valid(_container) and _container.has_signal("state_changed"):
-		if _container.state_changed.is_connected(refresh_view):
+	if _container != null and is_instance_valid(_container):
+		if _container.has_signal("state_changed") and _container.state_changed.is_connected(refresh_view):
 			_container.state_changed.disconnect(refresh_view)
+		if _container.has_signal("slide_progressed") and _container.slide_progressed.is_connected(refresh_slide_progress):
+			_container.slide_progressed.disconnect(refresh_slide_progress)
 
 	_container = container_node
-	if _container != null and _container.has_signal("state_changed"):
-		if not _container.state_changed.is_connected(refresh_view):
+	if _container != null:
+		if _container.has_signal("state_changed") and not _container.state_changed.is_connected(refresh_view):
 			_container.state_changed.connect(refresh_view)
+		if _container.has_signal("slide_progressed") and not _container.slide_progressed.is_connected(refresh_slide_progress):
+			_container.slide_progressed.connect(refresh_slide_progress)
 
 	visible = true
 	refresh_view()
@@ -137,9 +144,11 @@ func open_for_container(player_node: Node, container_node: Node, peer_id: int) -
 func close_view() -> void:
 	flush_active_briefcase_slides()
 	cancel_drag()
-	if _container != null and is_instance_valid(_container) and _container.has_signal("state_changed"):
-		if _container.state_changed.is_connected(refresh_view):
+	if _container != null and is_instance_valid(_container):
+		if _container.has_signal("state_changed") and _container.state_changed.is_connected(refresh_view):
 			_container.state_changed.disconnect(refresh_view)
+		if _container.has_signal("slide_progressed") and _container.slide_progressed.is_connected(refresh_slide_progress):
+			_container.slide_progressed.disconnect(refresh_slide_progress)
 	_container = null
 	visible = false
 
@@ -317,6 +326,39 @@ func cancel_drag() -> void:
 	_reset_panel_highlights()
 
 
+func refresh_slide_progress() -> void:
+	if not visible or _container == null or not is_instance_valid(_container):
+		return
+	if _title_label == null:
+		return
+	var is_briefcase: bool = bool(_container.get("is_briefcase_container"))
+	var c_id: String = str(_container.get("container_id"))
+	var vis_ratio: float = float(_container.get("drawer_visual_ratio"))
+	var slow_opening: bool = bool(_container.get("is_slow_opening"))
+	var holding_briefcase: bool = (_player != null and str(_player.get("left_hand_item_id")).to_upper() == "BRIEFCASE")
+	var held_briefcase_spring: bool = (
+		not is_briefcase
+		and holding_briefcase
+		and _player.has_method("has_held_briefcase_armed_spring")
+		and bool(_player.has_held_briefcase_armed_spring())
+	)
+	if vis_ratio < 0.15:
+		_mid_slide_trap_revealed = false
+	elif slow_opening and not _mid_slide_trap_revealed and (bool(_container.get("armed_spring")) or held_briefcase_spring):
+		_mid_slide_trap_revealed = true
+		refresh_view()
+		return
+	if _close_btn != null:
+		_close_btn.disabled = slow_opening
+		_close_btn.text = "Opening..." if slow_opening else "Close [S]"
+	if slow_opening:
+		var pct_slow: int = int(round(vis_ratio * 100.0))
+		var slow_name: String = "BRIEFCASE" if is_briefcase else (c_id.to_upper() + (" + BRIEFCASE" if holding_briefcase else ""))
+		_title_label.text = "%s — Slow Opening... (%d%%) [Committed]" % [slow_name, pct_slow]
+	_refresh_status_label(is_briefcase, vis_ratio)
+	_update_carried_briefcase_lid_overlay()
+
+
 func refresh_view() -> void:
 	if not visible or _container == null or not is_instance_valid(_container):
 		return
@@ -326,19 +368,28 @@ func refresh_view() -> void:
 	var is_briefcase: bool = bool(_container.get("is_briefcase_container"))
 	var c_id: String = str(_container.get("container_id"))
 	var vis_ratio: float = float(_container.get("drawer_visual_ratio"))
+	var slow_opening: bool = bool(_container.get("is_slow_opening"))
 	var holding_briefcase: bool = (_player != null and str(_player.get("left_hand_item_id")).to_upper() == "BRIEFCASE")
 
-	if vis_ratio < 0.15:
+	if _close_btn != null:
+		_close_btn.disabled = slow_opening
+		_close_btn.text = "Opening..." if slow_opening else "Close [S]"
+
+	if slow_opening:
+		var pct_slow: int = int(round(vis_ratio * 100.0))
+		var slow_name: String = "BRIEFCASE" if is_briefcase else (c_id.to_upper() + (" + BRIEFCASE" if holding_briefcase else ""))
+		_title_label.text = "%s — Slow Opening... (%d%%) [Committed]" % [slow_name, pct_slow]
+	elif vis_ratio < 0.15:
 		if is_briefcase:
-			_title_label.text = "BRIEFCASE (0%% Open) — [Tap E] Fast Snap Open | [Hold E] Slowly Ease Open | [A / S / D / ESC] Step Back"
+			_title_label.text = "BRIEFCASE (0%% Open) — [Tap E] Fast Snap Open | [Hold E] Committed Slow Open | [A / S / D / ESC] Step Back"
 		elif holding_briefcase:
-			_title_label.text = "%s + BRIEFCASE (0%% Open) — [Tap E] Fast Open Both | [Hold E] Slowly Ease Open Both | [A / S / D / ESC] Step Back" % c_id.to_upper()
+			_title_label.text = "%s + BRIEFCASE (0%% Open) — [Tap E] Fast Open Both | [Hold E] Committed Slow Open Both | [A / S / D / ESC] Step Back" % c_id.to_upper()
 		else:
-			_title_label.text = "%s (0%% Open) — [Tap E] Fast Yank Open | [Hold E] Slowly Ease Open | [A / S / D / ESC] Step Back" % c_id.to_upper()
+			_title_label.text = "%s (0%% Open) — [Tap E] Fast Yank Open | [Hold E] Committed Slow Open | [A / S / D / ESC] Step Back" % c_id.to_upper()
 	elif vis_ratio < 0.88:
 		var pct: int = int(round(vis_ratio * 100.0))
 		var label_name: String = "BRIEFCASE" if is_briefcase else (c_id.to_upper() + (" + BRIEFCASE" if holding_briefcase else ""))
-		_title_label.text = "%s (%d%% Open) — Hold E to open further | Release E to inspect traps | [A / S / D / ESC] Close" % [label_name, pct]
+		_title_label.text = "%s (%d%% Open) — Inspect or close | [A / S / D / ESC] Close" % [label_name, pct]
 	else:
 		if is_briefcase:
 			_title_label.text = "COMPACT BRIEFCASE — Drag items anywhere inside or drag to Left Hand | [A / S / D / ESC] Close"
@@ -349,7 +400,7 @@ func refresh_view() -> void:
 
 	if _push_clutter_btn != null:
 		var clutter_arr: Array = _container.get("clutter_positions") as Array
-		_push_clutter_btn.visible = (not is_briefcase) and vis_ratio >= 0.55 and clutter_arr != null and not clutter_arr.is_empty()
+		_push_clutter_btn.visible = (not is_briefcase) and (not slow_opening) and vis_ratio >= 0.55 and clutter_arr != null and not clutter_arr.is_empty()
 
 	_refresh_left_panel(is_briefcase, vis_ratio)
 	_refresh_status_label(is_briefcase, vis_ratio)
@@ -439,17 +490,19 @@ func _build_layout() -> void:
 	)
 	header_row.add_child(_push_clutter_btn)
 
-	var close_btn := Button.new()
-	close_btn.focus_mode = Control.FOCUS_NONE
-	close_btn.text = "Close [S]"
-	close_btn.pressed.connect(func():
+	_close_btn = Button.new()
+	_close_btn.focus_mode = Control.FOCUS_NONE
+	_close_btn.text = "Close [S]"
+	_close_btn.pressed.connect(func():
+		if _container != null and is_instance_valid(_container) and bool(_container.get("is_slow_opening")):
+			return
 		if _player != null and _player.has_method("flush_active_3d_slides"):
 			_player.flush_active_3d_slides(true)
 		flush_active_briefcase_slides()
 		if _container != null and is_instance_valid(_container) and _container.has_method("request_close_container"):
 			_container.request_close_container(_local_peer_id)
 	)
-	header_row.add_child(close_btn)
+	header_row.add_child(_close_btn)
 
 	# 3. LEFT SIDE PANEL — Visual Left Hand OR Simultaneous Open Carried Briefcase
 	_left_panel = PanelContainer.new()
@@ -574,7 +627,8 @@ func _refresh_left_panel(is_briefcase: bool, vis_ratio: float) -> void:
 		c.queue_free()
 
 	var l_id: String = str(_player.get("left_hand_item_id")).to_upper()
-	var can_transfer: bool = vis_ratio >= 0.40
+	var slow_opening: bool = (_container != null and is_instance_valid(_container) and bool(_container.get("is_slow_opening")))
+	var can_transfer: bool = vis_ratio >= 0.40 and not slow_opening
 
 	# Mode B: Carrying Briefcase while searching a Drawer -> Freeform Layered Briefcase Canvas on Left!
 	if l_id == "BRIEFCASE" and not is_briefcase:
@@ -839,7 +893,8 @@ func _build_carried_briefcase_trap_strip(vis_ratio: float) -> void:
 		var unlatch_btn := Button.new()
 		unlatch_btn.focus_mode = Control.FOCUS_NONE
 		unlatch_btn.modulate = Color(1.0, 0.35, 0.30)
-		unlatch_btn.text = "BRIEFCASE SPRING! Click to Unlatch"
+		unlatch_btn.disabled = false
+		unlatch_btn.text = "BRIEFCASE SPRING! Click to Unlatch!"
 		unlatch_btn.pressed.connect(func():
 			if _player != null and _player.has_method("request_briefcase_trap_action"):
 				_player.request_briefcase_trap_action("UNLATCH_SPRING", 0)
@@ -896,16 +951,26 @@ func _update_carried_briefcase_lid_overlay() -> void:
 		return
 
 	var vis_ratio: float = clampf(float(_container.get("drawer_visual_ratio")), 0.0, 1.0)
-	if vis_ratio >= 0.85:
+	var slow_opening: bool = bool(_container.get("is_slow_opening"))
+	if vis_ratio >= 0.995:
 		_briefcase_lid_cover.visible = false
 		return
 
 	_briefcase_lid_cover.visible = true
 	_briefcase_lid_cover.anchor_bottom = clampf(1.0 - vis_ratio, 0.0, 1.0)
+	var held_spring_visible: bool = (
+		vis_ratio >= 0.15
+		and _player.has_method("has_held_briefcase_armed_spring")
+		and bool(_player.has_held_briefcase_armed_spring())
+	)
+	_briefcase_lid_cover.mouse_filter = Control.MOUSE_FILTER_IGNORE if held_spring_visible else Control.MOUSE_FILTER_STOP
 	if _briefcase_lid_label != null:
 		var pct: int = int(round(vis_ratio * 100.0))
 		_briefcase_lid_label.visible = (1.0 - vis_ratio) > 0.25
-		_briefcase_lid_label.text = "BRIEFCASE (%d%% Open)\nOpens with Drawer\n[Tap E] Fast  |  [Hold E] Slow" % pct
+		if slow_opening:
+			_briefcase_lid_label.text = "BRIEFCASE (%d%% Open)\nSlow Opening with Drawer..." % pct
+		else:
+			_briefcase_lid_label.text = "BRIEFCASE (%d%% Open)\nOpens with Drawer\n[Tap E] Fast  |  [Hold E] Slow" % pct
 
 
 # ==========================================
@@ -916,13 +981,26 @@ func _refresh_status_label(is_briefcase: bool, vis_ratio: float) -> void:
 	if _container_status_label == null or _container == null:
 		return
 	var label_name: String = "Briefcase" if is_briefcase else "Drawer"
+	var slow_opening: bool = bool(_container.get("is_slow_opening"))
+	var held_briefcase_spring: bool = (
+		not is_briefcase
+		and _player != null
+		and _player.has_method("has_held_briefcase_armed_spring")
+		and bool(_player.has_held_briefcase_armed_spring())
+	)
 	if bool(_container.get("live_bomb_lit")):
 		var rem: float = float(_container.get("live_bomb_fuse_remaining"))
 		_container_status_label.modulate = Color(1.0, 0.30, 0.15)
 		_container_status_label.text = "LIT BOMB! (%.1fs) — Click 3D Bomb to Grab!" % rem
-	elif bool(_container.get("armed_spring")) and vis_ratio >= 0.15:
+	elif (bool(_container.get("armed_spring")) or held_briefcase_spring) and vis_ratio >= 0.15:
 		_container_status_label.modulate = Color(1.0, 0.35, 0.30)
-		_container_status_label.text = "SPRING VISIBLE! Release E & Click Trap to Unlatch!"
+		if slow_opening:
+			_container_status_label.text = "SPRING VISIBLE! Click Trap NOW before it snaps!"
+		else:
+			_container_status_label.text = "SPRING VISIBLE! Click Trap to Unlatch!"
+	elif slow_opening:
+		_container_status_label.modulate = Color(0.85, 0.92, 0.65)
+		_container_status_label.text = "Slowly easing open %s... (%d%%)" % [label_name, int(round(vis_ratio * 100.0))]
 	elif bool(_container.get("spring_unlatched")):
 		_container_status_label.modulate = Color(0.35, 0.95, 0.85)
 		_container_status_label.text = "Spring Unlatched — Drag → Coat or RMB Re-Arm"
@@ -954,7 +1032,8 @@ func _refresh_jacket_panel(is_briefcase: bool, vis_ratio: float) -> void:
 	if slots == null:
 		return
 
-	var can_plant: bool = vis_ratio >= 0.40
+	var slow_opening: bool = bool(_container.get("is_slow_opening"))
+	var can_plant: bool = vis_ratio >= 0.40 and not slow_opening
 	var spring_unlatched: bool = bool(_container.get("spring_unlatched"))
 	var can_arm_spring: bool = can_plant and (not bool(_container.get("armed_spring"))) and (not bool(_container.get("staged_spring_on_lip"))) and (not spring_unlatched)
 	var can_arm_bomb: bool = can_plant and (not bool(_container.get("armed_bomb"))) and (not bool(_container.get("staged_bomb_in_tray"))) and (not bool(_container.get("live_bomb_lit")))

@@ -2,18 +2,23 @@ extends MeshInstance3D
 
 const PICKUP_SCRIPT = preload("res://entities/props/world_item_pickup.gd")
 
+static var _splash_mesh: CylinderMesh = null
+static var _splash_mat: StandardMaterial3D = null
+
 @export var open_angle: float = -90.0
 @export var swing_duration: float = 0.3
 
 var is_open: bool = false
 var has_rigged_bucket: bool = false
 var bucket_owner_peer_id: int = 0
+var bucket_side_sign: float = 1.0
 var _closed_rotation: float = 0.0
 var _open_fraction: float = 0.0
 var _push_target_y: float = 0.0
 var _swing: Tween
 var _busy: bool = false
 var _bucket_visual: MeshInstance3D = null
+var _step_start_y: float = 0.0
 
 func _ready() -> void:
 	set_multiplayer_authority(1)
@@ -34,15 +39,67 @@ func _ready() -> void:
 		_request_state.call_deferred()
 
 
+func _exit_tree() -> void:
+	if _bucket_visual != null and is_instance_valid(_bucket_visual) and _bucket_visual.get_parent() != self:
+		_bucket_visual.queue_free()
+		_bucket_visual = null
+
+
 func _ensure_bucket_visual() -> void:
-	if _bucket_visual == null:
-		_bucket_visual = get_node_or_null("BucketMount") as MeshInstance3D
+	var target_parent: Node = get_parent() if get_parent() != null else self
+	var mount_name: String = "BucketMount_%d" % get_instance_id()
+	if _bucket_visual == null or not is_instance_valid(_bucket_visual):
+		_bucket_visual = target_parent.get_node_or_null(mount_name) as MeshInstance3D
 	if _bucket_visual == null:
 		_bucket_visual = PICKUP_SCRIPT.build_item_mesh("BUCKET")
-		_bucket_visual.name = "BucketMount"
-		_bucket_visual.position = Vector3(0.60, 1.15, 0.03)
+		_bucket_visual.name = mount_name
 		_bucket_visual.visible = has_rigged_bucket
-		add_child(_bucket_visual)
+		var hitbox := StaticBody3D.new()
+		hitbox.name = "BucketHitbox"
+		hitbox.collision_layer = GameConfig.LAYER_INTERACTABLE if GameConfig != null else 2
+		hitbox.collision_mask = 0
+		hitbox.set_meta("bucket_door", self)
+		var hcol := CollisionShape3D.new()
+		hcol.name = "CollisionShape3D"
+		var cyl := CylinderShape3D.new()
+		cyl.radius = 0.22
+		cyl.height = 0.36
+		hcol.shape = cyl
+		hcol.position = Vector3(0.0, -0.02, 0.0)
+		hcol.disabled = not has_rigged_bucket
+		hitbox.add_child(hcol)
+		_bucket_visual.add_child(hitbox)
+		if target_parent == self or target_parent.is_node_ready():
+			target_parent.add_child(_bucket_visual)
+		else:
+			target_parent.add_child.call_deferred(_bucket_visual)
+	elif _bucket_visual.get_parent() != null and _bucket_visual.get_parent() != target_parent:
+		_bucket_visual.get_parent().remove_child(_bucket_visual)
+		if target_parent == self or target_parent.is_node_ready():
+			target_parent.add_child(_bucket_visual)
+		else:
+			target_parent.add_child.call_deferred(_bucket_visual)
+	_update_bucket_visual_transform()
+
+
+func _get_bucket_ajar_rad() -> float:
+	var ajar_deg: float = GameConfig.door_bucket_ajar_angle_deg if GameConfig != null else 10.0
+	return deg_to_rad(ajar_deg) * (-bucket_side_sign)
+
+
+func _update_bucket_visual_transform() -> void:
+	if _bucket_visual == null or not is_instance_valid(_bucket_visual):
+		return
+	var ajar_rad: float = _get_bucket_ajar_rad()
+	var z_local: float = 0.031 + (0.13 if bucket_side_sign > 0.0 else 0.0)
+	var local_pos := Vector3(1.05, 1.183, z_local)
+	if _bucket_visual.get_parent() == self:
+		_bucket_visual.position = local_pos
+		_bucket_visual.rotation = Vector3.ZERO
+	else:
+		var ajar_basis := Basis(Vector3.UP, _closed_rotation + ajar_rad)
+		_bucket_visual.position = position + ajar_basis * local_pos
+		_bucket_visual.rotation = Vector3(0.0, _closed_rotation + ajar_rad, 0.0)
 
 func get_interaction_prompt() -> String:
 	if is_open:
@@ -90,19 +147,57 @@ func request_sprint_bash(_peer_id: int, _basher_pos: Vector3) -> void:
 		server_interact.rpc_id(1, false, true)
 
 
+func _find_player_node(peer_id: int) -> Node:
+	if not is_inside_tree() or get_tree() == null:
+		return null
+	var scene: Node = get_tree().current_scene
+	if scene != null:
+		var p: Node = scene.get_node_or_null("Players/" + str(peer_id))
+		if p != null:
+			return p
+	for candidate in get_tree().get_nodes_in_group("spy_players"):
+		if candidate.name.to_int() == peer_id:
+			return candidate
+	return null
+
+
+func _compute_bucket_side_sign(owner_peer_id: int) -> float:
+	var player: Node = _find_player_node(owner_peer_id)
+	if not (player is Node3D):
+		return 1.0
+	var door_basis: Basis = (get_parent() as Node3D).global_basis * Basis(Vector3.UP, _closed_rotation) if get_parent() is Node3D else global_basis
+	var z_axis: Vector3 = door_basis.z
+	z_axis.y = 0.0
+	if z_axis.length_squared() < 0.0001:
+		z_axis = Vector3.BACK
+	else:
+		z_axis = z_axis.normalized()
+	var origin: Vector3 = global_position if is_inside_tree() else position
+	var to_armer: Vector3 = (player as Node3D).global_position - origin
+	to_armer.y = 0.0
+	return 1.0 if z_axis.dot(to_armer) >= 0.0 else -1.0
+
+
 func rig_water_bucket(owner_peer_id: int) -> bool:
 	_ensure_bucket_visual()
 	if is_open or has_rigged_bucket:
 		return false
 	has_rigged_bucket = true
 	bucket_owner_peer_id = owner_peer_id
+	bucket_side_sign = _compute_bucket_side_sign(owner_peer_id)
 	if AudioBridge != null and GameConfig != null:
 		AudioBridge.request_world_cue("trap_arm", global_position + Vector3(0.0, 2.0, 0.0), GameConfig.audio_radius_trap_setup, owner_peer_id)
 	if _is_peer_connected():
-		_rpc_sync_bucket_state.rpc(true)
+		_rpc_sync_bucket_state.rpc(true, bucket_side_sign)
 	else:
-		_rpc_sync_bucket_state(true)
+		_rpc_sync_bucket_state(true, bucket_side_sign)
 	return true
+
+
+func get_bucket_world_position() -> Vector3:
+	if _bucket_visual != null and is_instance_valid(_bucket_visual):
+		return _bucket_visual.global_position if _bucket_visual.is_inside_tree() else _bucket_visual.position
+	return (global_position if is_inside_tree() else position) + Vector3(0.0, 1.15, 0.0)
 
 
 func request_steal_bucket(caller_peer_id: int) -> void:
@@ -135,44 +230,62 @@ func steal_water_bucket(thief_peer_id: int, player_override: Node = null) -> boo
 	has_rigged_bucket = false
 	bucket_owner_peer_id = 0
 	if _is_peer_connected():
-		_rpc_sync_bucket_state.rpc(false)
+		_rpc_sync_bucket_state.rpc(false, bucket_side_sign, false)
 	else:
-		_rpc_sync_bucket_state(false)
+		_rpc_sync_bucket_state(false, bucket_side_sign, false)
 	return true
 
 
 @rpc("authority", "call_local", "reliable")
-func _rpc_sync_bucket_state(rigged: bool) -> void:
+func _rpc_sync_bucket_state(rigged: bool, bucket_side: float = 1.0, snap_closed: bool = true) -> void:
+	bucket_side_sign = 1.0 if bucket_side >= 0.0 else -1.0
 	_ensure_bucket_visual()
 	has_rigged_bucket = rigged
 	if _bucket_visual != null:
 		_bucket_visual.visible = has_rigged_bucket
-	if not is_open:
-		var ajar_deg: float = GameConfig.door_bucket_ajar_angle_deg if GameConfig != null else 5.0
-		rotation.y = (_closed_rotation + deg_to_rad(ajar_deg)) if has_rigged_bucket else _closed_rotation
+		var hcol: CollisionShape3D = _bucket_visual.get_node_or_null("BucketHitbox/CollisionShape3D") as CollisionShape3D
+		if hcol != null:
+			hcol.disabled = not has_rigged_bucket
+	if not is_open and snap_closed:
+		rotation.y = (_closed_rotation + _get_bucket_ajar_rad()) if has_rigged_bucket else _closed_rotation
 
 
 func _trigger_rigged_bucket_drop(opener_peer_id: int, swing_dur: float) -> void:
 	var owner_id: int = bucket_owner_peer_id
+	var opener_side: float = _compute_bucket_side_sign(opener_peer_id)
+	var start_rel_rad: float = wrapf(rotation.y - _closed_rotation, -PI, PI)
+	var open_rad: float = maxf(deg_to_rad(absf(open_angle)), 0.1)
+	var delay: float = 0.0
+	if swing_dur > 0.0:
+		if opener_side == bucket_side_sign:
+			var same_delta_rad: float = deg_to_rad(GameConfig.door_bucket_same_side_release_delta_deg if GameConfig != null else 4.0)
+			delay = clampf(swing_dur * (same_delta_rad / open_rad), 0.0, 1.5)
+		else:
+			var opp_release_rad: float = deg_to_rad(GameConfig.door_bucket_release_angle_deg if GameConfig != null else 28.0)
+			var remaining_rad: float = maxf(opp_release_rad - absf(start_rel_rad), 0.0)
+			delay = clampf(swing_dur * (remaining_rad / open_rad), 0.0, 1.5)
+	var drop_world_pos: Vector3 = _bucket_visual.global_position if (_bucket_visual != null and _bucket_visual.is_inside_tree()) else ((global_position if is_inside_tree() else position) + Vector3(0.60, 1.18, 0.0))
 	has_rigged_bucket = false
 	bucket_owner_peer_id = 0
 	if _is_peer_connected():
-		_rpc_sync_bucket_state.rpc(false)
+		_rpc_sync_bucket_state.rpc(false, bucket_side_sign, false)
 	else:
-		_rpc_sync_bucket_state(false)
-	var release_deg: float = GameConfig.door_bucket_release_angle_deg if GameConfig != null else 25.0
-	var open_deg: float = maxf(absf(open_angle), 1.0)
-	var delay: float = clampf(swing_dur * (release_deg / open_deg), 0.0, 1.5)
+		_rpc_sync_bucket_state(false, bucket_side_sign, false)
 	if not is_inside_tree() or delay <= 0.01:
-		_resolve_bucket_drop(opener_peer_id, owner_id)
+		_resolve_bucket_drop(opener_peer_id, owner_id, drop_world_pos)
 		return
 	get_tree().create_timer(delay).timeout.connect(func():
-		_resolve_bucket_drop(opener_peer_id, owner_id)
+		_resolve_bucket_drop(opener_peer_id, owner_id, drop_world_pos)
 	)
 
 
-func _resolve_bucket_drop(opener_peer_id: int, owner_id: int) -> void:
+func _resolve_bucket_drop(opener_peer_id: int, owner_id: int, drop_world_pos: Vector3 = Vector3.INF) -> void:
 	var pos_now: Vector3 = global_position if is_inside_tree() else position
+	if is_inside_tree() and drop_world_pos != Vector3.INF:
+		if _is_peer_connected():
+			_rpc_play_bucket_drop_fx.rpc(drop_world_pos, bucket_side_sign)
+		else:
+			_rpc_play_bucket_drop_fx(drop_world_pos, bucket_side_sign)
 	if AudioBridge != null and GameConfig != null:
 		AudioBridge.request_world_cue("bucket_spill", pos_now, GameConfig.audio_radius_bucket_spill, owner_id)
 	var scene: Node = get_tree().current_scene if (is_inside_tree() and get_tree() != null) else null
@@ -184,11 +297,62 @@ func _resolve_bucket_drop(opener_peer_id: int, owner_id: int) -> void:
 				break
 	if player is Node3D:
 		var opener_pos: Vector3 = (player as Node3D).global_position
-		var door_center: Vector3 = pos_now + global_basis.x * 0.60
+		var closed_x: Vector3 = ((get_parent() as Node3D).global_basis * Basis(Vector3.UP, _closed_rotation)).x if get_parent() is Node3D else global_basis.x
+		var door_center: Vector3 = pos_now + closed_x * 0.60
 		var flat_dist: float = Vector2(opener_pos.x - door_center.x, opener_pos.z - door_center.z).length()
 		var hit_radius: float = GameConfig.bucket_hit_radius if GameConfig != null else 1.2
 		if flat_dist <= hit_radius and player.has_method("apply_trap_ko"):
 			player.apply_trap_ko("BUCKET", owner_id)
+
+
+static func _get_splash_mesh() -> CylinderMesh:
+	if _splash_mesh == null:
+		_splash_mesh = CylinderMesh.new()
+		_splash_mesh.top_radius = 0.25
+		_splash_mesh.bottom_radius = 0.25
+		_splash_mesh.height = 0.02
+	return _splash_mesh
+
+
+static func _get_splash_mat() -> StandardMaterial3D:
+	if _splash_mat == null:
+		_splash_mat = StandardMaterial3D.new()
+		_splash_mat.albedo_color = Color(0.32, 0.78, 0.98)
+		_splash_mat.roughness = 0.2
+	return _splash_mat
+
+
+@rpc("authority", "call_local", "reliable")
+func _rpc_play_bucket_drop_fx(drop_world_pos: Vector3, side_sign: float) -> void:
+	if not is_inside_tree() or get_parent() == null:
+		return
+	var fx_root := Node3D.new()
+	fx_root.name = "BucketDropFX_%d" % get_instance_id()
+	get_parent().add_child(fx_root)
+	fx_root.global_position = Vector3(drop_world_pos.x, (get_parent() as Node3D).global_position.y if get_parent() is Node3D else 0.0, drop_world_pos.z)
+	var start_y: float = maxf(drop_world_pos.y - fx_root.global_position.y, 0.5)
+	var falling := PICKUP_SCRIPT.build_item_mesh("BUCKET")
+	falling.position = Vector3(0.0, start_y, 0.0)
+	fx_root.add_child(falling)
+	var tw := fx_root.create_tween()
+	tw.set_parallel(true)
+	tw.tween_property(falling, "position:y", 0.14, 0.18).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	tw.tween_property(falling, "rotation:x", PI * 0.85 * side_sign, 0.18)
+	tw.chain().tween_callback(func():
+		if not is_instance_valid(fx_root):
+			return
+		var splash := MeshInstance3D.new()
+		splash.mesh = _get_splash_mesh()
+		splash.material_override = _get_splash_mat()
+		splash.position = Vector3(0.0, 0.02, 0.0)
+		fx_root.add_child(splash)
+		var hit_r: float = GameConfig.bucket_hit_radius if GameConfig != null else 1.2
+		var stw := fx_root.create_tween()
+		stw.tween_property(splash, "scale", Vector3(hit_r * 3.5, 1.0, hit_r * 3.5), 0.22).set_ease(Tween.EASE_OUT)
+		stw.tween_property(splash, "scale", Vector3(0.01, 1.0, 0.01), 0.33).set_ease(Tween.EASE_IN)
+		stw.parallel().tween_property(falling, "position:y", -0.20, 0.33)
+		stw.tween_callback(fx_root.queue_free)
+	)
 
 
 func _is_peer_connected() -> bool:
@@ -226,7 +390,11 @@ func _find_verified_opener(is_sprint_bash: bool) -> Dictionary:
 		var query := PhysicsRayQueryParameters3D.create(
 			view.global_position, view.global_position - view.global_basis.z * 2.5, 3, [player.get_rid()])
 		var hit: Dictionary = get_world_3d().direct_space_state.intersect_ray(query)
-		if hit.is_empty() or not is_ancestor_of(hit["collider"]):
+		if hit.is_empty():
+			return {}
+		var hit_col: Object = hit["collider"]
+		var is_bucket_hit: bool = hit_col is Node and (hit_col as Node).has_meta("bucket_door") and (hit_col as Node).get_meta("bucket_door") == self
+		if not is_ancestor_of(hit_col) and not is_bucket_hit:
 			return {}
 	return {"player": player, "sender": sender}
 
@@ -236,7 +404,8 @@ func _compute_away_target_y(player: CharacterBody3D) -> float:
 	# -90 deg (open_angle) swings into +Z (away from -Z opener).
 	var to_player: Vector3 = player.global_position - global_position
 	to_player.y = 0.0
-	var z_dot: float = global_basis.z.dot(to_player)
+	var closed_basis: Basis = (get_parent() as Node3D).global_basis * Basis(Vector3.UP, _closed_rotation) if get_parent() is Node3D else global_basis
+	var z_dot: float = closed_basis.z.dot(to_player)
 	var angle_deg: float = -open_angle if z_dot >= 0.0 else open_angle
 	return _closed_rotation + deg_to_rad(angle_deg)
 
@@ -262,18 +431,38 @@ func server_step_push(delta: float) -> void:
 		if _open_fraction <= 0.02:
 			_open_fraction = 0.0
 			is_open = false
+			_step_start_y = _closed_rotation
 	else:
-		if _open_fraction <= 0.02:
+		if _open_fraction <= 0.001:
 			_push_target_y = _compute_away_target_y(player)
+			var current_rel_rad: float = wrapf(rotation.y - _closed_rotation, -PI, PI)
+			if absf(current_rel_rad) > 0.01:
+				if ((_push_target_y - _closed_rotation) * current_rel_rad) > 0.0:
+					_step_start_y = _closed_rotation
+					_open_fraction = clampf(absf(current_rel_rad) / maxf(deg_to_rad(absf(open_angle)), 0.1), 0.0, 0.95)
+				else:
+					_step_start_y = rotation.y
+					_open_fraction = 0.0
+			else:
+				_step_start_y = _closed_rotation
 		_open_fraction = clampf(_open_fraction + step, 0.0, 1.0)
 		if _open_fraction >= 0.98:
 			_open_fraction = 1.0
 			is_open = true
+			_step_start_y = _closed_rotation
 
-	var new_y: float = lerpf(_closed_rotation, _push_target_y, _open_fraction)
+	var new_y: float = lerpf(_step_start_y if not is_open else _closed_rotation, _push_target_y, _open_fraction)
 	if has_rigged_bucket:
-		var release_deg: float = GameConfig.door_bucket_release_angle_deg if GameConfig != null else 25.0
-		if _open_fraction * absf(open_angle) >= release_deg:
+		var opener_side: float = _compute_bucket_side_sign(sender)
+		var ajar_rad: float = _get_bucket_ajar_rad()
+		var same_delta_deg: float = GameConfig.door_bucket_same_side_release_delta_deg if GameConfig != null else 4.0
+		var opp_release_deg: float = GameConfig.door_bucket_release_angle_deg if GameConfig != null else 28.0
+		var should_drop: bool = (
+			absf(new_y - (_closed_rotation + ajar_rad)) >= deg_to_rad(same_delta_deg)
+			if (opener_side == bucket_side_sign)
+			else absf(wrapf(new_y - _closed_rotation, -PI, PI)) >= deg_to_rad(opp_release_deg)
+		)
+		if should_drop:
 			_trigger_rigged_bucket_drop(sender, 0.0)
 	if multiplayer.has_multiplayer_peer():
 		sync_step_angle.rpc(new_y, is_open, _open_fraction, _push_target_y)

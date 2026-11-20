@@ -7,14 +7,15 @@ extends StaticBody3D
 ## draggable clutter persistence, and Top-Down Container View RPC synchronization.
 
 signal state_changed()
+signal slide_progressed()
 
 const PICKUP_SCRIPT = preload("res://entities/props/world_item_pickup.gd")
 const BRIEFCASE_BUILDER = preload("res://entities/props/briefcase_visual_builder.gd")
 const DRAWER_CONTENTS_MASK: int = 32
 const DRAWER_CLOSED_Z: float = 0.08
 const DRAWER_OPEN_Z: float = 0.56
-const SPRING_TRIGGER_VISUAL_RATIO: float = 0.42
-const DRAWER_EASE_EXPONENT: float = 1.85
+const SPRING_TRIGGER_VISUAL_RATIO: float = 0.49
+const DRAWER_EASE_EXPONENT: float = 4.5
 const CLUTTER_LAYER_YS: Array[float] = [-0.008, 0.014, 0.036]
 const CLUTTER_SUBLAYER_STEP_Y: float = 0.011
 const DEFAULT_CLUTTER_POSITIONS: Array[Vector2] = [
@@ -87,6 +88,8 @@ var _slide_tween: Tween = null
 var _tray_target_z: float = DRAWER_CLOSED_Z
 var _is_preview_sliding: bool = false
 var _opened_effects_applied: bool = false
+var is_slow_opening: bool = false
+var _slow_open_peer_id: int = 0
 var drawer_open_progress: float = 0.0
 var drawer_visual_ratio: float = 0.0
 var _hollow_built: bool = false
@@ -124,7 +127,11 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
-	if Engine.is_editor_hint() or not live_bomb_lit:
+	if Engine.is_editor_hint():
+		return
+	if is_slow_opening:
+		_step_committed_slow_open(delta)
+	if not live_bomb_lit:
 		return
 	if _is_peer_connected() and not multiplayer.is_server():
 		live_bomb_fuse_remaining = maxf(live_bomb_fuse_remaining - delta, 0.0)
@@ -136,6 +143,29 @@ func _process(delta: float) -> void:
 		_detonate_container_bomb()
 	else:
 		state_changed.emit()
+
+
+static func evaluate_slow_open_curve(progress: float, steepness: float = DRAWER_EASE_EXPONENT) -> float:
+	var t: float = clampf(progress, 0.0, 1.0)
+	if t <= 0.0:
+		return 0.0
+	if t >= 1.0:
+		return 1.0
+	var k: float = maxf(steepness, 0.01)
+	var denom: float = maxf(pow(2.0, k) - 1.0, 0.0001)
+	return clampf((pow(2.0, k * t) - 1.0) / denom, 0.0, 1.0)
+
+
+func _get_slow_open_exp_steepness() -> float:
+	if GameConfig != null:
+		var v: Variant = GameConfig.get("drawer_slow_open_exp_steepness")
+		if v is float or v is int:
+			return maxf(float(v), 0.1)
+	return DRAWER_EASE_EXPONENT
+
+
+func _eval_slow_open_ratio(progress: float) -> float:
+	return evaluate_slow_open_curve(progress, _get_slow_open_exp_steepness())
 
 
 func _get_drawer_mesh_scale() -> float:
@@ -360,7 +390,7 @@ func get_interaction_prompt() -> String:
 
 
 func get_hold_interaction_duration() -> float:
-	return GameConfig.drawer_slow_peek_hold_time if GameConfig != null else 2.80
+	return GameConfig.drawer_slow_peek_hold_time if GameConfig != null else 2.50
 
 
 func get_top_down_camera_transform() -> Transform3D:
@@ -397,6 +427,13 @@ func request_step_open_drawer(caller_peer_id: int, delta: float) -> void:
 		_server_step_open_drawer.rpc_id(1, caller_peer_id, delta)
 	else:
 		step_open_drawer(caller_peer_id, delta)
+
+
+func request_start_slow_open(caller_peer_id: int) -> void:
+	if _is_peer_connected():
+		_server_start_slow_open.rpc_id(1, caller_peer_id)
+	else:
+		start_slow_open(caller_peer_id)
 
 
 func request_begin_open(caller_peer_id: int) -> void:
@@ -519,6 +556,8 @@ func focus_container(peer_id: int, player_override: Node = null) -> bool:
 
 	if not already_this_occupant:
 		# Both Drawers and Floor Briefcases start at Stage 1 Closed (0%) so player chooses Fast (Tap E) vs Slow (Hold E)
+		is_slow_opening = false
+		_slow_open_peer_id = 0
 		drawer_open_progress = 0.0
 		drawer_visual_ratio = 0.0
 		_opened_effects_applied = false
@@ -538,39 +577,111 @@ func focus_container(peer_id: int, player_override: Node = null) -> bool:
 	return true
 
 
+func start_slow_open(peer_id: int, player_override: Node = null) -> bool:
+	_init_clutter_if_empty()
+	_ensure_item_positions()
+	if occupied_by_peer_id != 0 and occupied_by_peer_id != peer_id:
+		return false
+	if is_slow_opening:
+		return true
+	if drawer_open_progress >= 0.999:
+		return false
+
+	occupied_by_peer_id = peer_id
+	if player_override != null:
+		_occupant_player_override = player_override
+	is_slow_opening = true
+	_slow_open_peer_id = peer_id
+	_is_preview_sliding = false
+	drawer_open_progress = clampf(drawer_open_progress, 0.0, 1.0)
+	drawer_visual_ratio = _eval_slow_open_ratio(drawer_open_progress)
+	_apply_open_visual_ratio(drawer_visual_ratio)
+	_sync_state_to_peers()
+	return true
+
+
+func _step_committed_slow_open(delta: float) -> void:
+	var slow_dur: float = GameConfig.drawer_slow_peek_hold_time if GameConfig != null else 2.50
+	drawer_open_progress = clampf(drawer_open_progress + delta / maxf(slow_dur, 0.25), 0.0, 1.0)
+	drawer_visual_ratio = _eval_slow_open_ratio(drawer_open_progress)
+	_apply_open_visual_ratio(drawer_visual_ratio)
+
+	if _is_peer_connected() and not multiplayer.is_server():
+		slide_progressed.emit()
+		return
+
+	var target_peer: int = _slow_open_peer_id if _slow_open_peer_id != 0 else occupied_by_peer_id
+	var player: Node = _occupant_player_override if _occupant_player_override != null else _find_player_node(target_peer)
+
+	if armed_spring and drawer_visual_ratio >= SPRING_TRIGGER_VISUAL_RATIO:
+		_trigger_spring_trap_ko(target_peer, player)
+		return
+	if (
+		not is_briefcase_container
+		and player != null
+		and player.has_method("has_held_briefcase_armed_spring")
+		and bool(player.has_held_briefcase_armed_spring())
+		and drawer_visual_ratio >= SPRING_TRIGGER_VISUAL_RATIO
+	):
+		_trigger_held_briefcase_spring_from_drawer(target_peer, player)
+		return
+
+	if drawer_visual_ratio >= 0.45 and not _opened_effects_applied:
+		_activate_opened_drawer_effects(target_peer, true, player)
+		if drawer_open_progress < 0.999:
+			_sync_state_to_peers()
+
+	if drawer_open_progress >= 0.999:
+		drawer_open_progress = 1.0
+		drawer_visual_ratio = 1.0
+		is_slow_opening = false
+		_slow_open_peer_id = 0
+		_apply_open_visual_ratio(1.0)
+		_activate_opened_drawer_effects(target_peer, true, player)
+		_sync_back_to_briefcase_pickup()
+		_sync_state_to_peers()
+	else:
+		slide_progressed.emit()
+
+
 func step_open_drawer(peer_id: int, delta: float, player_override: Node = null) -> void:
 	if occupied_by_peer_id != peer_id:
 		return
 
-	var slow_dur: float = GameConfig.drawer_slow_peek_hold_time if GameConfig != null else 2.80
-	drawer_open_progress = clampf(drawer_open_progress + delta / maxf(slow_dur, 0.5), 0.0, 1.0)
-	drawer_visual_ratio = pow(drawer_open_progress, DRAWER_EASE_EXPONENT)
-
-	if is_briefcase_container:
-		if _lid_tween != null and _lid_tween.is_valid():
-			_lid_tween.kill()
-		_apply_briefcase_lid_ratio(drawer_visual_ratio)
-	else:
-		_tray_target_z = lerpf(DRAWER_CLOSED_Z, DRAWER_OPEN_Z, drawer_visual_ratio)
-		if _slide_tween != null and _slide_tween.is_valid():
-			_slide_tween.kill()
-		if _tray_drawer_node != null:
-			_tray_drawer_node.position.z = _tray_target_z
+	var slow_dur: float = GameConfig.drawer_slow_peek_hold_time if GameConfig != null else 2.50
+	drawer_open_progress = clampf(drawer_open_progress + delta / maxf(slow_dur, 0.25), 0.0, 1.0)
+	drawer_visual_ratio = _eval_slow_open_ratio(drawer_open_progress)
+	_apply_open_visual_ratio(drawer_visual_ratio)
 
 	var player: Node = player_override if player_override != null else (_occupant_player_override if _occupant_player_override != null else _find_player_node(peer_id))
 
 	if armed_spring and drawer_visual_ratio >= SPRING_TRIGGER_VISUAL_RATIO:
 		_trigger_spring_trap_ko(peer_id, player)
 		return
+	if (
+		not is_briefcase_container
+		and player != null
+		and player.has_method("has_held_briefcase_armed_spring")
+		and bool(player.has_held_briefcase_armed_spring())
+		and drawer_visual_ratio >= SPRING_TRIGGER_VISUAL_RATIO
+	):
+		_trigger_held_briefcase_spring_from_drawer(peer_id, player)
+		return
 
-	# Simultaneous carried-Briefcase Spring check when slow-opening a Drawer while holding Briefcase
-	if not is_briefcase_container and player != null and player.has_method("has_held_briefcase_armed_spring") and bool(player.has_held_briefcase_armed_spring()):
-		if drawer_visual_ratio >= SPRING_TRIGGER_VISUAL_RATIO:
-			_trigger_held_briefcase_spring_from_drawer(peer_id, player)
+	if drawer_visual_ratio >= 0.45 and not _opened_effects_applied:
+		_activate_opened_drawer_effects(peer_id, true, player)
+		if drawer_open_progress < 0.999:
+			_sync_state_to_peers()
 			return
 
-	if drawer_visual_ratio >= 0.65 and not _opened_effects_applied:
+	if drawer_open_progress >= 0.999:
+		drawer_open_progress = 1.0
+		drawer_visual_ratio = 1.0
+		is_slow_opening = false
+		_slow_open_peer_id = 0
+		_apply_open_visual_ratio(1.0)
 		_activate_opened_drawer_effects(peer_id, true, player)
+		_sync_back_to_briefcase_pickup()
 		_sync_state_to_peers()
 		return
 
@@ -624,6 +735,8 @@ func _activate_opened_drawer_effects(peer_id: int, is_slow_peek: bool, player: N
 
 
 func _trigger_held_briefcase_spring_from_drawer(_peer_id: int, player: Node) -> void:
+	is_slow_opening = false
+	_slow_open_peer_id = 0
 	drawer_open_progress = 0.0
 	drawer_visual_ratio = 0.0
 	_opened_effects_applied = false
@@ -636,6 +749,8 @@ func _trigger_held_briefcase_spring_from_drawer(_peer_id: int, player: Node) -> 
 
 
 func _trigger_spring_trap_ko(_peer_id: int, player: Node) -> void:
+	is_slow_opening = false
+	_slow_open_peer_id = 0
 	armed_spring = false
 	spring_unlatched = false
 	var owner_id: int = spring_owner_peer_id
@@ -672,6 +787,9 @@ func open_container(peer_id: int, is_slow_peek: bool, player_override: Node = nu
 	if occupied_by_peer_id != 0 and occupied_by_peer_id != peer_id:
 		result["reason"] = "IN_USE"
 		return result
+	if is_slow_opening:
+		result["reason"] = "SLOW_OPENING"
+		return result
 
 	var player: Node = player_override if player_override != null else _find_player_node(peer_id)
 	_is_preview_sliding = false
@@ -688,28 +806,22 @@ func open_container(peer_id: int, is_slow_peek: bool, player_override: Node = nu
 	)
 
 	# 1. Armed Spring Check (Both Drawers AND Briefcases, plus Simultaneous Held Briefcase on Drawers!)
+	# Slow Open commits cleanly from 0% -> 100% without tripping armed Springs.
 	if armed_spring:
 		if not is_slow_peek:
 			_trigger_spring_trap_ko(peer_id, player)
 			result["reason"] = "SPRING_KO"
 			result["triggered_spring"] = true
 			return result
-		else:
-			spring_unlatched = false
-			drawer_open_progress = 0.56
-			drawer_visual_ratio = pow(drawer_open_progress, DRAWER_EASE_EXPONENT)
-	elif held_briefcase_spring:
-		if not is_slow_peek:
-			_trigger_held_briefcase_spring_from_drawer(peer_id, player)
-			result["reason"] = "SPRING_KO"
-			result["triggered_spring"] = true
-			return result
-		else:
-			drawer_open_progress = 0.56
-			drawer_visual_ratio = pow(drawer_open_progress, DRAWER_EASE_EXPONENT)
-	else:
-		drawer_open_progress = 1.0
-		drawer_visual_ratio = 1.0
+		spring_unlatched = false
+	elif held_briefcase_spring and not is_slow_peek:
+		_trigger_held_briefcase_spring_from_drawer(peer_id, player)
+		result["reason"] = "SPRING_KO"
+		result["triggered_spring"] = true
+		return result
+
+	drawer_open_progress = 1.0
+	drawer_visual_ratio = 1.0
 
 	# 2 & 3. Armed Bomb Ignition + First-Visit Exploration Bonus (+10s)
 	var eff: Dictionary = _activate_opened_drawer_effects(peer_id, is_slow_peek, player)
@@ -730,10 +842,14 @@ func open_container(peer_id: int, is_slow_peek: bool, player_override: Node = nu
 	return result
 
 
-func close_container(peer_id: int, player_override: Node = null) -> void:
+func close_container(peer_id: int, player_override: Node = null, force: bool = false) -> void:
 	if occupied_by_peer_id != 0 and occupied_by_peer_id != peer_id:
 		return
+	if is_slow_opening and not force:
+		return
 
+	is_slow_opening = false
+	_slow_open_peer_id = 0
 	_is_preview_sliding = false
 	_opened_effects_applied = false
 	drawer_open_progress = 0.0
@@ -1045,7 +1161,7 @@ func grab_lit_bomb(peer_id: int, player_override: Node = null) -> bool:
 	live_bomb_fuse_remaining = 0.0
 	var owner_id: int = bomb_owner_peer_id
 
-	close_container(peer_id, player)
+	close_container(peer_id, player, true)
 
 	if player.has_method("server_pickup_world_item"):
 		player.server_pickup_world_item("LIVE_BOMB", [], _safe_global_pos())
@@ -1070,7 +1186,7 @@ func _detonate_container_bomb() -> void:
 	var occ: int = occupied_by_peer_id
 	if occ != 0:
 		var occ_player: Node = _occupant_player_override if _occupant_player_override != null else _find_player_node(occ)
-		close_container(occ, occ_player)
+		close_container(occ, occ_player, true)
 
 	var blast_radius: float = GameConfig.time_bomb_blast_radius if GameConfig != null else 5.0
 	if is_inside_tree() and get_tree() != null:
@@ -1156,6 +1272,20 @@ func _apply_briefcase_lid_ratio(ratio: float) -> void:
 		_contents_root.visible = (clamped > 0.03)
 
 
+func _apply_open_visual_ratio(ratio: float) -> void:
+	var clamped_ratio: float = clampf(ratio, 0.0, 1.0)
+	if is_briefcase_container:
+		if _lid_tween != null and _lid_tween.is_valid():
+			_lid_tween.kill()
+		_apply_briefcase_lid_ratio(clamped_ratio)
+	else:
+		_tray_target_z = lerpf(DRAWER_CLOSED_Z, DRAWER_OPEN_Z, clamped_ratio)
+		if _slide_tween != null and _slide_tween.is_valid():
+			_slide_tween.kill()
+		if _tray_drawer_node != null:
+			_tray_drawer_node.position.z = _tray_target_z
+
+
 func _animate_tray_open(open_state: bool, slow: bool) -> void:
 	_animate_tray_to_ratio(1.0 if open_state else 0.0, slow)
 
@@ -1167,9 +1297,12 @@ func _animate_tray_to_ratio(ratio: float, slow: bool) -> void:
 
 	var base_dur: float = 0.0
 	if clamped_ratio > 0.01:
-		base_dur = (GameConfig.drawer_slow_peek_hold_time if GameConfig != null else 2.80) if slow else (GameConfig.drawer_fast_slam_duration if GameConfig != null else 0.22)
+		base_dur = (GameConfig.drawer_slow_peek_hold_time if GameConfig != null else 2.50) if slow else (GameConfig.drawer_fast_slam_duration if GameConfig != null else 0.22)
 	else:
 		base_dur = GameConfig.drawer_close_duration if GameConfig != null else 0.30
+
+	var trans_type: Tween.TransitionType = Tween.TRANS_EXPO if slow else Tween.TRANS_QUAD
+	var ease_type: Tween.EaseType = Tween.EASE_IN if slow else Tween.EASE_OUT
 
 	if is_briefcase_container:
 		if _lid_tween != null and _lid_tween.is_valid():
@@ -1181,7 +1314,7 @@ func _animate_tray_to_ratio(ratio: float, slow: bool) -> void:
 			if _briefcase_interior_light != null:
 				_briefcase_interior_light.visible = clamped_ratio > 0.04
 			_lid_tween = create_tween()
-			_lid_tween.tween_property(_briefcase_lid_pivot, "rotation:x", target_rot_x, base_dur).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+			_lid_tween.tween_property(_briefcase_lid_pivot, "rotation:x", target_rot_x, base_dur).set_trans(trans_type).set_ease(ease_type)
 			if clamped_ratio <= 0.03:
 				_lid_tween.tween_callback(func():
 					_apply_briefcase_lid_ratio(0.0)
@@ -1204,7 +1337,7 @@ func _animate_tray_to_ratio(ratio: float, slow: bool) -> void:
 		_slide_tween.kill()
 	if is_inside_tree() and dur > 0.01 and not is_equal_approx(current_z, target_z):
 		_slide_tween = create_tween()
-		_slide_tween.tween_property(_tray_drawer_node, "position:z", target_z, dur).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		_slide_tween.tween_property(_tray_drawer_node, "position:z", target_z, dur).set_trans(trans_type).set_ease(ease_type)
 	else:
 		_tray_drawer_node.position.z = target_z
 
@@ -1224,6 +1357,16 @@ func _server_focus_container(caller_peer_id: int) -> void:
 
 
 @rpc("any_peer", "call_local", "reliable")
+func _server_start_slow_open(caller_peer_id: int) -> void:
+	if _is_peer_connected() and not multiplayer.is_server():
+		return
+	var sender: int = multiplayer.get_remote_sender_id()
+	if sender != 0:
+		caller_peer_id = sender
+	start_slow_open(caller_peer_id)
+
+
+@rpc("any_peer", "call_local", "reliable")
 func _server_step_open_drawer(caller_peer_id: int, delta: float) -> void:
 	if _is_peer_connected() and not multiplayer.is_server():
 		return
@@ -1237,16 +1380,7 @@ func _server_step_open_drawer(caller_peer_id: int, delta: float) -> void:
 func _rpc_sync_drawer_slide(open_prog: float, vis_ratio: float) -> void:
 	drawer_open_progress = clampf(open_prog, 0.0, 1.0)
 	drawer_visual_ratio = clampf(vis_ratio, 0.0, 1.0)
-	if is_briefcase_container:
-		if _lid_tween != null and _lid_tween.is_valid():
-			_lid_tween.kill()
-		_apply_briefcase_lid_ratio(drawer_visual_ratio)
-	else:
-		_tray_target_z = lerpf(DRAWER_CLOSED_Z, DRAWER_OPEN_Z, drawer_visual_ratio)
-		if _slide_tween != null and _slide_tween.is_valid():
-			_slide_tween.kill()
-		if _tray_drawer_node != null:
-			_tray_drawer_node.position.z = _tray_target_z
+	_apply_open_visual_ratio(drawer_visual_ratio)
 	state_changed.emit()
 
 @rpc("any_peer", "call_local", "reliable")
@@ -1392,6 +1526,7 @@ func _sync_state_to_peers() -> void:
 		"live_bomb_lit": live_bomb_lit,
 		"live_bomb_fuse_remaining": live_bomb_fuse_remaining,
 		"occupied_by_peer_id": occupied_by_peer_id,
+		"is_slow_opening": is_slow_opening,
 		"drawer_open_progress": drawer_open_progress,
 		"drawer_visual_ratio": drawer_visual_ratio,
 		"clutter_positions": clutter_positions.duplicate()
@@ -1406,6 +1541,7 @@ func _sync_state_to_peers() -> void:
 @rpc("authority", "call_local", "reliable")
 func _rpc_sync_container_state(state_dict: Dictionary) -> void:
 	var prev_occ: int = occupied_by_peer_id
+	var was_slow_opening: bool = is_slow_opening
 	var next_items: Array[String] = []
 	for it in state_dict.get("stored_items", []):
 		next_items.append(str(it))
@@ -1432,8 +1568,15 @@ func _rpc_sync_container_state(state_dict: Dictionary) -> void:
 	live_bomb_lit = bool(state_dict.get("live_bomb_lit", false))
 	live_bomb_fuse_remaining = float(state_dict.get("live_bomb_fuse_remaining", 0.0))
 	occupied_by_peer_id = int(state_dict.get("occupied_by_peer_id", 0))
-	drawer_open_progress = float(state_dict.get("drawer_open_progress", 0.0))
-	drawer_visual_ratio = float(state_dict.get("drawer_visual_ratio", 0.0))
+	is_slow_opening = bool(state_dict.get("is_slow_opening", false))
+	var synced_prog: float = float(state_dict.get("drawer_open_progress", 0.0))
+	var synced_vis: float = float(state_dict.get("drawer_visual_ratio", 0.0))
+	if was_slow_opening and is_slow_opening:
+		drawer_open_progress = clampf(maxf(drawer_open_progress, synced_prog), 0.0, 1.0)
+		drawer_visual_ratio = _eval_slow_open_ratio(drawer_open_progress)
+	else:
+		drawer_open_progress = clampf(synced_prog, 0.0, 1.0)
+		drawer_visual_ratio = clampf(synced_vis, 0.0, 1.0)
 
 	var raw_clutter: Array = state_dict.get("clutter_positions", [])
 	if is_briefcase_container:
@@ -1454,10 +1597,14 @@ func _rpc_sync_container_state(state_dict: Dictionary) -> void:
 				local_player.exit_container_view()
 		if occupied_by_peer_id == 0:
 			_animate_tray_to_ratio(0.0, false)
+		elif is_slow_opening:
+			_apply_open_visual_ratio(drawer_visual_ratio)
 		elif drawer_visual_ratio > 0.0:
 			_animate_tray_to_ratio(drawer_visual_ratio, false)
 	elif occupied_by_peer_id != 0:
-		if is_briefcase_container:
+		if is_slow_opening:
+			_apply_open_visual_ratio(drawer_visual_ratio)
+		elif is_briefcase_container:
 			_animate_tray_to_ratio(drawer_visual_ratio, false)
 		else:
 			var desired_z: float = lerpf(DRAWER_CLOSED_Z, DRAWER_OPEN_Z, drawer_visual_ratio)
@@ -1662,6 +1809,8 @@ func pick_drawer_object_at_ray(ray_origin: Vector3, ray_dir: Vector3) -> Diction
 		if not area.has_meta("exact_aabb"):
 			continue
 		var role: String = str(area.get_meta("container_role", ""))
+		if is_slow_opening and role != "lip_spring":
+			continue
 		if is_briefcase_container and drawer_visual_ratio < 0.42 and role != "lip_spring":
 			continue
 		var inv: Transform3D = area.global_transform.affine_inverse()
@@ -1672,7 +1821,7 @@ func pick_drawer_object_at_ray(ray_origin: Vector3, ray_dir: Vector3) -> Diction
 		if not (local_hit is Vector3):
 			continue
 		var world_hit: Vector3 = area.global_transform * (local_hit as Vector3)
-		if not is_briefcase_container and to_local(world_hit).z < 0.34:
+		if not is_briefcase_container and to_local(world_hit).z < (0.31 if role == "lip_spring" else 0.34):
 			continue
 		var dist_sq: float = ray_origin.distance_squared_to(world_hit)
 		if dist_sq < best_dist_sq:
@@ -1707,7 +1856,7 @@ func _rebuild_3d_interior() -> void:
 		lip_area.name = "LipSpringTrap"
 		lip_area.collision_layer = DRAWER_CONTENTS_MASK
 		lip_area.collision_mask = 0
-		lip_area.position = Vector3(0.0, 0.010, 0.145) if is_briefcase_container else Vector3(0.0, 0.055, 0.16)
+		lip_area.position = Vector3(0.0, 0.010, 0.145) if is_briefcase_container else Vector3(0.0, 0.055, 0.19)
 		lip_area.set_meta("container_role", "lip_spring")
 		var lip_size := Vector3(0.20, 0.055, 0.080) if is_briefcase_container else Vector3(0.242, 0.059, 0.092) * drawer_scale
 		lip_area.set_meta("exact_aabb", AABB(-lip_size * 0.5, lip_size))

@@ -175,6 +175,7 @@ var wakeup_immunity_remaining: float = 0.0
 var _pelvis_sync_accum: float = 0.0
 var _last_ko_reason: String = ""
 var _last_ko_impulse: Vector3 = Vector3.ZERO
+var _bucket_camera_visor: Control = null
 var _drag_3d_active: bool = false
 var _drag_3d_role: String = ""
 var _drag_3d_clutter_idx: int = -1
@@ -318,6 +319,7 @@ func ensure_overlay_uis() -> void:
 		target_hud.add_child(_crt_replay_ui)
 	if _crt_replay_ui != null:
 		_crt_replay_ui.setup_for_owner(self)
+	_ensure_bucket_camera_visor_ui(target_hud)
 
 
 # ==========================================
@@ -721,7 +723,7 @@ func _rpc_server_briefcase_trap_action(action: String, slot_arg: int = 0, norm_p
 				inv.briefcase_live_bomb_fuse_remaining = 0.0
 				inv.briefcase_bomb_owner_id = 0
 				if active_container != null and is_instance_valid(active_container) and active_container.has_method("close_container"):
-					active_container.close_container(peer_id, self)
+					active_container.close_container(peer_id, self, true)
 				server_pickup_world_item("LIVE_BOMB", [], _safe_global_pos())
 				if _is_peer_connected():
 					_rpc_sync_live_bomb_timer.rpc(rem, b_owner)
@@ -819,7 +821,7 @@ func apply_trap_ko(_reason: String, _attacker_peer_id: int = 0, custom_impulse: 
 		return [] as Array[Dictionary]
 
 	if active_container != null and is_instance_valid(active_container) and active_container.has_method("close_container"):
-		active_container.close_container(name.to_int(), self)
+		active_container.close_container(name.to_int(), self, true)
 	elif stance_state == (GameConfig.Stance.DRAWER_LOCK if GameConfig != null else 3):
 		exit_container_view()
 
@@ -982,8 +984,11 @@ func _rpc_apply_ko_state(
 		collision_mask = GameConfig.LAYER_ENVIRONMENT if GameConfig != null else 1
 		if col_node != null:
 			col_node.disabled = true
+		var is_bucket_ko: bool = (reason.to_upper() == "BUCKET")
 		if _ragdoll_ctrl != null:
+			_ragdoll_ctrl.set_bucket_on_head(is_bucket_ko)
 			_ragdoll_ctrl.start_ragdoll(kick_impulse, reason)
+		_set_bucket_camera_visor(is_bucket_ko)
 		if left_hand_socket != null:
 			left_hand_socket.visible = false
 		if right_hand_socket != null:
@@ -992,6 +997,7 @@ func _rpc_apply_ko_state(
 	else:
 		if _ragdoll_ctrl != null:
 			_ragdoll_ctrl.stop_ragdoll()
+		_set_bucket_camera_visor(false)
 		if sync_pos != Vector3.INF:
 			if is_inside_tree():
 				global_position = sync_pos
@@ -1018,6 +1024,70 @@ func _rpc_apply_ko_state(
 			right_hand_socket.visible = true
 		_sync_camera_to_ragdoll_head()
 	_update_hud_status()
+
+
+func _ensure_bucket_camera_visor_ui(target_hud: CanvasLayer = null) -> void:
+	if _bucket_camera_visor != null and is_instance_valid(_bucket_camera_visor):
+		return
+	var hud_node: CanvasLayer = target_hud if target_hud != null else (hud if hud != null else get_node_or_null("HUD") as CanvasLayer)
+	if hud_node == null:
+		return
+	var existing: Control = hud_node.get_node_or_null("BucketCameraVisor") as Control
+	if existing != null:
+		_bucket_camera_visor = existing
+		return
+	var root := Control.new()
+	root.name = "BucketCameraVisor"
+	root.set_anchors_preset(Control.PRESET_FULL_RECT)
+	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.visible = false
+
+	var top_wall := ColorRect.new()
+	top_wall.set_anchors_preset(Control.PRESET_FULL_RECT)
+	top_wall.anchor_bottom = 0.64
+	top_wall.color = Color(0.18, 0.21, 0.24, 0.96)
+	top_wall.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(top_wall)
+
+	var rim_band := ColorRect.new()
+	rim_band.set_anchors_preset(Control.PRESET_FULL_RECT)
+	rim_band.anchor_top = 0.61
+	rim_band.anchor_bottom = 0.67
+	rim_band.color = Color(0.42, 0.48, 0.54, 0.98)
+	rim_band.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(rim_band)
+
+	var left_wall := ColorRect.new()
+	left_wall.set_anchors_preset(Control.PRESET_FULL_RECT)
+	left_wall.anchor_top = 0.64
+	left_wall.anchor_right = 0.14
+	left_wall.color = Color(0.16, 0.19, 0.22, 0.92)
+	left_wall.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(left_wall)
+
+	var right_wall := ColorRect.new()
+	right_wall.set_anchors_preset(Control.PRESET_FULL_RECT)
+	right_wall.anchor_top = 0.64
+	right_wall.anchor_left = 0.86
+	right_wall.color = Color(0.16, 0.19, 0.22, 0.92)
+	right_wall.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(right_wall)
+
+	hud_node.add_child(root)
+	hud_node.move_child(root, 0)
+	_bucket_camera_visor = root
+
+
+func _set_bucket_camera_visor(active: bool) -> void:
+	var is_local_cam: bool = not is_inside_tree() or not _is_peer_connected() or is_multiplayer_authority()
+	if not is_local_cam:
+		if _bucket_camera_visor != null and is_instance_valid(_bucket_camera_visor):
+			_bucket_camera_visor.visible = false
+		return
+	if active:
+		_ensure_bucket_camera_visor_ui()
+	if _bucket_camera_visor != null and is_instance_valid(_bucket_camera_visor):
+		_bucket_camera_visor.visible = active
 
 
 func _sync_camera_to_ragdoll_head() -> void:
@@ -1140,7 +1210,7 @@ func reset_for_rematch(spawn_local_pos: Vector3, spawn_yaw: float = 0.0) -> void
 	head_pitch = 0.0
 
 	if active_container != null and is_instance_valid(active_container) and active_container.has_method("close_container"):
-		active_container.close_container(name.to_int(), self)
+		active_container.close_container(name.to_int(), self, true)
 	elif stance_state == (GameConfig.Stance.DRAWER_LOCK if GameConfig != null else 3):
 		exit_container_view()
 
@@ -1977,14 +2047,12 @@ func step_anti_camp(delta: float, room_override: String = "") -> String:
 	return ""
 
 
-func _is_aiming_for_bucket_steal(target: Object, hit_point: Vector3) -> bool:
+func _is_aiming_for_bucket_steal(target: Object, _hit_point: Vector3, direct_bucket_hit: bool = false) -> bool:
 	if target == null or not target.has_method("request_steal_bucket"):
 		return false
 	if not bool(target.get("has_rigged_bucket")):
 		return false
-	var local_pitch_up: bool = head != null and head.rotation.x > deg_to_rad(10.0)
-	var rel_height: float = hit_point.y - _safe_global_pos().y
-	return local_pitch_up or rel_height >= 1.50
+	return direct_bucket_hit
 
 
 func _try_begin_primary_action() -> void:
@@ -2388,6 +2456,10 @@ func _is_e_key_pressed() -> bool:
 func _tick_drawer_open_input(delta: float) -> void:
 	if active_container == null or not is_instance_valid(active_container):
 		return
+	if bool(active_container.get("is_slow_opening")):
+		_drawer_e_held = false
+		_drawer_e_hold_elapsed = 0.0
+		return
 	var e_down: bool = _is_e_key_pressed()
 	if _drawer_focus_just_entered:
 		if not e_down:
@@ -2403,8 +2475,13 @@ func _tick_drawer_open_input(delta: float) -> void:
 			_drawer_e_held = true
 			_drawer_e_hold_elapsed = 0.0
 		_drawer_e_hold_elapsed += delta
-		if _drawer_e_hold_elapsed >= TAP_RELEASE_THRESHOLD and active_container.has_method("request_step_open_drawer"):
-			active_container.request_step_open_drawer(my_peer_id, delta)
+		if _drawer_e_hold_elapsed >= TAP_RELEASE_THRESHOLD:
+			_drawer_e_held = false
+			_drawer_e_hold_elapsed = 0.0
+			if active_container.has_method("request_start_slow_open"):
+				active_container.request_start_slow_open(my_peer_id)
+			elif active_container.has_method("request_hold_interaction"):
+				active_container.request_hold_interaction(my_peer_id)
 	elif _drawer_e_held:
 		if _drawer_e_hold_elapsed < TAP_RELEASE_THRESHOLD and open_prog < 0.999:
 			active_container.request_interaction(my_peer_id)
@@ -2491,12 +2568,18 @@ func _process_interaction_raycast() -> void:
 	if raycast != null and raycast.is_colliding():
 		hit_point = raycast.get_collision_point()
 		var collider: Object = raycast.get_collider()
+		var direct_bucket_hit: bool = false
+		if collider is Node and (collider as Node).has_meta("bucket_door"):
+			var door_ref: Object = (collider as Node).get_meta("bucket_door")
+			if door_ref != null and is_instance_valid(door_ref) and door_ref.has_method("request_interaction"):
+				collider = door_ref
+				direct_bucket_hit = true
 		while collider is Node and not collider.has_method("request_interaction"):
 			collider = collider.get_parent()
 		if collider and collider.has_method("request_interaction"):
 			is_interactable = true
 			target_collider = collider
-			aiming_bucket_steal = _is_aiming_for_bucket_steal(target_collider, hit_point)
+			aiming_bucket_steal = _is_aiming_for_bucket_steal(target_collider, hit_point, direct_bucket_hit)
 
 	if live_bomb_remaining <= 0.0:
 		if is_interactable:
@@ -2577,6 +2660,7 @@ func _input(event: InputEvent) -> void:
 
 	var lock_stance: int = GameConfig.Stance.DRAWER_LOCK if GameConfig != null else 3
 	if stance_state == lock_stance:
+		var is_slow_opening_now: bool = (active_container != null and is_instance_valid(active_container) and bool(active_container.get("is_slow_opening")))
 		var is_exit_key: bool = (
 			event.is_action_pressed("move_left")
 			or event.is_action_pressed("move_back")
@@ -2585,6 +2669,9 @@ func _input(event: InputEvent) -> void:
 			or (event is InputEventKey and event.pressed and not event.is_echo() and (event.keycode in [KEY_A, KEY_S, KEY_D, KEY_ESCAPE]))
 		)
 		if is_exit_key:
+			if is_slow_opening_now:
+				get_viewport().set_input_as_handled()
+				return
 			if _drag_3d_active and get_viewport() != null:
 				_finish_container_3d_drag(get_viewport().get_mouse_position())
 			else:
@@ -2687,6 +2774,12 @@ func _handle_container_3d_mouse_down(screen_pos: Vector2, button_index: int) -> 
 	var hit_pos: Vector3 = hit["position"]
 	var role: String = str(hit_area.get_meta("container_role", ""))
 	var my_id: int = multiplayer.get_unique_id() if _is_peer_connected() else name.to_int()
+	var is_slow_opening_now: bool = bool(active_container.get("is_slow_opening"))
+	if is_slow_opening_now:
+		if role == "lip_spring" and bool(active_container.get("armed_spring")) and button_index == MOUSE_BUTTON_LEFT:
+			active_container.request_unlatch_spring(my_id)
+			return true
+		return false
 
 	if role in ["clutter", "loot_item", "planted_bomb"]:
 		if button_index != MOUSE_BUTTON_LEFT:

@@ -107,13 +107,15 @@ static func get_remote_spy_visual_layer(slot_index: int) -> int:
 @export var door_slow_peek_hold_time: float = 2.80
 @export var door_slow_peek_swing_duration: float = 2.80
 @export var door_close_duration: float = 0.30
-@export var door_bucket_ajar_angle_deg: float = 5.0
-@export var door_bucket_release_angle_deg: float = 25.0
+@export var door_bucket_ajar_angle_deg: float = 10.0
+@export var door_bucket_release_angle_deg: float = 28.0
+@export var door_bucket_same_side_release_delta_deg: float = 4.0
 @export var bucket_hit_radius: float = 1.2
 @export var bucket_max_safe_reach: float = 1.8
 
 @export var drawer_fast_slam_duration: float = 0.22
-@export var drawer_slow_peek_hold_time: float = 2.80
+@export var drawer_slow_peek_hold_time: float = 2.50
+@export var drawer_slow_open_exp_steepness: float = 4.5
 @export var drawer_close_duration: float = 0.30
 @export var top_down_cam_lerp_duration: float = 0.65
 @export var drawer_interior_mesh_scale: float = 0.70
