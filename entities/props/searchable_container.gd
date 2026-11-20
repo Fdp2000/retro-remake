@@ -1867,7 +1867,7 @@ func _rebuild_3d_interior() -> void:
 		var item_mesh := PICKUP_SCRIPT.build_item_mesh(item_id)
 		item_mesh.scale = (layout["scale"] as Vector3) * scale_mult
 		item_area.add_child(item_mesh)
-		if PICKUP_SCRIPT.is_objective_item(item_id):
+		if PICKUP_SCRIPT.is_objective_item(item_id) or PICKUP_SCRIPT.is_briefcase_item(item_id):
 			var glint: CPUParticles3D = PICKUP_SCRIPT.create_objective_glint_particles(true)
 			if not is_briefcase_container:
 				glint.emission_box_extents *= drawer_scale

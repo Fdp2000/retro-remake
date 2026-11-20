@@ -1,6 +1,7 @@
 extends Control
 
 const TEST_GYM_SCENE_PATH: String = "res://scenes/test_gym.tscn"
+const SPAWNER_CHEATSHEET_UI_SCRIPT = preload("res://ui/spawner_cheatsheet_ui.gd")
 
 # State Dictionary (1 = Host/Spy White, 2 = Client/Spy Black)
 var lobby_state: Dictionary = {
@@ -12,6 +13,7 @@ var _local_ready: bool = false
 var client_peer_id: int = 0
 var is_in_matchmaking_queue: bool = false
 var matchmaking_search_elapsed: float = 0.0
+var _spawner_cheatsheet_ui: Control = null
 
 # UI References
 @onready var matchmaking_container: PanelContainer = $MarginContainer/MatchmakingContainer
@@ -96,6 +98,13 @@ func _ready() -> void:
 				get_tree().change_scene_to_file(TEST_GYM_SCENE_PATH)
 		)
 		matchmaking_panel.add_child(solo_btn)
+
+		var cheatsheet_btn := Button.new()
+		cheatsheet_btn.name = "SpawnerCheatsheetButton"
+		cheatsheet_btn.text = "Spawner Cheatsheet & Tuner [F2]"
+		cheatsheet_btn.pressed.connect(open_spawner_cheatsheet)
+		matchmaking_panel.add_child(cheatsheet_btn)
+
 		var sep := HSeparator.new()
 		matchmaking_panel.add_child(sep)
 		var mouse_widget: VBoxContainer = preload("res://ui/mouse_settings_widget.gd").new()
@@ -579,3 +588,37 @@ func _leave_lobby(reason: String = "") -> void:
 	_show_matchmaking()
 	if not reason.is_empty():
 		status_label.text = reason
+
+
+func _ensure_spawner_cheatsheet_ui() -> void:
+	if _spawner_cheatsheet_ui != null and is_instance_valid(_spawner_cheatsheet_ui):
+		return
+	var existing: Node = get_node_or_null("SpawnerCheatsheetUI")
+	if existing is Control:
+		_spawner_cheatsheet_ui = existing as Control
+	else:
+		_spawner_cheatsheet_ui = SPAWNER_CHEATSHEET_UI_SCRIPT.new() as Control
+		_spawner_cheatsheet_ui.name = "SpawnerCheatsheetUI"
+		add_child(_spawner_cheatsheet_ui)
+
+
+func open_spawner_cheatsheet() -> void:
+	_ensure_spawner_cheatsheet_ui()
+	if _spawner_cheatsheet_ui != null:
+		_spawner_cheatsheet_ui.call("open_cheatsheet", false, {})
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventKey and event.pressed and not event.is_echo() and event.keycode == KEY_F2:
+		_ensure_spawner_cheatsheet_ui()
+		if _spawner_cheatsheet_ui != null:
+			if _spawner_cheatsheet_ui.visible:
+				_spawner_cheatsheet_ui.call("close_cheatsheet")
+			else:
+				open_spawner_cheatsheet()
+			get_viewport().set_input_as_handled()
+			return
+	if _spawner_cheatsheet_ui != null and _spawner_cheatsheet_ui.visible:
+		if event.is_action_pressed("ui_cancel") or (event is InputEventKey and event.pressed and not event.is_echo() and event.keycode == KEY_ESCAPE):
+			_spawner_cheatsheet_ui.call("close_cheatsheet")
+			get_viewport().set_input_as_handled()

@@ -3,40 +3,13 @@ class_name AirportExitDoor
 extends StaticBody3D
 
 ## Single Shared Airport Exit Door (Master GDD §3).
-## Touching or interacting with this door while holding the Briefcase containing all 4 Objectives
-## triggers instant Escape Victory via MatchManager.
-
-var _exit_area: Area3D = null
+## Interacting ([E]) with this door while holding the Briefcase containing all 4 Objectives
+## triggers instant Escape Victory via MatchManager; otherwise it KOs the player with a ragdoll knockback.
 
 
 func _ready() -> void:
 	collision_layer = (GameConfig.LAYER_ENVIRONMENT | GameConfig.LAYER_INTERACTABLE) if GameConfig != null else 3
 	collision_mask = 0
-	_ensure_nodes()
-
-
-func _ensure_nodes() -> void:
-	_exit_area = get_node_or_null("ExitTouchArea") as Area3D
-	if _exit_area == null:
-		_exit_area = Area3D.new()
-		_exit_area.name = "ExitTouchArea"
-		_exit_area.collision_layer = GameConfig.LAYER_TRIGGERS if GameConfig != null else 16
-		_exit_area.collision_mask = GameConfig.LAYER_PLAYER if GameConfig != null else 4
-		add_child(_exit_area)
-
-		var area_col := CollisionShape3D.new()
-		area_col.name = "CollisionShape3D"
-		var box := BoxShape3D.new()
-		box.size = Vector3(1.8, 2.3, 1.2)
-		area_col.shape = box
-		area_col.position = Vector3(0.0, 1.15, 0.0)
-		_exit_area.add_child(area_col)
-	else:
-		_exit_area.collision_layer = GameConfig.LAYER_TRIGGERS if GameConfig != null else 16
-		_exit_area.collision_mask = GameConfig.LAYER_PLAYER if GameConfig != null else 4
-
-	if not _exit_area.body_entered.is_connected(_on_exit_area_body_entered):
-		_exit_area.body_entered.connect(_on_exit_area_body_entered)
 
 
 func get_interaction_prompt() -> String:
@@ -64,24 +37,17 @@ func _server_attempt_exit(caller_peer_id: int) -> void:
 		try_trigger_exit_victory(p)
 
 
-func _on_exit_area_body_entered(body: Node) -> void:
-	if Engine.is_editor_hint():
-		return
-	if _is_peer_connected() and not multiplayer.is_server():
-		return
-	if body != null and body.is_in_group("spy_players"):
-		try_trigger_exit_victory(body)
-
-
 func try_trigger_exit_victory(player: Node) -> bool:
 	if player == null:
 		return false
 	if str(player.get("left_hand_item_id")).to_upper() != "BRIEFCASE":
+		_ko_rejected_exit_attempt(player)
 		return false
 
 	var objs: Array = player.get("briefcase_objectives") as Array
 	var req_count: int = GameConfig.required_objectives_count if GameConfig != null else 4
 	if objs == null or objs.size() < req_count:
+		_ko_rejected_exit_attempt(player)
 		return false
 
 	var peer_id: int = player.name.to_int()
@@ -93,6 +59,18 @@ func try_trigger_exit_victory(player: Node) -> bool:
 			MatchManager.start_new_match([1, 2])
 		return MatchManager.report_airport_exit_reached(peer_id, objs.size())
 	return true
+
+
+func _ko_rejected_exit_attempt(player: Node) -> void:
+	if player == null or not player.has_method("apply_trap_ko"):
+		return
+	var kick_impulse: Vector3 = Vector3.ZERO
+	if is_inside_tree() and player is Node3D:
+		var away: Vector3 = (player as Node3D).global_position - global_position
+		away.y = 0.0
+		if away.length_squared() > 0.01:
+			kick_impulse = away.normalized() * 12.0 + Vector3(0.0, 5.0, 0.0)
+	player.apply_trap_ko("AIRPORT_EXIT", 0, kick_impulse)
 
 
 func _find_player_node(peer_id: int) -> Node:

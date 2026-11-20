@@ -19,6 +19,7 @@ enum MatchState {
 
 var match_state: int = MatchState.INACTIVE
 var match_seed: int = 0
+var active_spawner_config: Dictionary = {}
 var peer_clocks: Dictionary = {}        # peer_id (int) -> remaining_seconds (float)
 var eliminated_peers: Dictionary = {}   # peer_id (int) -> bool
 var winner_peer_id: int = 0
@@ -91,9 +92,10 @@ func start_new_match(participating_peers: Array = [1, 2], custom_seed: int = 0) 
 		eliminated_peers[peer_id] = false
 
 	match_state = MatchState.IN_PROGRESS
+	active_spawner_config = GameConfig.get_spawner_config_dict() if (GameConfig != null and GameConfig.has_method("get_spawner_config_dict")) else {}
 
 	if _is_network_connected():
-		_rpc_on_match_started.rpc(match_seed)
+		_rpc_on_match_started.rpc(match_seed, active_spawner_config)
 		_sync_clocks_to_owners()
 	else:
 		match_started.emit(match_seed)
@@ -179,8 +181,11 @@ func _is_network_connected() -> bool:
 
 
 @rpc("authority", "call_local", "reliable")
-func _rpc_on_match_started(seed_value: int) -> void:
+func _rpc_on_match_started(seed_value: int, synced_spawner_config: Dictionary = {}) -> void:
 	match_seed = seed_value
+	active_spawner_config = synced_spawner_config.duplicate()
+	if not synced_spawner_config.is_empty() and GameConfig != null and GameConfig.has_method("apply_spawner_config_dict"):
+		GameConfig.apply_spawner_config_dict(synced_spawner_config)
 	match_state = MatchState.IN_PROGRESS
 	eliminated_peers.clear()
 	winner_peer_id = 0

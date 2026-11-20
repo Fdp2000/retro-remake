@@ -92,8 +92,6 @@ static func get_display_name(id: String, briefcase_items: Array = []) -> String:
 	if upper == "CLUB":
 		return "Two-Handed Club"
 	var base_name: String = ITEM_DISPLAY_NAMES.get(upper, upper)
-	if upper == "BRIEFCASE":
-		return "%s [%d/4]" % [base_name, briefcase_items.size()]
 	return base_name
 
 
@@ -151,7 +149,7 @@ static func build_item_mesh(id: String) -> MeshInstance3D:
 			box.size = Vector3(0.22, 0.14, 0.22)
 			mi.mesh = box
 
-	if is_objective_item(upper):
+	if is_objective_item(upper) or is_briefcase_item(upper):
 		mat.emission_enabled = true
 		mat.emission = mat.albedo_color * 0.45
 		mat.emission_energy_multiplier = 0.65

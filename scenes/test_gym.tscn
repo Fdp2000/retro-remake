@@ -1,7 +1,6 @@
 [gd_scene format=3 uid="uid://b8yg4h85h6g3s"]
 
 [ext_resource type="Script" uid="uid://c7afp22l8kcvd" path="res://scenes/test_gym.gd" id="1_cppg0"]
-[ext_resource type="PackedScene" path="res://entities/interactable_box.tscn" id="2_v7oap"]
 [ext_resource type="PackedScene" uid="uid://6yovwwusd0r1" path="res://scenes/BuildingComplex2/BuildingComplex2.tscn" id="3_cppg0"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_8qy8g"]
@@ -31,14 +30,6 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.5, 0, -4.5)
 [node name="MultiplayerSpawner" type="MultiplayerSpawner" parent="." unique_id=863613403]
 _spawnable_scenes = PackedStringArray("uid://k8uxk1uvy3gt")
 spawn_path = NodePath("../Players")
-
-[node name="InteractableBox1" parent="." unique_id=1101952191 instance=ExtResource("2_v7oap")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7.5, 0.5, -4.5)
-prop_id = 1
-
-[node name="InteractableBox2" parent="." unique_id=1591125465 instance=ExtResource("2_v7oap")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7.5, 0.5, -3.0)
-prop_id = 2
 
 [node name="UI" type="CanvasLayer" parent="." unique_id=171618583]
 

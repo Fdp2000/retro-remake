@@ -646,7 +646,7 @@ func _refresh_left_panel(is_briefcase: bool, vis_ratio: float) -> void:
 		if _active_briefcase_slides.has("BOMB"):
 			b_bomb_pos = (_active_briefcase_slides["BOMB"] as Dictionary).get("pos", b_bomb_pos) as Vector2
 
-		_left_title_label.text = "BRIEFCASE [%d/4] (LEFT)" % objs.size()
+		_left_title_label.text = "BRIEFCASE (LEFT)"
 
 		var hint := Label.new()
 		hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -850,17 +850,15 @@ func _refresh_left_panel(is_briefcase: bool, vis_ratio: float) -> void:
 		hv.add_child(empty_lbl)
 
 	if is_briefcase:
-		var packed_arr: Array = _container.get("stored_items") as Array
-		var count: int = packed_arr.size() if packed_arr != null else 0
 		var info := Label.new()
 		info.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		info.add_theme_font_size_override("font_size", 12)
 		info.modulate = Color(0.82, 0.86, 0.90)
 		if l_id == "NONE":
-			info.text = "Briefcase: %d/4 Objectives\nClose [S], then [Tap E] to carry!" % count
+			info.text = "Briefcase\nClose [S], then [Tap E] to carry!"
 		else:
-			info.text = "Briefcase: %d/4 Objectives\nFree Left Hand to carry it!" % count
+			info.text = "Briefcase\nFree Left Hand to carry it!"
 		_left_content_box.add_child(info)
 
 

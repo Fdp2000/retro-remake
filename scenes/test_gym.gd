@@ -7,6 +7,7 @@ const DRAWER_SCENE: PackedScene = preload("res://entities/props/searchable_drawe
 const AIRPORT_EXIT_SCENE: PackedScene = preload("res://entities/props/airport_exit_door.tscn")
 const MATCH_SPAWNER_SCRIPT = preload("res://core/match_spawner.gd")
 const MATCH_END_UI_SCRIPT = preload("res://ui/match_end_overlay_ui.gd")
+const SPAWNER_CHEATSHEET_UI_SCRIPT = preload("res://ui/spawner_cheatsheet_ui.gd")
 const LOBBY_SCENE_PATH: String = "res://scenes/lobby.tscn"
 
 const SPAWN_POINTS: Dictionary = {
@@ -35,6 +36,9 @@ var has_spawned_all: bool = false
 var is_terminating: bool = false
 var is_sandbox_mode: bool = false
 var _match_end_ui: MatchEndOverlayUI = null
+var _spawner_cheatsheet_ui: Control = null
+var _last_populate_summary: Dictionary = {}
+var _esc_cheatsheet_button: Button = null
 var _esc_rematch_button: Button = null
 var _esc_switch_mode_button: Button = null
 
@@ -52,6 +56,7 @@ func _ready() -> void:
 			MatchManager.match_started.connect(_on_match_started)
 
 	_ensure_match_end_ui()
+	_ensure_spawner_cheatsheet_ui()
 	_refresh_role_badge()
 
 	# ESC Menu buttons & Mouse DPI/Sensitivity controls
@@ -64,6 +69,14 @@ func _ready() -> void:
 			esc_vbox.move_child(mouse_widget, 1)
 
 		var is_host_or_offline: bool = (not _is_network_active()) or multiplayer.is_server()
+		if _esc_cheatsheet_button == null and esc_vbox.get_node_or_null("SpawnerCheatsheetButton") == null:
+			_esc_cheatsheet_button = Button.new()
+			_esc_cheatsheet_button.name = "SpawnerCheatsheetButton"
+			_esc_cheatsheet_button.text = "Spawner Cheatsheet & Tuner [F2]"
+			_esc_cheatsheet_button.visible = is_host_or_offline
+			_esc_cheatsheet_button.pressed.connect(open_spawner_cheatsheet)
+			esc_vbox.add_child(_esc_cheatsheet_button)
+
 		if _esc_rematch_button == null and esc_vbox.get_node_or_null("RestartRoundButton") == null:
 			_esc_rematch_button = Button.new()
 			_esc_rematch_button.name = "RestartRoundButton"
@@ -147,6 +160,51 @@ func _ensure_match_end_ui() -> void:
 		_match_end_ui.return_to_lobby_requested.connect(_on_leave_button_pressed)
 
 
+func _ensure_spawner_cheatsheet_ui() -> void:
+	if _spawner_cheatsheet_ui != null and is_instance_valid(_spawner_cheatsheet_ui):
+		return
+	var target_ui: CanvasLayer = ui_layer if ui_layer != null else get_node_or_null("UI") as CanvasLayer
+	if target_ui == null:
+		return
+	var existing: Node = target_ui.get_node_or_null("SpawnerCheatsheetUI")
+	if existing is Control:
+		_spawner_cheatsheet_ui = existing as Control
+	else:
+		_spawner_cheatsheet_ui = SPAWNER_CHEATSHEET_UI_SCRIPT.new() as Control
+		_spawner_cheatsheet_ui.name = "SpawnerCheatsheetUI"
+		target_ui.add_child(_spawner_cheatsheet_ui)
+	if not _spawner_cheatsheet_ui.is_connected("apply_and_reroll_requested", _on_cheatsheet_apply_and_reroll):
+		_spawner_cheatsheet_ui.connect("apply_and_reroll_requested", _on_cheatsheet_apply_and_reroll)
+	if not _spawner_cheatsheet_ui.is_connected("closed", _on_cheatsheet_closed):
+		_spawner_cheatsheet_ui.connect("closed", _on_cheatsheet_closed)
+
+
+func open_spawner_cheatsheet() -> void:
+	_ensure_spawner_cheatsheet_ui()
+	if _spawner_cheatsheet_ui == null:
+		return
+	if esc_menu != null:
+		esc_menu.visible = false
+	_spawner_cheatsheet_ui.call("open_cheatsheet", true, _last_populate_summary)
+	if not Engine.is_editor_hint():
+		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+
+
+func _on_cheatsheet_apply_and_reroll() -> void:
+	trigger_rematch(is_sandbox_mode)
+	if _spawner_cheatsheet_ui != null and _spawner_cheatsheet_ui.visible:
+		_spawner_cheatsheet_ui.call("set_latest_populate_summary", _last_populate_summary)
+		if not Engine.is_editor_hint():
+			Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+
+
+func _on_cheatsheet_closed() -> void:
+	if not Engine.is_editor_hint():
+		var end_vis: bool = _match_end_ui != null and _match_end_ui.visible
+		var esc_vis: bool = esc_menu != null and esc_menu.visible
+		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if (end_vis or esc_vis) else Input.MOUSE_MODE_CAPTURED
+
+
 func _refresh_role_badge() -> void:
 	if role_label == null:
 		return
@@ -185,7 +243,8 @@ func _ensure_shared_airport_exit() -> void:
 	var exit_door := AIRPORT_EXIT_SCENE.instantiate() as StaticBody3D
 	exit_door.name = "SharedAirportExit"
 	add_child(exit_door)
-	exit_door.position = Vector3(-6.2, 0.0, -4.5)
+	# Room_2_2 West Wall is at X = -9.0 (center Z = -4.5). Place flush against interior West wall facing East (+X).
+	exit_door.position = Vector3(-8.82, 0.0, -4.5)
 	exit_door.rotation.y = deg_to_rad(90.0)
 
 
@@ -277,7 +336,10 @@ func _resolve_spawn_yaw(slot: int) -> float:
 
 func _on_match_started(seed_value: int) -> void:
 	var spawner := MATCH_SPAWNER_SCRIPT.new()
-	spawner.populate_level(self, seed_value, DRAWER_SCENE, PICKUP_SCENE, ["Room_2_2"])
+	var active_cfg: Dictionary = MatchManager.active_spawner_config if (MatchManager != null and not MatchManager.active_spawner_config.is_empty()) else {}
+	_last_populate_summary = spawner.populate_level(self, seed_value, DRAWER_SCENE, PICKUP_SCENE, ["Room_2_2"], active_cfg)
+	if _spawner_cheatsheet_ui != null and is_instance_valid(_spawner_cheatsheet_ui):
+		_spawner_cheatsheet_ui.call("set_latest_populate_summary", _last_populate_summary)
 
 
 func _on_match_ended(winner_peer_id: int, reason: String) -> void:
@@ -302,6 +364,22 @@ func _on_match_ended(winner_peer_id: int, reason: String) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventKey and event.pressed and not event.is_echo() and event.keycode == KEY_F2:
+		var is_host_or_offline: bool = (not _is_network_active()) or multiplayer.is_server()
+		if is_host_or_offline:
+			_ensure_spawner_cheatsheet_ui()
+			if _spawner_cheatsheet_ui != null:
+				if _spawner_cheatsheet_ui.visible:
+					_spawner_cheatsheet_ui.call("close_cheatsheet")
+				else:
+					open_spawner_cheatsheet()
+				get_viewport().set_input_as_handled()
+				return
+	if _spawner_cheatsheet_ui != null and _spawner_cheatsheet_ui.visible:
+		if event.is_action_pressed("ui_cancel") or (event is InputEventKey and event.pressed and not event.is_echo() and event.keycode == KEY_ESCAPE):
+			_spawner_cheatsheet_ui.call("close_cheatsheet")
+			get_viewport().set_input_as_handled()
+			return
 	if MatchManager != null and MatchManager.match_state == MatchManager.MatchState.ENDED:
 		return
 	if event.is_action_pressed("ui_cancel") or (event is InputEventKey and event.pressed and not event.is_echo() and event.keycode == KEY_ESCAPE):

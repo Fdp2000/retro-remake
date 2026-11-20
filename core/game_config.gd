@@ -5,6 +5,7 @@ extends Node
 ## All [TUNABLE] baselines from Master GDD v3.2 and Docs 2–7 are exposed here.
 
 signal mouse_settings_changed(effective_sensitivity: float)
+signal spawner_settings_changed()
 
 const USER_SETTINGS_PATH: String = "user://spy_user_settings.cfg"
 const REFERENCE_DPI: float = 800.0
@@ -210,9 +211,27 @@ static func get_remote_spy_visual_layer(slot_index: int) -> int:
 @export_group("Level & Match Randomizer")
 @export var room_dimensions: Vector3 = Vector3(6.0, 3.2, 6.0)
 @export var grid_dimensions: Vector2i = Vector2i(3, 3)
-@export var spawner_searchable_drawers_count: int = 12
+@export var spawner_searchable_drawers_count: int = 18
+@export var spawner_min_drawers: int = 16
+@export var spawner_max_drawers: int = 20
+@export var spawner_max_drawers_per_room: int = 2
+@export var spawner_allow_drawers_in_spawn_rooms: bool = true
+@export var spawner_max_drawers_in_spawn_room: int = 1
+@export var spawner_isolate_briefcase_from_objectives: bool = true
+@export var spawner_min_total_gadgets: int = 11
+@export var spawner_max_total_gadgets: int = 14
+@export var spawner_spring_min: int = 1
+@export var spawner_spring_max: int = 6
+@export var spawner_bomb_min: int = 1
+@export var spawner_bomb_max: int = 6
+@export var spawner_tripwire_min: int = 1
+@export var spawner_tripwire_max: int = 6
+@export var spawner_dart_gun_min: int = 0
+@export var spawner_dart_gun_max: int = 4
+@export var spawner_floor_buckets_count: int = 4
+@export var spawner_floor_buckets_min: int = 3
+@export var spawner_floor_buckets_max: int = 5
 @export var spawner_cover_props_count: int = 6
-@export var spawner_floor_buckets_count: int = 3
 ## When false (default), launches a real seeded round (corner room spawns, no free pickup table in Room_2_2).
 ## When true, spawns the Room_2_2 dev test bench with all pickups/traps/drawers laid out for quick testing.
 @export var sandbox_gym_mode: bool = false
@@ -239,6 +258,7 @@ func set_mouse_settings(new_dpi: int, new_multiplier: float, persist: bool = tru
 
 func save_user_settings(path: String = USER_SETTINGS_PATH) -> Error:
 	var cfg := ConfigFile.new()
+	cfg.load(path)
 	cfg.set_value("mouse", "dpi", mouse_dpi)
 	cfg.set_value("mouse", "sensitivity_multiplier", mouse_sensitivity_multiplier)
 	return cfg.save(path)
@@ -252,6 +272,121 @@ func load_user_settings(path: String = USER_SETTINGS_PATH) -> bool:
 	mouse_sensitivity_multiplier = float(cfg.get_value("mouse", "sensitivity_multiplier", 1.0))
 	mouse_settings_changed.emit(get_effective_mouse_sensitivity())
 	return true
+
+
+func get_spawner_config_dict() -> Dictionary:
+	return {
+		"min_drawers": spawner_min_drawers,
+		"max_drawers": spawner_max_drawers,
+		"max_drawers_per_room": spawner_max_drawers_per_room,
+		"allow_drawers_in_spawn_rooms": spawner_allow_drawers_in_spawn_rooms,
+		"max_drawers_in_spawn_room": spawner_max_drawers_in_spawn_room,
+		"isolate_briefcase_from_objectives": spawner_isolate_briefcase_from_objectives,
+		"min_total_gadgets": spawner_min_total_gadgets,
+		"max_total_gadgets": spawner_max_total_gadgets,
+		"spring_min": spawner_spring_min,
+		"spring_max": spawner_spring_max,
+		"bomb_min": spawner_bomb_min,
+		"bomb_max": spawner_bomb_max,
+		"tripwire_min": spawner_tripwire_min,
+		"tripwire_max": spawner_tripwire_max,
+		"dart_gun_min": spawner_dart_gun_min,
+		"dart_gun_max": spawner_dart_gun_max,
+		"floor_buckets_min": spawner_floor_buckets_min,
+		"floor_buckets_max": spawner_floor_buckets_max,
+		"cover_props_count": spawner_cover_props_count
+	}
+
+
+func apply_spawner_config_dict(cfg_dict: Dictionary) -> void:
+	if cfg_dict.has("min_drawers"):
+		spawner_min_drawers = maxi(int(cfg_dict["min_drawers"]), 5)
+	if cfg_dict.has("max_drawers"):
+		spawner_max_drawers = maxi(int(cfg_dict["max_drawers"]), spawner_min_drawers)
+	else:
+		spawner_max_drawers = maxi(spawner_max_drawers, spawner_min_drawers)
+	spawner_searchable_drawers_count = spawner_max_drawers
+
+	if cfg_dict.has("max_drawers_per_room"):
+		spawner_max_drawers_per_room = clampi(int(cfg_dict["max_drawers_per_room"]), 1, 8)
+	if cfg_dict.has("allow_drawers_in_spawn_rooms"):
+		spawner_allow_drawers_in_spawn_rooms = bool(cfg_dict["allow_drawers_in_spawn_rooms"])
+	if cfg_dict.has("max_drawers_in_spawn_room"):
+		spawner_max_drawers_in_spawn_room = clampi(int(cfg_dict["max_drawers_in_spawn_room"]), 0, 8)
+	if cfg_dict.has("isolate_briefcase_from_objectives"):
+		spawner_isolate_briefcase_from_objectives = bool(cfg_dict["isolate_briefcase_from_objectives"])
+
+	if cfg_dict.has("min_total_gadgets"):
+		spawner_min_total_gadgets = maxi(int(cfg_dict["min_total_gadgets"]), 0)
+	if cfg_dict.has("max_total_gadgets"):
+		spawner_max_total_gadgets = maxi(int(cfg_dict["max_total_gadgets"]), spawner_min_total_gadgets)
+	else:
+		spawner_max_total_gadgets = maxi(spawner_max_total_gadgets, spawner_min_total_gadgets)
+
+	if cfg_dict.has("spring_min"):
+		spawner_spring_min = maxi(int(cfg_dict["spring_min"]), 0)
+	if cfg_dict.has("spring_max"):
+		spawner_spring_max = maxi(int(cfg_dict["spring_max"]), spawner_spring_min)
+	else:
+		spawner_spring_max = maxi(spawner_spring_max, spawner_spring_min)
+
+	if cfg_dict.has("bomb_min"):
+		spawner_bomb_min = maxi(int(cfg_dict["bomb_min"]), 0)
+	if cfg_dict.has("bomb_max"):
+		spawner_bomb_max = maxi(int(cfg_dict["bomb_max"]), spawner_bomb_min)
+	else:
+		spawner_bomb_max = maxi(spawner_bomb_max, spawner_bomb_min)
+
+	if cfg_dict.has("tripwire_min"):
+		spawner_tripwire_min = maxi(int(cfg_dict["tripwire_min"]), 0)
+	if cfg_dict.has("tripwire_max"):
+		spawner_tripwire_max = maxi(int(cfg_dict["tripwire_max"]), spawner_tripwire_min)
+	else:
+		spawner_tripwire_max = maxi(spawner_tripwire_max, spawner_tripwire_min)
+
+	if cfg_dict.has("dart_gun_min"):
+		spawner_dart_gun_min = maxi(int(cfg_dict["dart_gun_min"]), 0)
+	if cfg_dict.has("dart_gun_max"):
+		spawner_dart_gun_max = maxi(int(cfg_dict["dart_gun_max"]), spawner_dart_gun_min)
+	else:
+		spawner_dart_gun_max = maxi(spawner_dart_gun_max, spawner_dart_gun_min)
+
+	if cfg_dict.has("floor_buckets_min"):
+		spawner_floor_buckets_min = maxi(int(cfg_dict["floor_buckets_min"]), 0)
+	if cfg_dict.has("floor_buckets_max"):
+		spawner_floor_buckets_max = maxi(int(cfg_dict["floor_buckets_max"]), spawner_floor_buckets_min)
+	else:
+		spawner_floor_buckets_max = maxi(spawner_floor_buckets_max, spawner_floor_buckets_min)
+	spawner_floor_buckets_count = spawner_floor_buckets_max
+
+	if cfg_dict.has("cover_props_count"):
+		spawner_cover_props_count = maxi(int(cfg_dict["cover_props_count"]), 0)
+
+	spawner_settings_changed.emit()
+
+
+func reset_spawner_defaults() -> void:
+	apply_spawner_config_dict({
+		"min_drawers": 16,
+		"max_drawers": 20,
+		"max_drawers_per_room": 2,
+		"allow_drawers_in_spawn_rooms": true,
+		"max_drawers_in_spawn_room": 1,
+		"isolate_briefcase_from_objectives": true,
+		"min_total_gadgets": 11,
+		"max_total_gadgets": 14,
+		"spring_min": 1,
+		"spring_max": 6,
+		"bomb_min": 1,
+		"bomb_max": 6,
+		"tripwire_min": 1,
+		"tripwire_max": 6,
+		"dart_gun_min": 0,
+		"dart_gun_max": 4,
+		"floor_buckets_min": 3,
+		"floor_buckets_max": 5,
+		"cover_props_count": 6
+	})
 
 
 func compute_final_move_speed(stance: int, has_briefcase: bool, is_charging_club: bool, club_charge_progress: float = 1.0) -> float:
