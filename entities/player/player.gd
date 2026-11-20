@@ -212,6 +212,7 @@ var _lmb_trap_hold_active: bool = false
 var _lmb_trap_hold_elapsed: float = 0.0
 var _lmb_trap_mode: String = ""
 var _lmb_trap_target: Object = null
+var _lmb_trap_bucket_other_side: bool = false
 var anti_camp_timer: float = 0.0
 var anti_camp_sniffle_warned: bool = false
 var _last_room_key: String = ""
@@ -1815,7 +1816,7 @@ func _find_spawned_node_in_scene(node_name: String) -> Node:
 
 
 @rpc("any_peer", "call_local", "reliable")
-func _rpc_server_rig_bucket_on_door(door_path: NodePath) -> void:
+func _rpc_server_rig_bucket_on_door(door_path: NodePath, other_side: bool = false) -> void:
 	if _is_peer_connected() and not multiplayer.is_server():
 		return
 	var sender_id: int = multiplayer.get_remote_sender_id()
@@ -1828,7 +1829,7 @@ func _rpc_server_rig_bucket_on_door(door_path: NodePath) -> void:
 		return
 	if _inv().get_active_right_item_id() != "BUCKET":
 		return
-	if bool(door_node.call("rig_water_bucket", name.to_int())):
+	if bool(door_node.call("rig_water_bucket", name.to_int(), other_side)):
 		_inv().consume_active_jacket_slot("BUCKET")
 		_sync_inventory_state_to_peers()
 		if AudioBridge != null and door_node is Node3D:
@@ -2230,26 +2231,37 @@ func _try_begin_primary_action() -> void:
 		"DART_GUN":
 			fire_dart_gun()
 		"BUCKET":
-			if raycast != null and raycast.is_colliding():
-				var col: Object = raycast.get_collider()
-				while col is Node and not col.has_method("rig_water_bucket"):
-					col = col.get_parent()
-				if col != null and col.has_method("rig_water_bucket") and not bool(col.get("is_open")) and not bool(col.get("has_rigged_bucket")):
-					_lmb_trap_hold_active = true
-					_lmb_trap_hold_elapsed = 0.0
-					_lmb_trap_mode = "BUCKET"
-					_lmb_trap_target = col
+			_try_begin_bucket_rig_hold(false)
 		"TRIPWIRE":
 			var tw_ctrl: TripwirePlacementController = _ensure_tripwire_controller()
 			tw_ctrl.begin_lmb_hold()
 
 
+func _try_begin_bucket_rig_hold(other_side: bool) -> void:
+	if raycast != null and raycast.is_colliding():
+		var col: Object = raycast.get_collider()
+		while col is Node and not col.has_method("rig_water_bucket"):
+			col = col.get_parent()
+		if col != null and col.has_method("rig_water_bucket") and not bool(col.get("is_open")) and not bool(col.get("has_rigged_bucket")):
+			_lmb_trap_hold_active = true
+			_lmb_trap_hold_elapsed = 0.0
+			_lmb_trap_mode = "BUCKET"
+			_lmb_trap_target = col
+			_lmb_trap_bucket_other_side = other_side
+
+
 func _update_lmb_trap_hold(delta: float) -> void:
 	if not _lmb_trap_hold_active:
 		return
-	if not Input.is_action_pressed("primary_action") or Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
+	var hold_pressed: bool = (
+		Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT)
+		if (_lmb_trap_mode == "BUCKET" and _lmb_trap_bucket_other_side)
+		else Input.is_action_pressed("primary_action")
+	)
+	if not hold_pressed or Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
 		_lmb_trap_hold_active = false
 		_lmb_trap_hold_elapsed = 0.0
+		_lmb_trap_bucket_other_side = false
 		if hold_progress_bar != null:
 			hold_progress_bar.visible = false
 		return
@@ -2265,19 +2277,21 @@ func _update_lmb_trap_hold(delta: float) -> void:
 func _complete_lmb_trap_rig() -> void:
 	var mode: String = _lmb_trap_mode
 	var target_obj: Object = _lmb_trap_target
+	var other_side: bool = _lmb_trap_bucket_other_side
 	_lmb_trap_hold_active = false
 	_lmb_trap_hold_elapsed = 0.0
 	_lmb_trap_mode = ""
 	_lmb_trap_target = null
+	_lmb_trap_bucket_other_side = false
 	if hold_progress_bar != null:
 		hold_progress_bar.visible = false
 	reset_anti_camp()
 	if mode == "BUCKET" and target_obj is Node and is_instance_valid(target_obj):
 		var door_path: NodePath = (target_obj as Node).get_path()
 		if _is_peer_connected() and not multiplayer.is_server():
-			_rpc_server_rig_bucket_on_door.rpc_id(1, door_path)
+			_rpc_server_rig_bucket_on_door.rpc_id(1, door_path, other_side)
 		else:
-			_rpc_server_rig_bucket_on_door(door_path)
+			_rpc_server_rig_bucket_on_door(door_path, other_side)
 
 
 func _safe_global_pos() -> Vector3:
@@ -2772,7 +2786,7 @@ func _process_interaction_raycast() -> void:
 				)
 			)
 			if right_hand_item_id == "BUCKET" and target_collider.has_method("rig_water_bucket") and not bool(target_collider.get("is_open")) and not bool(target_collider.get("has_rigged_bucket")):
-				p_text += "  |  [Hold LMB] Rig Water Bucket"
+				p_text += "  |  [Hold LMB] Rig Bucket (This Side)  |  [Hold RMB] Rig Bucket (Other Side)"
 			elif tw_active_step2:
 				p_text += "  |  [RMB] Cancel Tripwire"
 			prompt_label.text = p_text
@@ -3363,11 +3377,19 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("primary_action") and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		_try_begin_primary_action()
 	elif event.is_action_released("primary_action"):
-		_lmb_trap_hold_active = false
+		if not _lmb_trap_bucket_other_side:
+			_lmb_trap_hold_active = false
 		if _tripwire_ctrl != null and is_instance_valid(_tripwire_ctrl):
 			_tripwire_ctrl.on_lmb_released()
 		if is_charging_club:
 			evaluate_club_release()
+
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_RIGHT and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
+		if event.pressed and right_hand_item_id == "BUCKET" and club_overcharge_stumble_remaining <= 0.0:
+			_try_begin_bucket_rig_hold(true)
+		elif not event.pressed and _lmb_trap_bucket_other_side:
+			_lmb_trap_hold_active = false
+			_lmb_trap_bucket_other_side = false
 
 	var is_rmb_cancel: bool = (
 		event is InputEventMouseButton

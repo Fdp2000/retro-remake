@@ -178,13 +178,14 @@ func _compute_bucket_side_sign(owner_peer_id: int) -> float:
 	return 1.0 if z_axis.dot(to_armer) >= 0.0 else -1.0
 
 
-func rig_water_bucket(owner_peer_id: int) -> bool:
+func rig_water_bucket(owner_peer_id: int, other_side: bool = false) -> bool:
 	_ensure_bucket_visual()
 	if is_open or has_rigged_bucket:
 		return false
 	has_rigged_bucket = true
 	bucket_owner_peer_id = owner_peer_id
-	bucket_side_sign = _compute_bucket_side_sign(owner_peer_id)
+	var base_sign: float = _compute_bucket_side_sign(owner_peer_id)
+	bucket_side_sign = -base_sign if other_side else base_sign
 	if AudioBridge != null and GameConfig != null:
 		AudioBridge.request_world_cue("trap_arm", global_position + Vector3(0.0, 2.0, 0.0), GameConfig.audio_radius_trap_setup, owner_peer_id)
 	if _is_peer_connected():
