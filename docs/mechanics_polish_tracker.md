@@ -74,9 +74,9 @@ One mechanic at a time. For each one we: **review the design → you test it →
 ## G. World Traps & Gadgets
 | # | Mechanic | Status | Notes |
 |---|---|---|---|
-| G1 | Water Bucket: `Hold LMB` 0.8s rig on closed door, 5° ajar tell | 🟡 | |
-| G2 | Water Bucket: drops past 25°, KO within 1.2m vs harmless spill | 🟡 | Test calls the drop function directly, not a real door push |
-| G3 | Water Bucket: look up + `Hold E` 1.0s steal | 🟡 | |
+| G1 | Water Bucket: `Hold LMB` 0.8s rig on closed door, 10° ajar tell | ✅ | |
+| G2 | Water Bucket: drops past 28° (4° same-side), KO within 1.2m vs harmless spill | ✅ | |
+| G3 | Water Bucket: look at bucket + `Hold E` 1.0s steal (stays ajar) | ✅ | |
 | G4 | Tripwire: `Hold LMB` 0.8s place on floor | 🟡 | |
 | G5 | Tripwire: walk/sprint = KO, jump / crouch = safe, crouch + `Hold E` steal | 🟡 | |
 | G6 | Lit Bomb: click in drawer → auto-close → live bomb in FPS hand | 🟡 | |

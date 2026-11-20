@@ -112,6 +112,7 @@ static func get_remote_spy_visual_layer(slot_index: int) -> int:
 @export var door_bucket_same_side_release_delta_deg: float = 4.0
 @export var bucket_hit_radius: float = 1.2
 @export var bucket_max_safe_reach: float = 1.8
+@export var bucket_fall_impact_delay: float = 0.10
 
 @export var drawer_fast_slam_duration: float = 0.22
 @export var drawer_slow_peek_hold_time: float = 2.50

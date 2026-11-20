@@ -280,14 +280,26 @@ func _trigger_rigged_bucket_drop(opener_peer_id: int, swing_dur: float) -> void:
 
 
 func _resolve_bucket_drop(opener_peer_id: int, owner_id: int, drop_world_pos: Vector3 = Vector3.INF) -> void:
-	var pos_now: Vector3 = global_position if is_inside_tree() else position
 	if is_inside_tree() and drop_world_pos != Vector3.INF:
 		if _is_peer_connected():
 			_rpc_play_bucket_drop_fx.rpc(drop_world_pos, bucket_side_sign)
 		else:
 			_rpc_play_bucket_drop_fx(drop_world_pos, bucket_side_sign)
+	var impact_delay: float = GameConfig.bucket_fall_impact_delay if GameConfig != null else 0.10
+	if not is_inside_tree() or Engine.is_editor_hint() or impact_delay <= 0.005:
+		_apply_bucket_impact(opener_peer_id, owner_id, drop_world_pos)
+		return
+	get_tree().create_timer(impact_delay).timeout.connect(func():
+		_apply_bucket_impact(opener_peer_id, owner_id, drop_world_pos)
+	)
+
+
+func _apply_bucket_impact(opener_peer_id: int, owner_id: int, drop_world_pos: Vector3) -> void:
+	var pos_now: Vector3 = global_position if is_inside_tree() else position
+	var closed_x: Vector3 = ((get_parent() as Node3D).global_basis * Basis(Vector3.UP, _closed_rotation)).x if get_parent() is Node3D else global_basis.x
+	var check_pos: Vector3 = drop_world_pos if drop_world_pos != Vector3.INF else (_bucket_visual.global_position if (_bucket_visual != null and _bucket_visual.is_inside_tree()) else (pos_now + closed_x * 0.60))
 	if AudioBridge != null and GameConfig != null:
-		AudioBridge.request_world_cue("bucket_spill", pos_now, GameConfig.audio_radius_bucket_spill, owner_id)
+		AudioBridge.request_world_cue("bucket_spill", check_pos, GameConfig.audio_radius_bucket_spill, owner_id)
 	var scene: Node = get_tree().current_scene if (is_inside_tree() and get_tree() != null) else null
 	var player: Node = scene.get_node_or_null("Players/" + str(opener_peer_id)) if scene != null else null
 	if player == null and is_inside_tree() and get_tree() != null:
@@ -297,9 +309,7 @@ func _resolve_bucket_drop(opener_peer_id: int, owner_id: int, drop_world_pos: Ve
 				break
 	if player is Node3D:
 		var opener_pos: Vector3 = (player as Node3D).global_position
-		var closed_x: Vector3 = ((get_parent() as Node3D).global_basis * Basis(Vector3.UP, _closed_rotation)).x if get_parent() is Node3D else global_basis.x
-		var door_center: Vector3 = pos_now + closed_x * 0.60
-		var flat_dist: float = Vector2(opener_pos.x - door_center.x, opener_pos.z - door_center.z).length()
+		var flat_dist: float = Vector2(opener_pos.x - check_pos.x, opener_pos.z - check_pos.z).length()
 		var hit_radius: float = GameConfig.bucket_hit_radius if GameConfig != null else 1.2
 		if flat_dist <= hit_radius and player.has_method("apply_trap_ko"):
 			player.apply_trap_ko("BUCKET", owner_id)

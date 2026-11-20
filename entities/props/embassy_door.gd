@@ -411,17 +411,31 @@ func _trigger_rigged_bucket_on_open(opener_peer_id: int, opener_pos: Vector3, sw
 
 
 func _resolve_bucket_drop(opener_peer_id: int, opener_pos: Vector3, owner_id: int) -> void:
-	var pos_now: Vector3 = _safe_global_pos()
 	var drop_local_pos: Vector3 = _bucket_visual.position if _bucket_visual != null else Vector3(0.0, 2.29, bucket_side_sign * 0.30)
 	if is_inside_tree():
 		if _is_peer_connected():
 			_rpc_play_bucket_drop_fx.rpc(drop_local_pos)
 		else:
 			_rpc_play_bucket_drop_fx(drop_local_pos)
-	var flat_dist: float = Vector2(opener_pos.x - pos_now.x, opener_pos.z - pos_now.z).length()
+	var drop_world_pos: Vector3 = _safe_global_transform() * drop_local_pos
+	var impact_delay: float = GameConfig.bucket_fall_impact_delay if GameConfig != null else 0.10
+	if not is_inside_tree() or Engine.is_editor_hint() or impact_delay <= 0.005:
+		_apply_bucket_impact(opener_peer_id, opener_pos, owner_id, drop_world_pos)
+		return
+	get_tree().create_timer(impact_delay).timeout.connect(func():
+		var live_opener_pos: Vector3 = opener_pos
+		var opener_node: Node = _find_player_node(opener_peer_id)
+		if opener_node is Node3D:
+			live_opener_pos = (opener_node as Node3D).global_position
+		_apply_bucket_impact(opener_peer_id, live_opener_pos, owner_id, drop_world_pos)
+	)
+
+
+func _apply_bucket_impact(opener_peer_id: int, opener_pos: Vector3, owner_id: int, drop_world_pos: Vector3) -> void:
+	var flat_dist: float = Vector2(opener_pos.x - drop_world_pos.x, opener_pos.z - drop_world_pos.z).length()
 	var hit_radius: float = GameConfig.bucket_hit_radius if GameConfig != null else 1.2
 	if AudioBridge != null and GameConfig != null:
-		AudioBridge.request_world_cue("bucket_spill", pos_now, GameConfig.audio_radius_bucket_spill, owner_id)
+		AudioBridge.request_world_cue("bucket_spill", drop_world_pos, GameConfig.audio_radius_bucket_spill, owner_id)
 	if flat_dist <= hit_radius:
 		var player: Node = _find_player_node(opener_peer_id)
 		if player != null and player.has_method("apply_trap_ko"):
