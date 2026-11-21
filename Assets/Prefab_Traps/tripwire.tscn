@@ -1,0 +1,12 @@
+[gd_scene format=3 uid="uid://w86jcfp5yob6"]
+
+[ext_resource type="PackedScene" uid="uid://cgrvn88hjg32v" path="res://Assets/Models/Traps/Tripwire.glb" id="1_yow83"]
+[ext_resource type="Texture2D" uid="uid://b8p6wdbdw2rff" path="res://Assets/Models/Traps/Texture_Tripwire.png" id="2_28yr3"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_x68j8"]
+albedo_texture = ExtResource("2_28yr3")
+
+[node name="Tripwire2" unique_id=1869255540 instance=ExtResource("1_yow83")]
+
+[node name="Tripwire" parent="." index="0" unique_id=506768191]
+material_override = SubResource("StandardMaterial3D_x68j8")

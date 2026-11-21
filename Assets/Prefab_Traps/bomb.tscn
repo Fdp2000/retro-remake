@@ -1,0 +1,12 @@
+[gd_scene format=3 uid="uid://csdncm5x4a35t"]
+
+[ext_resource type="PackedScene" uid="uid://bhvchcumt7lb2" path="res://Assets/Models/Traps/Bomb.glb" id="1_sethe"]
+[ext_resource type="Texture2D" uid="uid://d7hyhykcq66o" path="res://Assets/Models/Traps/Texture_Bomb.png" id="2_dee8l"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_xc407"]
+albedo_texture = ExtResource("2_dee8l")
+
+[node name="Bomb2" unique_id=2059233582 instance=ExtResource("1_sethe")]
+
+[node name="Bomb" parent="." index="0" unique_id=2021842000]
+material_override = SubResource("StandardMaterial3D_xc407")

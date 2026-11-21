@@ -1,0 +1,12 @@
+[gd_scene format=3 uid="uid://5odrsp71g2r6"]
+
+[ext_resource type="PackedScene" uid="uid://b1xh1en4psy6y" path="res://Assets/Models/Traps/Spring.glb" id="1_4exl4"]
+[ext_resource type="Texture2D" uid="uid://b6dvsq0cup541" path="res://Assets/Models/Traps/Texture_Spring.png" id="2_igd6t"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_6yy4h"]
+albedo_texture = ExtResource("2_igd6t")
+
+[node name="Spring2" unique_id=666318201 instance=ExtResource("1_4exl4")]
+
+[node name="Spring" parent="." index="0" unique_id=155047161]
+material_override = SubResource("StandardMaterial3D_6yy4h")

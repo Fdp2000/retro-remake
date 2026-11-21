@@ -1,0 +1,18 @@
+[gd_scene format=3 uid="uid://dhmhyrr8vo8s8"]
+
+[ext_resource type="PackedScene" uid="uid://b1tufjup1n6fk" path="res://Assets/Models/Traps/DartGun.glb" id="1_tduh2"]
+[ext_resource type="Texture2D" uid="uid://hsdoj7uklnbn" path="res://Assets/Models/Traps/Texture_Revolver.png" id="2_4lp2r"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ra72w"]
+albedo_texture = ExtResource("2_4lp2r")
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_jkpht"]
+albedo_texture = ExtResource("2_4lp2r")
+
+[node name="DartGun" unique_id=1682378333 instance=ExtResource("1_tduh2")]
+
+[node name="Barrel" parent="." index="0" unique_id=1962159405]
+material_override = SubResource("StandardMaterial3D_ra72w")
+
+[node name="Håndtag" parent="." index="1" unique_id=772778505]
+material_override = SubResource("StandardMaterial3D_jkpht")

@@ -1,0 +1,12 @@
+[gd_scene format=3 uid="uid://bvh8rbiiuhqwe"]
+
+[ext_resource type="PackedScene" uid="uid://bqkop7qxh1bib" path="res://Assets/Models/Traps/Bucket.glb" id="1_2mbuo"]
+[ext_resource type="Texture2D" uid="uid://dh6236y0ijxk4" path="res://Assets/Models/Traps/Texture_Bucket.png" id="2_n2gqr"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_55ggm"]
+albedo_texture = ExtResource("2_n2gqr")
+
+[node name="Bucket" unique_id=948858710 instance=ExtResource("1_2mbuo")]
+
+[node name="Spand" parent="." index="0" unique_id=1850667529]
+material_override = SubResource("StandardMaterial3D_55ggm")
