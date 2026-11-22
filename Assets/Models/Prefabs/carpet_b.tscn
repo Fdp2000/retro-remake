@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://nkihpbg1yu8v"]
 
-[ext_resource type="PackedScene" uid="uid://dhviixpso1b6c" path="res://Assets/Models/Adjusted/Carpet_B.glb" id="1_i3qxv"]
+[ext_resource type="PackedScene" uid="uid://dhviixpso1b6c" path="res://Assets/Models/Adjusted/Batch 1/Carpet_B.glb" id="1_i3qxv"]
 
 [node name="Carpet_B" unique_id=151793716 instance=ExtResource("1_i3qxv")]
 

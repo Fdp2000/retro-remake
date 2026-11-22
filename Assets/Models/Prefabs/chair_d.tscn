@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://3ryylm7npho6"]
 
-[ext_resource type="PackedScene" uid="uid://bulsg1hsv0yr0" path="res://Assets/Models/Adjusted/Chair_D.glb" id="1_e4203"]
+[ext_resource type="PackedScene" uid="uid://bulsg1hsv0yr0" path="res://Assets/Models/Adjusted/Batch 1/Chair_D.glb" id="1_e4203"]
 
 [sub_resource type="CylinderShape3D" id="CylinderShape3D_g3nxs"]
 height = 1.6765137

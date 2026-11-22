@@ -1,6 +1,6 @@
 [gd_scene format=4 uid="uid://c86verayk2y0i"]
 
-[ext_resource type="Texture2D" uid="uid://dx8pq8v4hhmxe" path="res://Assets/Models/Adjusted/Drawer_B_-Colour.png" id="1_boyuo"]
+[ext_resource type="Texture2D" uid="uid://dx8pq8v4hhmxe" path="res://Assets/Models/Adjusted/Batch 1/Drawer_B_-Colour.png" id="1_boyuo"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_41i84"]
 resource_name = "Brown"

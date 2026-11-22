@@ -5,6 +5,13 @@
 [ext_resource type="PackedScene" uid="uid://djhiosp3i5krw" path="res://Assets/Models/Prefabs/shelf_b.tscn" id="3_vnbcm"]
 [ext_resource type="PackedScene" uid="uid://dpkyc74faxmhm" path="res://Assets/Models/Prefabs/chair_e.tscn" id="4_r4asu"]
 [ext_resource type="PackedScene" uid="uid://nkihpbg1yu8v" path="res://Assets/Models/Prefabs/carpet_b.tscn" id="5_mrssy"]
+[ext_resource type="PackedScene" uid="uid://dcfyhwrdvetbl" path="res://Assets/Models/Prefabs/large_safe.tscn" id="6_pb8kd"]
+[ext_resource type="PackedScene" uid="uid://dijcnjnav63m7" path="res://Assets/Models/Prefabs/NeteBook.tscn" id="7_lw2s1"]
+[ext_resource type="PackedScene" uid="uid://byqrvadykht4y" path="res://Assets/Models/Prefabs/desk_2.tscn" id="8_t6aiu"]
+[ext_resource type="PackedScene" uid="uid://bmjcviibfdwg" path="res://Assets/Models/Prefabs/chair_a.tscn" id="9_0s151"]
+[ext_resource type="PackedScene" uid="uid://t65tsm7rluen" path="res://Assets/Models/Prefabs/bin_2.tscn" id="10_p0t7s"]
+[ext_resource type="PackedScene" uid="uid://lt27v0s8afb" path="res://Assets/Models/Prefabs/books_a.tscn" id="11_lxpc5"]
+[ext_resource type="PackedScene" uid="uid://dglua4oqavb8i" path="res://Assets/Models/Prefabs/NoahBook.tscn" id="12_4whtn"]
 
 [sub_resource type="PlaneMesh" id="PlaneMesh_g3nxs"]
 
@@ -15,16 +22,37 @@ transform = Transform3D(9.73, 0, 0, 0, 9.73, 0, 0, 0, 9.73, 0, 0, 0)
 mesh = SubResource("PlaneMesh_g3nxs")
 
 [node name="Drawer_B" parent="." unique_id=1844999042 instance=ExtResource("1_agk1v")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.9728284, 0, -1.5579929)
+transform = Transform3D(-1, 0, 8.742278e-08, 0, 1, 0, -8.742278e-08, 0, -1, 1.5853283, 0, 3.3329635)
 
 [node name="Shelf_A" parent="." unique_id=1324500769 instance=ExtResource("2_lpjvc")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.6968434, 0, -1.5133343)
+transform = Transform3D(-1, 0, 8.742278e-08, 0, 1, 0, -8.742278e-08, 0, -1, 0.30934334, 0, 3.2883048)
 
 [node name="Shelf_B" parent="." unique_id=1028616663 instance=ExtResource("3_vnbcm")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.20551562, 0, -1.517278)
+transform = Transform3D(-1, 0, 8.742278e-08, 0, 1, 0, -8.742278e-08, 0, -1, -1.1819842, 0, 3.2922482)
 
 [node name="Chair_E" parent="." unique_id=253903086 instance=ExtResource("4_r4asu")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.231658, 0, -1.331229)
+transform = Transform3D(-1, 0, 8.742278e-08, 0, 1, 0, -8.742278e-08, 0, -1, 2.844158, 0, 3.1061997)
 
 [node name="Carpet_B" parent="." unique_id=151793716 instance=ExtResource("5_mrssy")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.175002, 0, 0.2334311)
+transform = Transform3D(-1, 0, 8.742278e-08, 0, 1, 0, -8.742278e-08, 0, -1, 0.78750205, 0, 1.5415394)
+
+[node name="Large_Safe" parent="." unique_id=657983721 instance=ExtResource("6_pb8kd")]
+transform = Transform3D(-0.70710677, 0, 0.70710677, 0, 1, 0, -0.70710677, 0, -0.70710677, -2.9283142, 0, 2.6905537)
+
+[node name="Book" parent="." unique_id=1186769102 instance=ExtResource("7_lw2s1")]
+transform = Transform3D(0.42801228, 0, -0.9037729, 0, 1, 0, 0.9037729, 0, 0.42801228, 1.6100141, 1.06164, 3.3102484)
+
+[node name="Desk2" parent="." unique_id=80272202 instance=ExtResource("8_t6aiu")]
+transform = Transform3D(-0.18135186, 0, 0.9834183, 0, 1, 0, -0.9834183, 0, -0.18135186, -3.6236181, 0, 0.7986109)
+
+[node name="Chair_A" parent="." unique_id=1901081228 instance=ExtResource("9_0s151")]
+transform = Transform3D(-0.37069067, 0, -0.9287564, 0, 1, 0, 0.9287564, 0, -0.37069067, -2.6872025, 0, 1.1043432)
+
+[node name="Bin2" parent="." unique_id=683735309 instance=ExtResource("10_p0t7s")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.819886, 0, -0.9127847)
+
+[node name="Books_A" parent="." unique_id=541895810 instance=ExtResource("11_lxpc5")]
+transform = Transform3D(0.1697079, 0, -0.98549443, 0, 1, 0, 0.98549443, 0, 0.1697079, -4.115924, 1.0795234, 0.101406574)
+
+[node name="Book2" parent="." unique_id=1409790704 instance=ExtResource("12_4whtn")]
+transform = Transform3D(-0.76394415, 0, -0.6452823, 0, 1, 0, 0.6452823, 0, -0.76394415, -3.6475601, 1.0795237, 1.0645075)
