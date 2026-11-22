@@ -9,6 +9,7 @@
 [ext_resource type="Texture2D" uid="uid://luvxynyr0pca" path="res://Assets/Models/Import/Interiors_A/texture/Updated_Textures/Wall/Texture_Wall_Red.png" id="5_esp8q"]
 [ext_resource type="PackedScene" uid="uid://b1tufjup1n6fk" path="res://Assets/Models/Traps/DartGun.glb" id="8_slfbp"]
 [ext_resource type="PackedScene" uid="uid://dpkyc74faxmhm" path="res://Assets/Models/Prefabs/chair_e.tscn" id="9_6fnjy"]
+[ext_resource type="PackedScene" uid="uid://dscl4gthawlm0" path="res://Assets/Models/Samleobjekter/Passport.glb" id="10_slfbp"]
 
 [sub_resource type="PlaneMesh" id="PlaneMesh_iixl8"]
 
@@ -46,3 +47,6 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.8875214, 0.18095593, -2.121
 
 [node name="Chair_E" parent="." unique_id=253903086 instance=ExtResource("9_6fnjy")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.2351737, 0, 2.5902123)
+
+[node name="Passport" parent="." unique_id=1862526445 instance=ExtResource("10_slfbp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.10075641, 0.05511917, 3.0386415)
