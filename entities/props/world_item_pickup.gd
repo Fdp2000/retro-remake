@@ -97,6 +97,13 @@ static func is_gadget_item(id: String) -> bool:
 	return id.to_upper() in GADGET_IDS
 
 
+static func should_emit_pickup_glint(id: String) -> bool:
+	var upper: String = id.to_upper()
+	if upper == "LIVE_BOMB" or upper == "NONE" or upper.is_empty():
+		return false
+	return is_objective_item(upper) or is_briefcase_item(upper) or is_gadget_item(upper) or upper == "CLUB"
+
+
 static func get_display_name(id: String, briefcase_items: Array = []) -> String:
 	var upper: String = id.to_upper()
 	if upper == "NONE" or upper.is_empty():
@@ -135,7 +142,7 @@ static func build_item_visual(id: String) -> Node3D:
 		var wrapper := Node3D.new()
 		var model: Node3D = BRIEFCASE_BUILDER.instantiate_textured_briefcase()
 		if model != null:
-			model.scale = Vector3(0.65, 0.65, 0.65)
+			model.scale = Vector3(0.76, 0.76, 0.76)
 			model.rotation = Vector3(-PI * 0.5, 0.0, 0.0)
 			model.position = Vector3(0.0, -0.04, 0.0)
 			wrapper.add_child(model)
@@ -292,33 +299,111 @@ static func _attach_live_bomb_fuse_fx(_wrapper: Node3D, model: Node3D) -> void:
 	fuse_tip.add_child(smoke)
 
 
-static func create_objective_glint_particles(in_drawer: bool = false) -> CPUParticles3D:
+static var _glint_star_texture: ImageTexture = null
+
+
+static func _get_glint_star_texture() -> ImageTexture:
+	if _glint_star_texture == null:
+		var img := Image.create(15, 15, false, Image.FORMAT_RGBA8)
+		var c: int = 7
+		for y in range(15):
+			for x in range(15):
+				var dx: int = absi(x - c)
+				var dy: int = absi(y - c)
+				var alpha: float = 0.0
+				if dx == 0 and dy == 0:
+					alpha = 1.0
+				elif (dx == 0 and dy <= 6) or (dy == 0 and dx <= 6):
+					alpha = 1.0 - float(maxi(dx, dy)) * 0.11
+				elif (dx <= 1 and dy <= 3) or (dy <= 1 and dx <= 3):
+					alpha = 0.78
+				elif dx + dy <= 3:
+					alpha = 0.85
+				elif dx == dy and dx <= 3:
+					alpha = 0.48
+				if alpha > 0.0:
+					img.set_pixel(x, y, Color(1.0, 1.0, 1.0, clampf(alpha, 0.0, 1.0)))
+				else:
+					img.set_pixel(x, y, Color(1.0, 1.0, 1.0, 0.0))
+		_glint_star_texture = ImageTexture.create_from_image(img)
+	return _glint_star_texture
+
+
+static func create_objective_glint_particles(in_drawer: bool = false, item_id_hint: String = "", footprint_xz: Vector2 = Vector2.ZERO) -> CPUParticles3D:
+	var upper: String = item_id_hint.to_upper()
+	var is_high_priority: bool = upper.is_empty() or is_objective_item(upper) or is_briefcase_item(upper)
 	var particles := CPUParticles3D.new()
 	particles.name = "ObjectiveGlintParticles"
-	particles.amount = 6 if in_drawer else 8
-	particles.lifetime = 0.65 if in_drawer else 0.90
+	particles.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	particles.amount = 6 if in_drawer else (9 if is_high_priority else 7)
+	particles.lifetime = 0.70 if in_drawer else 0.95
 	particles.preprocess = 0.35
 	particles.local_coords = true
 	particles.emitting = true
 	particles.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
-	particles.emission_box_extents = Vector3(0.055, 0.001, 0.055) if in_drawer else Vector3(0.14, 0.04, 0.14)
-	particles.direction = Vector3(0.0, 1.0, 0.0)
-	particles.spread = 12.0 if in_drawer else 24.0
-	particles.gravity = Vector3.ZERO
-	particles.initial_velocity_min = 0.003 if in_drawer else 0.08
-	particles.initial_velocity_max = 0.006 if in_drawer else 0.18
-	particles.scale_amount_min = 0.5
-	particles.scale_amount_max = 1.1
+	if in_drawer:
+		var ex_x: float = clampf(footprint_xz.x * 0.34, 0.028, 0.145) if footprint_xz.x > 0.001 else 0.055
+		var ex_z: float = clampf(footprint_xz.y * 0.34, 0.024, 0.110) if footprint_xz.y > 0.001 else 0.055
+		particles.emission_box_extents = Vector3(ex_x, 0.0002, ex_z)
+		particles.direction = Vector3(1.0, 0.0, 0.0)
+		particles.spread = 180.0
+		particles.flatness = 1.0
+		particles.gravity = Vector3.ZERO
+		particles.initial_velocity_min = 0.003
+		particles.initial_velocity_max = 0.010
+	else:
+		var box_ext := Vector3(0.22, 0.03, 0.15) if upper == "BRIEFCASE" else Vector3(0.15, 0.04, 0.15)
+		particles.emission_box_extents = box_ext
+		particles.direction = Vector3(0.0, 1.0, 0.0)
+		particles.spread = 22.0
+		particles.gravity = Vector3.ZERO
+		particles.initial_velocity_min = 0.06
+		particles.initial_velocity_max = 0.14
+		particles.angular_velocity_min = -65.0
+		particles.angular_velocity_max = 65.0
 
-	var spark_mesh := QuadMesh.new()
-	spark_mesh.size = Vector2(0.014, 0.014) if in_drawer else Vector2(0.028, 0.028)
+	particles.scale_amount_min = 0.65
+	particles.scale_amount_max = 1.15
+	var scale_curve := Curve.new()
+	scale_curve.add_point(Vector2(0.0, 0.15))
+	scale_curve.add_point(Vector2(0.32, 1.12))
+	scale_curve.add_point(Vector2(0.74, 0.82))
+	scale_curve.add_point(Vector2(1.0, 0.0))
+	particles.scale_amount_curve = scale_curve
+
+	var ramp := Gradient.new()
+	ramp.set_offset(0, 0.0)
+	ramp.set_color(0, Color(1.0, 1.0, 1.0, 0.0))
+	ramp.set_offset(1, 1.0)
+	ramp.set_color(1, Color(1.0, 1.0, 1.0, 0.0))
+	ramp.add_point(0.22, Color(1.0, 1.0, 1.0, 0.95))
+	ramp.add_point(0.76, Color(1.0, 1.0, 1.0, 0.85))
+	particles.color_ramp = ramp
+
 	var spark_mat := StandardMaterial3D.new()
 	spark_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	spark_mat.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
 	spark_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	spark_mat.albedo_color = Color(1.0, 0.94, 0.55, 0.90)
-	spark_mesh.material = spark_mat
-	particles.mesh = spark_mesh
+	spark_mat.vertex_color_use_as_albedo = true
+	spark_mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
+	spark_mat.albedo_texture = _get_glint_star_texture()
+	spark_mat.albedo_color = Color(1.0, 0.92, 0.50, 0.95) if is_high_priority else Color(1.0, 0.96, 0.78, 0.90)
+
+	if in_drawer:
+		# Flat horizontal XZ plane so particles stay strictly inside the item's own Y layer slot
+		# and are naturally depth-occluded by any clutter or items on layers above.
+		spark_mat.billboard_mode = BaseMaterial3D.BILLBOARD_DISABLED
+		spark_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+		var plane_mesh := PlaneMesh.new()
+		plane_mesh.size = Vector2(0.022, 0.022)
+		plane_mesh.orientation = PlaneMesh.FACE_Y
+		plane_mesh.material = spark_mat
+		particles.mesh = plane_mesh
+	else:
+		spark_mat.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+		var spark_mesh := QuadMesh.new()
+		spark_mesh.size = Vector2(0.036, 0.036)
+		spark_mesh.material = spark_mat
+		particles.mesh = spark_mesh
 	return particles
 
 
@@ -553,6 +638,9 @@ func _rebuild_visuals() -> void:
 			b_shape.size = Vector3(0.58, 0.16, 0.40)
 			_collision_shape.shape = b_shape
 			_collision_shape.position = Vector3(0.0, 0.08, 0.0)
+		var b_glint := create_objective_glint_particles(false, item_id)
+		b_glint.position = Vector3(0.0, 0.16, 0.0)
+		add_child(b_glint)
 		return
 
 	if _visual_root != null:
@@ -567,7 +655,7 @@ func _rebuild_visuals() -> void:
 	var visual_node: Node3D = build_item_visual(item_id)
 	visual_node.name = "ModelInstance"
 	_visual_root.add_child(visual_node)
-	if is_objective_item(item_id):
-		var glint := create_objective_glint_particles(false)
+	if should_emit_pickup_glint(item_id):
+		var glint := create_objective_glint_particles(false, item_id)
 		glint.position = Vector3(0.0, maxf(get_item_floor_y(item_id) + 0.06, 0.14), 0.0)
 		add_child(glint)

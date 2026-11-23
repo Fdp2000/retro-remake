@@ -2106,6 +2106,8 @@ func _get_stored_item_tray_layout(item_id: String, for_briefcase: bool = false) 
 			return {"scale": Vector3(0.60 if for_briefcase else 0.34, s, s), "size": Vector3(0.212 * s, 0.036 if for_briefcase else 0.020, 0.353 * s), "rot": Vector3(0.0, 0.0, PI * 0.5)}
 		"SPRING":
 			return {"scale": Vector3(s, s, 0.25 if for_briefcase else 0.14), "size": Vector3(0.148 * s, 0.037 if for_briefcase else 0.020, 0.202 * s), "rot": Vector3(PI * 0.5, 0.0, 0.0)}
+		"BRIEFCASE":
+			return {"scale": Vector3(0.75 * s, 0.75 * s, 0.14), "size": Vector3(0.401 * s, 0.019, 0.279 * s), "rot": Vector3(PI * 0.5, 0.0, 0.0)}
 		_:
 			return {"scale": Vector3(0.72 * s, 0.11, 0.72 * s), "size": Vector3(0.158 * s, 0.016, 0.158 * s), "rot": Vector3.ZERO}
 

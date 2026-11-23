@@ -128,7 +128,7 @@ metadata/drawer_size = "small"
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.274128, 1.08, -2.3257036)
 
 [node name="BucketSpawn_2" type="Marker3D" parent="Rooms/Room_1_1/MatchBucketSpawnPoints" unique_id=1950000102]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.12, 1.375, -2.4)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.12, 0.72830915, -2.3999996)
 
 [node name="LadderSpawn" type="Marker3D" parent="Rooms/Room_1_1" unique_id=145118510]
 transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -4.15, 0, 3.82)
@@ -357,7 +357,7 @@ metadata/drawer_size = "small"
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.4715412, 1, -1.4659309)
 
 [node name="BucketSpawn_2" type="Marker3D" parent="Rooms/Room_1_3/MatchBucketSpawnPoints" unique_id=1950000108]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.78, 1.375, 2.5)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.190438, 1.375, 2.3595114)
 
 [node name="LadderSpawn" type="Marker3D" parent="Rooms/Room_1_3" unique_id=1276876516]
 transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -4.15, 0, -3.82)
@@ -922,7 +922,7 @@ transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 1.77, 0, -2.26)
 transform = Transform3D(0.08715574, 0, 0.9961947, 0, 1, 0, -0.9961947, 0, 0.08715574, 1.78, 0.99964, -2.42)
 
 [node name="NE_OpenVolume" parent="Rooms/Room_2_3" unique_id=41423667 instance=ExtResource("furn_NeteBook")]
-transform = Transform3D(-0.34202015, 0, 0.9396926, 0, 1, 0, -0.9396926, 0, -0.34202015, 1.79, 0.99964, -1.85)
+transform = Transform3D(-0.34202015, 0, 0.9396926, 0, 1, 0, -0.9396926, 0, -0.34202015, 1.79, 0.99964, -1.6098161)
 
 [node name="NE_ReadingChair" parent="Rooms/Room_2_3" unique_id=1851923938 instance=ExtResource("furn_chair_e")]
 transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, 0.83, 0, -2.36)
@@ -1079,7 +1079,7 @@ transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -1.85, 0, 3.95)
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.92, 1.08, -2.4)
 
 [node name="BucketSpawn_2" type="Marker3D" parent="Rooms/Room_3_1/MatchBucketSpawnPoints" unique_id=1950000126]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.78, 1.375, 2.4)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.7800007, 1.375, 3.070848)
 
 [node name="LadderSpawn" type="Marker3D" parent="Rooms/Room_3_1" unique_id=808014233]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.82, 0, -4.15)

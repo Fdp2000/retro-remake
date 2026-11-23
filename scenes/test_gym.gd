@@ -4,6 +4,7 @@ const PLAYER_SCENE: PackedScene = preload("res://entities/player/player.tscn")
 const PICKUP_SCENE: PackedScene = preload("res://entities/props/world_item_pickup.tscn")
 const EMBASSY_DOOR_SCENE: PackedScene = preload("res://entities/props/embassy_door.tscn")
 const DRAWER_SCENE: PackedScene = preload("res://entities/props/searchable_drawer.tscn")
+const SMALL_DRAWER_SCENE: PackedScene = preload("res://entities/props/searchable_drawer_small.tscn")
 const AIRPORT_EXIT_WALL_BOUNDARY := "Vertical_1_1"
 const AIRPORT_EXIT_SCENE: PackedScene = preload("res://entities/props/airport_exit_door.tscn")
 const MATCH_SPAWNER_SCRIPT = preload("res://core/match_spawner.gd")
@@ -339,7 +340,7 @@ func _spawn_test_props() -> void:
 	var loot_right: Node = loot_drawer.get_node_or_null("RightUpperDrawer")
 	if loot_right != null:
 		loot_right.set("container_id", "Loot Desk (Right)")
-		var loot_right_items: Array[String] = ["KEY", "SPRING"]
+		var loot_right_items: Array[String] = ["BRIEFCASE", "KEY", "SPRING"]
 		loot_right.set("stored_items", loot_right_items)
 	props_root.add_child(loot_drawer)
 	loot_drawer.position = Vector3(-7.0, 0.0, -6.5)
@@ -363,6 +364,14 @@ func _spawn_test_props() -> void:
 	door.name = "TestEmbassyDoor"
 	props_root.add_child(door)
 	door.position = Vector3(-1.8, 0.0, -6.5)
+
+	var small_drawer := SMALL_DRAWER_SCENE.instantiate() as StaticBody3D
+	small_drawer.name = "TestDrawer_Small"
+	small_drawer.set("container_id", "Small Desk (Middle)")
+	var small_items: Array[String] = ["BRIEFCASE"]
+	small_drawer.set("stored_items", small_items)
+	props_root.add_child(small_drawer)
+	small_drawer.position = Vector3(-0.3, 0.0, -6.5)
 
 
 func _resolve_spawn_point(slot: int) -> Vector3:
