@@ -40,7 +40,7 @@
 [ext_resource type="PackedScene" uid="uid://el2ftbhiveae" path="res://Assets/Models/Prefabs/table_a.tscn" id="furn_table_a"]
 [ext_resource type="Script" uid="uid://bclgtewxn8u1c" path="res://scenes/BuildingComplex3/ladder_layout.gd" id="ladder_layout"]
 [ext_resource type="Script" uid="uid://3w2au6iklilk" path="res://scenes/BuildingComplex2/room_palette.gd" id="room_palette"]
-[ext_resource type="PackedScene" path="res://scenes/BuildingComplex3/BuildingComplex3UpperFloor.tscn" id="second_floor"]
+[ext_resource type="PackedScene" uid="uid://4vgovubnuvh" path="res://scenes/BuildingComplex3/BuildingComplex3UpperFloor.tscn" id="second_floor"]
 [ext_resource type="PackedScene" uid="uid://1081g1d8f2ni" path="res://Assets/Models/Import/Interiors_A/Scenes/Walls/wall_3m.tscn" id="wall"]
 [ext_resource type="PackedScene" uid="uid://610f6wi1wnh5" path="res://Assets/Models/Import/Interiors_A/Scenes/Walls/wall_3m_window_a.tscn" id="window"]
 
@@ -265,7 +265,7 @@ transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 2.16, 0, 3.77)
 transform = Transform3D(0.5, 0, 0, 0, 0.5, 0, 0, 0, 0.5, -2.925415, 0.015, -3.625023)
 
 [node name="NE_Bookcase" parent="Rooms/Room_1_1" unique_id=1654141316 instance=ExtResource("furn_shelf_c")]
-transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 3.82, 0, -2.6)
+transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 3.82, 0, -2.6)
 
 [node name="NE_FileCabinet" parent="Rooms/Room_1_1" unique_id=1855597643 instance=ExtResource("furn_drawer_b")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.1, 0, -3.76)
@@ -355,7 +355,7 @@ transform = Transform3D(0.9848077, 0, 0.17364818, 0, 1, 0, -0.17364818, 0, 0.984
 transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, -4.07, 0, 2.6)
 
 [node name="SW_FileCabinet" parent="Rooms/Room_1_2" unique_id=2063055287 instance=ExtResource("furn_drawer_b")]
-transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -2.1, 0, 3.81)
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -2.1, 0, 4.0310907)
 
 [node name="SW_RecyclingBin" parent="Rooms/Room_1_2" unique_id=506213377 instance=ExtResource("furn_bin_2")]
 transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, -4.05, 0, 1.44)
@@ -376,7 +376,7 @@ transform = Transform3D(-0.9848077, 0, 0.17364818, 0, 1, 0, -0.17364818, 0, -0.9
 transform = Transform3D(-0.81915206, 0, -0.5735764, 0, 1, 0, 0.5735764, 0, -0.81915206, 1.95, 1, 2.61)
 
 [node name="NE_MailCabinet" parent="Rooms/Room_1_2" unique_id=1793402522 instance=ExtResource("furn_drawer_b")]
-transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 3.989886, 0, -3.90094)
+transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 4.0156665, 0, -2.619999)
 
 [node name="Room_1_3" type="Node3D" parent="Rooms" unique_id=18041924]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.5, 0, -13.5)
@@ -445,67 +445,37 @@ surface_material_override/0 = SubResource("ShaderMaterial_3iwir")
 surface_material_override/1 = SubResource("ShaderMaterial_u7qk0")
 
 [node name="NW_MailCabinet" parent="Rooms/Room_1_3" unique_id=1813919225 instance=ExtResource("furn_drawer_b")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.62, 0, -3.8)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.7053418, 0, -4.0329)
 
 [node name="NW_SortingTable" parent="Rooms/Room_1_3" unique_id=1661219085 instance=ExtResource("furn_table_a")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.48, 0, -1.75)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.3327866, 0, -1.75)
 
 [node name="NW_OutboxStack" parent="Rooms/Room_1_3" unique_id=1067318110 instance=ExtResource("furn_books_a")]
-transform = Transform3D(0.9781476, 0, -0.20791169, 0, 1, 0, 0.20791169, 0, 0.9781476, -2.86, 0.99978, -1.74)
+transform = Transform3D(0.9781476, 0, -0.20791169, 0, 1, 0, 0.20791169, 0, 0.9781476, -3.7127862, 0.99978, -1.7399998)
 
 [node name="NW_DispatchLog" parent="Rooms/Room_1_3" unique_id=242686934 instance=ExtResource("furn_AlexBook")]
-transform = Transform3D(0.98768836, 0, 0.15643446, 0, 1, 0, -0.15643446, 0, 0.98768836, -1.96, 0.99978, -1.76)
-
-[node name="NW_RecyclingBin" parent="Rooms/Room_1_3" unique_id=1966602398 instance=ExtResource("furn_bin_2")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.78, 0, -1.57)
+transform = Transform3D(0.98768836, 0, 0.15643446, 0, 1, 0, -0.15643446, 0, 0.98768836, -2.8127866, 0.99978, -1.7600002)
 
 [node name="SW_ArchiveShelf" parent="Rooms/Room_1_3" unique_id=1071792826 instance=ExtResource("furn_shelf_d")]
-transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, -3.82, 0, 2.82)
+transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, -3.82, 0, 2.82)
 
 [node name="SW_SideShelf" parent="Rooms/Room_1_3" unique_id=626825445 instance=ExtResource("furn_shelf_b")]
 transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -2.1, 0, 3.82)
 
-[node name="SW_RecordsTable" parent="Rooms/Room_1_3" unique_id=246088885 instance=ExtResource("furn_table_a")]
-transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, -1.8, 0, 2.12)
-
-[node name="SW_RecordsStack" parent="Rooms/Room_1_3" unique_id=338442704 instance=ExtResource("furn_books_a")]
-transform = Transform3D(0.1391731, 0, -0.99026805, 0, 1, 0, 0.99026805, 0, 0.1391731, -1.81, 0.99956, 2.29)
-
-[node name="SW_Register" parent="Rooms/Room_1_3" unique_id=366451107 instance=ExtResource("furn_AlexBook")]
-transform = Transform3D(-0.2923717, 0, -0.9563047, 0, 1, 0, 0.9563047, 0, -0.2923717, -1.8, 0.99956, 1.73)
-
-[node name="WallArt" parent="Rooms/Room_1_3" unique_id=1772813757 instance=ExtResource("furn_BetweenFrame")]
-transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, -4.28, 1.88, 2.7)
-
 [node name="SE_Safe" parent="Rooms/Room_1_3" unique_id=974643383 instance=ExtResource("furn_large_safe")]
-transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 2.61, 0, 3.45)
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 2.6099997, 0, 4.134207)
 
 [node name="SE_RecordsCabinet" parent="Rooms/Room_1_3" unique_id=730019545 instance=ExtResource("furn_drawer_a")]
-transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 3.75, 0, 1.98)
-
-[node name="SE_AuditTable" parent="Rooms/Room_1_3" unique_id=227782985 instance=ExtResource("furn_table_a")]
-transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 1.78, 0, 2.13)
-
-[node name="SE_AuditLog" parent="Rooms/Room_1_3" unique_id=1924065800 instance=ExtResource("furn_NeteBook")]
-transform = Transform3D(0.06975648, 0, 0.9975641, 0, 1, 0, -0.9975641, 0, 0.06975648, 1.79, 0.99955, 2.34)
-
-[node name="SE_Mug" parent="Rooms/Room_1_3" unique_id=839970857 instance=ExtResource("furn_mug_2")]
-transform = Transform3D(-0.9659258, 0, 0.258819, 0, 1, 0, -0.258819, 0, -0.9659258, 1.79, 0.99955, 1.75)
+transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 3.75, 0, 1.98)
 
 [node name="NE_ReviewTable" parent="Rooms/Room_1_3" unique_id=1142790300 instance=ExtResource("furn_table_a")]
-transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 2.76, 0, -2.58)
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 3.895856, 0, -3.2615395)
 
 [node name="NE_ReviewChair" parent="Rooms/Room_1_3" unique_id=1467471846 instance=ExtResource("furn_chair_e")]
-transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 1.63, 0, -2.55)
+transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, 3.0230966, 0, -3.0404778)
 
 [node name="NE_ReviewRug" parent="Rooms/Room_1_3" unique_id=1311296376 instance=ExtResource("furn_carpet_b")]
-transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 2.7, 0.015, -1.47)
-
-[node name="NE_ProjectBinders" parent="Rooms/Room_1_3" unique_id=731271143 instance=ExtResource("furn_books_a")]
-transform = Transform3D(0.1391731, 0, 0.99026805, 0, 1, 0, -0.99026805, 0, 0.1391731, 2.79, 0.99985, -2.91)
-
-[node name="NE_ReviewNotes" parent="Rooms/Room_1_3" unique_id=726349423 instance=ExtResource("furn_FredeBook")]
-transform = Transform3D(-0.19080901, 0, 0.98162717, 0, 1, 0, -0.98162717, 0, -0.19080901, 2.69, 0.99985, -2.02)
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -0.2789755, 0.015, 0.33236408)
 
 [node name="Room_1_4" type="Node3D" parent="Rooms" unique_id=589600688]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 13.5, 0, -13.5)
@@ -820,64 +790,49 @@ surface_material_override/1 = SubResource("ShaderMaterial_u7qk0")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.6, 0, -3.82)
 
 [node name="NW_FileCabinet" parent="Rooms/Room_2_2" unique_id=1706524070 instance=ExtResource("furn_drawer_b")]
-transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, -3.76, 0, -2.1)
+transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, -4.0585003, 0, -2.1)
 
 [node name="NW_RecyclingBin" parent="Rooms/Room_2_2" unique_id=1220438522 instance=ExtResource("furn_bin_2")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.44, 0, -3.75)
 
 [node name="NW_ReviewChair" parent="Rooms/Room_2_2" unique_id=549066820 instance=ExtResource("furn_chair_a")]
-transform = Transform3D(-0.81915206, 0, -0.57357645, 0, 1, 0, 0.57357645, 0, -0.81915206, -1.95, 0, -1.87)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.960287, 0, -4.183284)
 
 [node name="WallArt" parent="Rooms/Room_2_2" unique_id=1360913589 instance=ExtResource("furn_ChamillionFrame")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.7, 1.88, -4.28)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.6459432, 1.88, -4.2800007)
 
 [node name="SW_Desk" parent="Rooms/Room_2_2" unique_id=1437958707 instance=ExtResource("furn_desk_2")]
-transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, -3.32, 0, 2.6)
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, -3.9988203, 0, 3.0575254)
 
 [node name="SW_TaskChair" parent="Rooms/Room_2_2" unique_id=1810585917 instance=ExtResource("furn_chair_d")]
-transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -1.92, 0, 2.58)
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -2.9380178, 0, 2.873337)
 
 [node name="SW_Mug" parent="Rooms/Room_2_2" unique_id=1579903729 instance=ExtResource("furn_mug_2")]
-transform = Transform3D(-0.2079117, 0, -0.9781476, 0, 1, 0, 0.9781476, 0, -0.2079117, -3.47, 1.08, 1.87)
+transform = Transform3D(-0.2079117, 0, -0.9781476, 0, 1, 0, 0.9781476, 0, -0.2079117, -3.8221035, 1.08, 2.3275254)
 
 [node name="SW_Notebook" parent="Rooms/Room_2_2" unique_id=1243567893 instance=ExtResource("furn_AlexBook")]
-transform = Transform3D(0.17364818, 0, -0.9848077, 0, 1, 0, 0.9848077, 0, 0.17364818, -3.48, 1.08, 2.95)
+transform = Transform3D(0.17364818, 0, -0.9848077, 0, 1, 0, 0.9848077, 0, 0.17364818, -3.8175373, 1.08, 3.4075255)
 
 [node name="SW_Wastebasket" parent="Rooms/Room_2_2" unique_id=1679107478 instance=ExtResource("furn_bin_2")]
-transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, -1.85, 0, 3.77)
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, -3.9236403, 0, 1.4597776)
 
 [node name="SE_MeetingTable" parent="Rooms/Room_2_2" unique_id=1591417058 instance=ExtResource("furn_table_a")]
-transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 2.57, 0, 2.63)
-
-[node name="SE_NorthChair" parent="Rooms/Room_2_2" unique_id=1404902660 instance=ExtResource("furn_chair_d")]
-transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 2.7, 0, 3.83)
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 2.57, -0.005109668, 3.9442573)
 
 [node name="SE_SouthChair" parent="Rooms/Room_2_2" unique_id=374370273 instance=ExtResource("furn_chair_a")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.56, 0, 1.44)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.56, 0, 3.0467572)
 
 [node name="SE_EndChair" parent="Rooms/Room_2_2" unique_id=609820610 instance=ExtResource("furn_chair_e")]
-transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 3.88, 0, 2.67)
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -0.3581195, 0, 1.9923828)
 
 [node name="SE_Agenda" parent="Rooms/Room_2_2" unique_id=1745399914 instance=ExtResource("furn_NoahBook")]
-transform = Transform3D(-0.9659258, 0, -0.25881904, 0, 1, 0, 0.25881904, 0, -0.9659258, 2.68, 1, 2.62)
+transform = Transform3D(-0.9659258, 0, -0.25881904, 0, 1, 0, 0.25881904, 0, -0.9659258, 2.68, 1, 3.934257)
 
 [node name="SE_WaterMug" parent="Rooms/Room_2_2" unique_id=1609607483 instance=ExtResource("furn_mug_2")]
-transform = Transform3D(-0.8660254, 0, 0.49999997, 0, 1, 0, -0.49999997, 0, -0.8660254, 1.95, 1, 2.67)
+transform = Transform3D(-0.8660254, 0, 0.49999997, 0, 1, 0, -0.49999997, 0, -0.8660254, 1.95, 1, 3.9842572)
 
 [node name="NE_CoatStand" parent="Rooms/Room_2_2" unique_id=1180173773 instance=ExtResource("furn_coathanger")]
 transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 3.62, 0, -3.69)
-
-[node name="NE_LowStorage" parent="Rooms/Room_2_2" unique_id=1576256900 instance=ExtResource("furn_drawer_a")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.22, 0, -2.31)
-
-[node name="NE_WaitingChair" parent="Rooms/Room_2_2" unique_id=287733377 instance=ExtResource("furn_chair_d")]
-transform = Transform3D(0.9986295, 0, -0.052335955, 0, 1, 0, 0.052335955, 0, 0.9986295, 2.45, 0, -3.36)
-
-[node name="NE_EntryRug" parent="Rooms/Room_2_2" unique_id=1328637041 instance=ExtResource("furn_carpet_b")]
-transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 2.23, 0.015, -1.45)
-
-[node name="NE_Bin" parent="Rooms/Room_2_2" unique_id=192901058 instance=ExtResource("furn_bin_2")]
-transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 3.78, 0, -1.52)
 
 [node name="Room_2_3" type="Node3D" parent="Rooms" unique_id=438356192]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.5, 0, -4.5)
@@ -954,9 +909,6 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.7, 0, -3.83)
 [node name="NW_SouthChair" parent="Rooms/Room_2_3" unique_id=592361368 instance=ExtResource("furn_chair_a")]
 transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -2.56, 0, -1.44)
 
-[node name="NW_EndChair" parent="Rooms/Room_2_3" unique_id=1320060959 instance=ExtResource("furn_chair_e")]
-transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, -3.88, 0, -2.67)
-
 [node name="NW_Agenda" parent="Rooms/Room_2_3" unique_id=1923999546 instance=ExtResource("furn_NoahBook")]
 transform = Transform3D(0.9659258, 0, 0.25881904, 0, 1, 0, -0.25881904, 0, 0.9659258, -2.68, 1, -2.62)
 
@@ -964,7 +916,7 @@ transform = Transform3D(0.9659258, 0, 0.25881904, 0, 1, 0, -0.25881904, 0, 0.965
 transform = Transform3D(0.8660254, 0, -0.49999997, 0, 1, 0, 0.49999997, 0, 0.8660254, -1.95, 1, -2.67)
 
 [node name="WallArt" parent="Rooms/Room_2_3" unique_id=318890939 instance=ExtResource("furn_BetweenFrame")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.7, 1.88, -4.28)
+transform = Transform3D(1.1924881e-08, 0, 1, 0, 1, 0, -1, 0, 1.1924881e-08, -4.3822036, 1.88, -2.745216)
 
 [node name="SW_ReviewTable" parent="Rooms/Room_2_3" unique_id=1764902829 instance=ExtResource("furn_table_a")]
 transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, -2.76, 0, 2.58)
@@ -997,7 +949,7 @@ transform = Transform3D(-0.9848077, 0, -0.17364818, 0, 1, 0, 0.17364818, 0, -0.9
 transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 3.77, 0, 1.85)
 
 [node name="NE_ReferenceShelf" parent="Rooms/Room_2_3" unique_id=851801396 instance=ExtResource("furn_shelf_a")]
-transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 3.82, 0, -2.7)
+transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 3.82, 0, -2.7)
 
 [node name="NE_ReferenceTable" parent="Rooms/Room_2_3" unique_id=537919993 instance=ExtResource("furn_table_a")]
 transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 1.77, 0, -2.26)
@@ -1009,7 +961,7 @@ transform = Transform3D(0.08715574, 0, 0.9961947, 0, 1, 0, -0.9961947, 0, 0.0871
 transform = Transform3D(-0.34202015, 0, 0.9396926, 0, 1, 0, -0.9396926, 0, -0.34202015, 1.79, 0.99964, -1.85)
 
 [node name="NE_ReadingChair" parent="Rooms/Room_2_3" unique_id=1851923938 instance=ExtResource("furn_chair_e")]
-transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 0.83, 0, -2.36)
+transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, 0.83, 0, -2.36)
 
 [node name="Room_2_4" type="Node3D" parent="Rooms" unique_id=571233728]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 13.5, 0, -4.5)
@@ -1132,7 +1084,7 @@ transform = Transform3D(-0.9659258, 0, -0.25881904, 0, 1, 0, 0.25881904, 0, -0.9
 transform = Transform3D(-0.8660254, 0, 0.49999997, 0, 1, 0, -0.49999997, 0, -0.8660254, 1.95, 1, 2.67)
 
 [node name="NE_Bookcase" parent="Rooms/Room_2_4" unique_id=746017099 instance=ExtResource("furn_shelf_d")]
-transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 3.82, 0, -2.61)
+transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 3.82, 0, -2.61)
 
 [node name="NE_ReadingChair" parent="Rooms/Room_2_4" unique_id=1445512601 instance=ExtResource("furn_chair_a")]
 transform = Transform3D(0.34202015, 0, -0.9396926, 0, 1, 0, 0.9396926, 0, 0.34202015, 2.51, 0, -2.6)
@@ -1279,7 +1231,7 @@ surface_material_override/0 = SubResource("ShaderMaterial_3iwir")
 surface_material_override/1 = SubResource("ShaderMaterial_u7qk0")
 
 [node name="Floor_0_1" parent="Rooms/Room_3_2" unique_id=659673239 instance=ExtResource("floor")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.0202942, -0.018115878, 0.0051751137)
 surface_material_override/0 = SubResource("ShaderMaterial_3iwir")
 surface_material_override/1 = SubResource("ShaderMaterial_u7qk0")
 
@@ -1321,19 +1273,19 @@ surface_material_override/1 = SubResource("ShaderMaterial_u7qk0")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.6, 0, -3.97)
 
 [node name="NW_SupplyCabinet" parent="Rooms/Room_3_2" unique_id=139025463 instance=ExtResource("furn_drawer_a")]
-transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, -3.81, 0, -2.12)
+transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, -3.81, 0, -2.12)
 
 [node name="NW_Wastebasket" parent="Rooms/Room_3_2" unique_id=1168964161 instance=ExtResource("furn_bin_2")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.43, 0, -3.88)
 
 [node name="NW_CoatRack" parent="Rooms/Room_3_2" unique_id=388594255 instance=ExtResource("furn_coathanger")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.49, 0, -1.15)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.9347835, 0, -1.5980849)
 
 [node name="WallArt" parent="Rooms/Room_3_2" unique_id=2071026956 instance=ExtResource("furn_ChamillionFrame")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.7, 1.88, -4.28)
 
 [node name="SW_MailCabinet" parent="Rooms/Room_3_2" unique_id=1044734913 instance=ExtResource("furn_drawer_b")]
-transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, -3.8, 0, 2.62)
+transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, -4.0203037, 0, 2.62)
 
 [node name="SW_SortingTable" parent="Rooms/Room_3_2" unique_id=1517112171 instance=ExtResource("furn_table_a")]
 transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, -1.8, 0, 2.48)
@@ -1348,31 +1300,25 @@ transform = Transform3D(0.15643446, 0, -0.98768836, 0, 1, 0, 0.98768836, 0, 0.15
 transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, -1.57, 0, 3.78)
 
 [node name="SE_Desk" parent="Rooms/Room_3_2" unique_id=1820736500 instance=ExtResource("furn_desk_2")]
-transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 2.6, 0, 3.32)
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 2.6, 0, 3.680708)
 
 [node name="SE_TaskChair" parent="Rooms/Room_3_2" unique_id=540280470 instance=ExtResource("furn_chair_d")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.58, 0, 1.92)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.8442519, 5.9604645e-08, 3.0577478)
 
 [node name="SE_Mug" parent="Rooms/Room_3_2" unique_id=955153616 instance=ExtResource("furn_mug_2")]
-transform = Transform3D(-0.9781476, 0, 0.2079117, 0, 1, 0, -0.2079117, 0, -0.9781476, 1.87, 1.08, 3.47)
+transform = Transform3D(-0.9781476, 0, 0.2079117, 0, 1, 0, -0.2079117, 0, -0.9781476, 1.8699999, 1.08, 3.9281569)
 
 [node name="SE_Notebook" parent="Rooms/Room_3_2" unique_id=1988806293 instance=ExtResource("furn_AlexBook")]
-transform = Transform3D(-0.9848077, 0, -0.17364818, 0, 1, 0, 0.17364818, 0, -0.9848077, 2.95, 1.08, 3.48)
+transform = Transform3D(-0.9848077, 0, -0.17364818, 0, 1, 0, 0.17364818, 0, -0.9848077, 2.95, 1.08, 3.9673367)
 
 [node name="SE_Wastebasket" parent="Rooms/Room_3_2" unique_id=1010099001 instance=ExtResource("furn_bin_2")]
-transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 3.77, 0, 1.85)
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 3.9262555, 0, 3.9885988)
 
 [node name="NE_Bookcase" parent="Rooms/Room_3_2" unique_id=3764863 instance=ExtResource("furn_shelf_c")]
-transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 3.82, 0, -2.6)
+transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 4.162355, 0, -2.6)
 
 [node name="NE_FileCabinet" parent="Rooms/Room_3_2" unique_id=1081093755 instance=ExtResource("furn_drawer_b")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.1, 0, -3.76)
-
-[node name="NE_RecyclingBin" parent="Rooms/Room_3_2" unique_id=525009945 instance=ExtResource("furn_bin_2")]
-transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 3.75, 0, -1.44)
-
-[node name="NE_ReviewChair" parent="Rooms/Room_3_2" unique_id=1123657020 instance=ExtResource("furn_chair_a")]
-transform = Transform3D(0.57357645, 0, -0.81915206, 0, 1, 0, 0.81915206, 0, 0.57357645, 1.87, 0, -1.95)
 
 [node name="Room_3_3" type="Node3D" parent="Rooms" unique_id=1717325374]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.5, 0, 4.5)
@@ -1441,70 +1387,46 @@ surface_material_override/0 = SubResource("ShaderMaterial_3iwir")
 surface_material_override/1 = SubResource("ShaderMaterial_u7qk0")
 
 [node name="NW_ReviewTable" parent="Rooms/Room_3_3" unique_id=1850593904 instance=ExtResource("furn_table_a")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.58, 0, -2.76)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.58, 0, -3.9393342)
 
 [node name="NW_ReviewChair" parent="Rooms/Room_3_3" unique_id=1283704312 instance=ExtResource("furn_chair_e")]
-transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -2.55, 0, -1.63)
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -2.55, 0, -3.1304832)
 
 [node name="NW_ReviewRug" parent="Rooms/Room_3_3" unique_id=776323447 instance=ExtResource("furn_carpet_b")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.47, 0.015, -3.05)
 
 [node name="NW_ProjectBinders" parent="Rooms/Room_3_3" unique_id=376115498 instance=ExtResource("furn_books_a")]
-transform = Transform3D(0.99026805, 0, -0.1391731, 0, 1, 0, 0.1391731, 0, 0.99026805, -2.91, 0.99985, -2.79)
+transform = Transform3D(0.99026805, 0, -0.1391731, 0, 1, 0, 0.1391731, 0, 0.99026805, -2.91, 0.99985, -3.9693341)
 
 [node name="NW_ReviewNotes" parent="Rooms/Room_3_3" unique_id=547932196 instance=ExtResource("furn_FredeBook")]
-transform = Transform3D(0.98162717, 0, 0.19080901, 0, 1, 0, -0.19080901, 0, 0.98162717, -2.02, 0.99985, -2.69)
+transform = Transform3D(0.98162717, 0, 0.19080901, 0, 1, 0, -0.19080901, 0, 0.98162717, -2.02, 0.99985, -3.8693342)
 
 [node name="WallArt" parent="Rooms/Room_3_3" unique_id=1322835776 instance=ExtResource("furn_BetweenFrame")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.7, 1.88, -4.28)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.7, 2.360641, -4.28)
 
 [node name="SW_Sofa" parent="Rooms/Room_3_3" unique_id=178657440 instance=ExtResource("furn_sofa_a")]
-transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, -3.51, 0, 2.64)
-
-[node name="SW_GuestChair" parent="Rooms/Room_3_3" unique_id=1458785024 instance=ExtResource("furn_chair_e")]
-transform = Transform3D(-0.34202015, 0, 0.9396926, 0, 1, 0, -0.9396926, 0, -0.34202015, -1.44, 0, 2.82)
+transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, -3.51, 0, 2.64)
 
 [node name="SW_Rug" parent="Rooms/Room_3_3" unique_id=1243915312 instance=ExtResource("furn_carpet_a")]
-transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, -2.55, 0.015, 1.55)
-
-[node name="SW_SideTable" parent="Rooms/Room_3_3" unique_id=626516479 instance=ExtResource("furn_table_a")]
-transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -2.5, 0, 1.56)
-
-[node name="SW_CoffeeTableBook" parent="Rooms/Room_3_3" unique_id=1872141954 instance=ExtResource("furn_FredeBook")]
-transform = Transform3D(-0.9848077, 0, -0.17364818, 0, 1, 0, 0.17364818, 0, -0.9848077, -2.65, 0.99951, 1.55)
-
-[node name="SW_CoffeeMug" parent="Rooms/Room_3_3" unique_id=609269506 instance=ExtResource("furn_mug_2")]
-transform = Transform3D(-0.70710677, 0, -0.70710677, 0, 1, 0, 0.70710677, 0, -0.70710677, -2.24, 0.99951, 1.53)
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, -1.0833182, 0.015, 1.5500002)
 
 [node name="SE_Desk" parent="Rooms/Room_3_3" unique_id=1007638336 instance=ExtResource("furn_desk_2")]
-transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 2.55, 0, 3.33)
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 2.5500002, 0, 3.7032833)
 
 [node name="SE_TaskChair" parent="Rooms/Room_3_3" unique_id=1961410370 instance=ExtResource("furn_chair_e")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.62, 0, 1.9)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.62, 0, 2.987784)
 
 [node name="SE_Planner" parent="Rooms/Room_3_3" unique_id=576482796 instance=ExtResource("furn_FredeBook")]
-transform = Transform3D(-0.9659258, 0, 0.258819, 0, 1, 0, -0.258819, 0, -0.9659258, 2.2, 1.08, 3.46)
+transform = Transform3D(-0.9659258, 0, 0.258819, 0, 1, 0, -0.258819, 0, -0.9659258, 2.1999998, 1.08, 3.8332834)
 
 [node name="SE_ReferenceBooks" parent="Rooms/Room_3_3" unique_id=1780991075 instance=ExtResource("furn_books_a")]
-transform = Transform3D(-0.9975641, 0, -0.06975647, 0, 1, 0, 0.06975647, 0, -0.9975641, 3.12, 1.08, 3.51)
+transform = Transform3D(-0.9975641, 0, -0.06975647, 0, 1, 0, 0.06975647, 0, -0.9975641, 3.12, 1.08, 3.8832836)
 
 [node name="SE_Mug" parent="Rooms/Room_3_3" unique_id=905018700 instance=ExtResource("furn_mug_2")]
-transform = Transform3D(-0.9396926, 0, -0.34202015, 0, 1, 0, 0.34202015, 0, -0.9396926, 1.77, 1.08, 3.55)
-
-[node name="NE_CoatStand" parent="Rooms/Room_3_3" unique_id=1461824152 instance=ExtResource("furn_coathanger")]
-transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 3.62, 0, -3.69)
+transform = Transform3D(-0.9396926, 0, -0.34202015, 0, 1, 0, 0.34202015, 0, -0.9396926, 1.77, 1.08, 3.9232836)
 
 [node name="NE_LowStorage" parent="Rooms/Room_3_3" unique_id=2022233092 instance=ExtResource("furn_drawer_a")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.22, 0, -2.31)
-
-[node name="NE_WaitingChair" parent="Rooms/Room_3_3" unique_id=1824460445 instance=ExtResource("furn_chair_d")]
-transform = Transform3D(0.9986295, 0, -0.052335955, 0, 1, 0, 0.052335955, 0, 0.9986295, 2.45, 0, -3.36)
-
-[node name="NE_EntryRug" parent="Rooms/Room_3_3" unique_id=752333423 instance=ExtResource("furn_carpet_b")]
-transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 2.23, 0.015, -1.45)
-
-[node name="NE_Bin" parent="Rooms/Room_3_3" unique_id=154347281 instance=ExtResource("furn_bin_2")]
-transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 3.78, 0, -1.52)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.2200003, 0, -3.6205716)
 
 [node name="Room_3_4" type="Node3D" parent="Rooms" unique_id=1172047516]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 13.5, 0, 4.5)
@@ -1576,7 +1498,7 @@ surface_material_override/1 = SubResource("ShaderMaterial_u7qk0")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.82, 0, -3.82)
 
 [node name="NW_SideShelf" parent="Rooms/Room_3_4" unique_id=672094056 instance=ExtResource("furn_shelf_b")]
-transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, -3.82, 0, -2.1)
+transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, -4.116996, 0, -2.1)
 
 [node name="NW_RecordsTable" parent="Rooms/Room_3_4" unique_id=215727274 instance=ExtResource("furn_table_a")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.12, 0, -1.75)
@@ -1621,7 +1543,7 @@ transform = Transform3D(-0.98768836, 0, -0.15643446, 0, 1, 0, 0.15643446, 0, -0.
 transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 3.78, 0, 1.57)
 
 [node name="NE_ReferenceShelf" parent="Rooms/Room_3_4" unique_id=1455739283 instance=ExtResource("furn_shelf_a")]
-transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 3.82, 0, -2.7)
+transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 3.82, 0, -2.7)
 
 [node name="NE_ReferenceTable" parent="Rooms/Room_3_4" unique_id=1274712403 instance=ExtResource("furn_table_a")]
 transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 2.12, 0, -2.26)
