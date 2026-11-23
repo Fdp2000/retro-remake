@@ -17,7 +17,7 @@ var _open_fraction: float = 0.0
 var _push_target_y: float = 0.0
 var _swing: Tween
 var _busy: bool = false
-var _bucket_visual: MeshInstance3D = null
+var _bucket_visual: Node3D = null
 var _step_start_y: float = 0.0
 
 func _ready() -> void:
@@ -49,9 +49,9 @@ func _ensure_bucket_visual() -> void:
 	var target_parent: Node = get_parent() if get_parent() != null else self
 	var mount_name: String = "BucketMount_%d" % get_instance_id()
 	if _bucket_visual == null or not is_instance_valid(_bucket_visual):
-		_bucket_visual = target_parent.get_node_or_null(mount_name) as MeshInstance3D
+		_bucket_visual = target_parent.get_node_or_null(mount_name) as Node3D
 	if _bucket_visual == null:
-		_bucket_visual = PICKUP_SCRIPT.build_item_mesh("BUCKET")
+		_bucket_visual = PICKUP_SCRIPT.build_item_visual("BUCKET")
 		_bucket_visual.name = mount_name
 		_bucket_visual.visible = has_rigged_bucket
 		var hitbox := StaticBody3D.new()
@@ -342,7 +342,7 @@ func _rpc_play_bucket_drop_fx(drop_world_pos: Vector3, side_sign: float) -> void
 	get_parent().add_child(fx_root)
 	fx_root.global_position = Vector3(drop_world_pos.x, (get_parent() as Node3D).global_position.y if get_parent() is Node3D else 0.0, drop_world_pos.z)
 	var start_y: float = maxf(drop_world_pos.y - fx_root.global_position.y, 0.5)
-	var falling := PICKUP_SCRIPT.build_item_mesh("BUCKET")
+	var falling: Node3D = PICKUP_SCRIPT.build_item_visual("BUCKET")
 	falling.position = Vector3(0.0, start_y, 0.0)
 	fx_root.add_child(falling)
 	var tw := fx_root.create_tween()

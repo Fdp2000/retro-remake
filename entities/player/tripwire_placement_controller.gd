@@ -23,6 +23,7 @@ enum InvalidReason {
 }
 
 const PREVIEW_RAY_LENGTH: float = 8.0
+const TRIPWIRE_PREFAB: PackedScene = preload("res://Assets/Prefab_Traps/tripwire.tscn")
 const MAX_POLE_HEIGHT_DELTA: float = 0.65
 const MIN_HORIZ_SPAN: float = 0.20
 
@@ -42,8 +43,8 @@ var _hold_active: bool = false
 var _hold_elapsed: float = 0.0
 var _require_lmb_release: bool = false
 
-var _placed_pole_node: MeshInstance3D = null
-var _ghost_pole_node: MeshInstance3D = null
+var _placed_pole_node: Node3D = null
+var _ghost_pole_node: Node3D = null
 var _ghost_wire_node: MeshInstance3D = null
 var _mat_valid: StandardMaterial3D = null
 var _mat_invalid: StandardMaterial3D = null
@@ -445,20 +446,25 @@ func _ensure_visuals() -> void:
 		add_child(_ghost_wire_node)
 
 
-func _create_pole_mesh_node(node_name: String, pole_h: float, mat: Material, world_layer: int) -> MeshInstance3D:
-	var pole := MeshInstance3D.new()
+func _create_pole_mesh_node(node_name: String, pole_h: float, mat: Material, world_layer: int) -> Node3D:
+	var pole := Node3D.new()
 	pole.name = node_name
 	pole.top_level = true
-	pole.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	pole.layers = world_layer
-	var peg_mesh := CylinderMesh.new()
-	peg_mesh.top_radius = 0.025
-	peg_mesh.bottom_radius = 0.032
-	peg_mesh.height = pole_h
-	pole.mesh = peg_mesh
-	pole.material_override = mat
+	var model: Node3D = TRIPWIRE_PREFAB.instantiate() as Node3D
+	model.name = "PoleModel"
+	model.scale = Vector3(2.2, pole_h / 0.1504, 2.2)
+	pole.add_child(model)
+	_apply_pole_appearance(pole, mat, world_layer)
 	pole.visible = false
 	return pole
+
+
+func _apply_pole_appearance(pole: Node3D, mat: Material, world_layer: int) -> void:
+	for child in pole.find_children("*", "MeshInstance3D", true, false):
+		var mi := child as MeshInstance3D
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		mi.layers = world_layer
+		mi.material_override = mat
 
 
 func _update_visuals(show_aim_ghosts: bool) -> void:
@@ -468,14 +474,16 @@ func _update_visuals(show_aim_ghosts: bool) -> void:
 
 	var wire_h: float = GameConfig.tripwire_height if GameConfig != null else 0.35
 	var pole_h: float = wire_h + 0.05
+	var pole_scale := Vector3(2.2, pole_h / 0.1504, 2.2)
+	var world_layer: int = GameConfig.VISUAL_LAYER_WORLD if GameConfig != null else 1
 
 	if _placed_pole_node != null:
 		if has_placed_first_pole():
 			_placed_pole_node.visible = true
-			_placed_pole_node.global_position = first_pole_pos + Vector3(0.0, pole_h * 0.5, 0.0)
-			var placed_cyl: CylinderMesh = _placed_pole_node.mesh as CylinderMesh
-			if placed_cyl != null:
-				placed_cyl.height = pole_h
+			_placed_pole_node.global_position = first_pole_pos
+			var placed_model := _placed_pole_node.get_node_or_null("PoleModel") as Node3D
+			if placed_model != null:
+				placed_model.scale = pole_scale
 		else:
 			_placed_pole_node.visible = false
 
@@ -484,11 +492,11 @@ func _update_visuals(show_aim_ghosts: bool) -> void:
 	if _ghost_pole_node != null:
 		if show_aim_ghosts and has_aim_hit and current_step != Step.INACTIVE:
 			_ghost_pole_node.visible = true
-			_ghost_pole_node.global_position = aim_pos + Vector3(0.0, pole_h * 0.5, 0.0)
-			_ghost_pole_node.material_override = active_mat
-			var ghost_cyl: CylinderMesh = _ghost_pole_node.mesh as CylinderMesh
-			if ghost_cyl != null:
-				ghost_cyl.height = pole_h
+			_ghost_pole_node.global_position = aim_pos
+			var ghost_model := _ghost_pole_node.get_node_or_null("PoleModel") as Node3D
+			if ghost_model != null:
+				ghost_model.scale = pole_scale
+			_apply_pole_appearance(_ghost_pole_node, active_mat, world_layer)
 		else:
 			_ghost_pole_node.visible = false
 

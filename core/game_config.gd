@@ -120,7 +120,7 @@ static func get_remote_spy_visual_layer(slot_index: int) -> int:
 @export var drawer_slow_open_exp_steepness: float = 4.5
 @export var drawer_close_duration: float = 0.30
 @export var top_down_cam_lerp_duration: float = 0.65
-@export var drawer_interior_mesh_scale: float = 0.70
+@export var drawer_interior_mesh_scale: float = 1.10
 @export var drawer_max_clutter_layers: int = 3
 @export var container_drag_momentum_scale: float = 1.00
 @export var container_drag_friction: float = 6.5

@@ -36,9 +36,9 @@ func _ensure_nodes() -> void:
 		add_child(col)
 
 	if get_node_or_null("BombVisual") == null:
-		var mi := PICKUP_SCRIPT.build_item_mesh("LIVE_BOMB")
-		mi.name = "BombVisual"
-		add_child(mi)
+		var visual: Node3D = PICKUP_SCRIPT.build_item_visual("LIVE_BOMB")
+		visual.name = "BombVisual"
+		add_child(visual)
 
 
 func _physics_process(delta: float) -> void:

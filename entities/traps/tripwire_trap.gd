@@ -12,6 +12,8 @@ extends StaticBody3D
 @export var end_point: Vector3 = Vector3.ZERO
 @export var use_endpoints: bool = false
 
+const TRIPWIRE_PREFAB: PackedScene = preload("res://Assets/Prefab_Traps/tripwire.tscn")
+
 var wire_height: float = 0.35
 var _triggered_or_consumed: bool = false
 var _trigger_area: Area3D = null
@@ -124,20 +126,15 @@ func _rebuild_geometry() -> void:
 			child.queue_free()
 
 		var peg_h: float = wire_height + 0.05
-		var peg_mesh := CylinderMesh.new()
-		peg_mesh.top_radius = 0.025
-		peg_mesh.bottom_radius = 0.032
-		peg_mesh.height = peg_h
-		var peg_mat := StandardMaterial3D.new()
-		peg_mat.albedo_color = Color(0.85, 0.45, 0.15)
+		var peg_scale := Vector3(2.2, peg_h / 0.1504, 2.2)
 
 		for i in range(2):
-			var peg := MeshInstance3D.new()
+			var peg: Node3D = TRIPWIRE_PREFAB.instantiate() as Node3D
 			peg.name = "Peg_%d" % i
-			peg.mesh = peg_mesh
-			peg.material_override = peg_mat
 			var base_pt: Vector3 = local_p1 if i == 0 else local_p2
-			peg.position = base_pt + Vector3(0.0, peg_h * 0.5, 0.0)
+			peg.position = base_pt
+			peg.scale = peg_scale
+			peg.rotation.y = PI * 0.5
 			vis.add_child(peg)
 
 		var wire_mi := MeshInstance3D.new()

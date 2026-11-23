@@ -301,25 +301,36 @@ func _spawn_test_props() -> void:
 
 	var loot_drawer := DRAWER_SCENE.instantiate() as StaticBody3D
 	loot_drawer.name = "TestDrawer_Loot"
-	loot_drawer.set("container_id", "Loot Desk")
+	loot_drawer.set("container_id", "Loot Desk (Left)")
 	var loot_items: Array[String] = ["KEY", "SPRING", "BOMB"]
 	loot_drawer.set("stored_items", loot_items)
+	var loot_right: Node = loot_drawer.get_node_or_null("RightUpperDrawer")
+	if loot_right != null:
+		loot_right.set("container_id", "Loot Desk (Right)")
+		var loot_right_items: Array[String] = ["KEY", "SPRING"]
+		loot_right.set("stored_items", loot_right_items)
 	props_root.add_child(loot_drawer)
-	loot_drawer.position = Vector3(-6.2, 0.0, -6.5)
+	loot_drawer.position = Vector3(-7.0, 0.0, -6.5)
 
 	var rigged_drawer := DRAWER_SCENE.instantiate() as StaticBody3D
 	rigged_drawer.name = "TestDrawer_Rigged"
-	rigged_drawer.set("container_id", "Rigged Cabinet")
+	rigged_drawer.set("container_id", "Rigged Desk (Left)")
 	rigged_drawer.set("armed_spring", true)
 	var rigged_items: Array[String] = ["PASSPORT"]
 	rigged_drawer.set("stored_items", rigged_items)
+	var rigged_right: Node = rigged_drawer.get_node_or_null("RightUpperDrawer")
+	if rigged_right != null:
+		rigged_right.set("container_id", "Rigged Desk (Right)")
+		rigged_right.set("armed_spring", false)
+		var rigged_right_items: Array[String] = ["KEY"]
+		rigged_right.set("stored_items", rigged_right_items)
 	props_root.add_child(rigged_drawer)
-	rigged_drawer.position = Vector3(-4.5, 0.0, -6.5)
+	rigged_drawer.position = Vector3(-4.2, 0.0, -6.5)
 
 	var door := EMBASSY_DOOR_SCENE.instantiate() as Node3D
 	door.name = "TestEmbassyDoor"
 	props_root.add_child(door)
-	door.position = Vector3(-2.5, 0.0, -6.5)
+	door.position = Vector3(-1.8, 0.0, -6.5)
 
 
 func _resolve_spawn_point(slot: int) -> Vector3:

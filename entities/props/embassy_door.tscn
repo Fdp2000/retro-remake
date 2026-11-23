@@ -17,14 +17,6 @@ size = Vector3(0.14, 0.04, 0.18)
 [sub_resource type="StandardMaterial3D" id="Mat_handle"]
 albedo_color = Color(0.85, 0.72, 0.25, 1)
 
-[sub_resource type="CylinderMesh" id="CylinderMesh_bucket"]
-top_radius = 0.16
-bottom_radius = 0.12
-height = 0.28
-
-[sub_resource type="StandardMaterial3D" id="Mat_bucket"]
-albedo_color = Color(0.55, 0.62, 0.68, 1)
-
 [sub_resource type="BoxMesh" id="BoxMesh_jamb"]
 size = Vector3(0.12, 2.25, 0.18)
 
@@ -72,9 +64,3 @@ surface_material_override/0 = SubResource("Mat_leaf")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.15, 1.0, 0)
 mesh = SubResource("BoxMesh_handle")
 surface_material_override/0 = SubResource("Mat_handle")
-
-[node name="BucketMount" type="MeshInstance3D" parent="HingePivot"]
-visible = false
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.65, 2.28, 0)
-mesh = SubResource("CylinderMesh_bucket")
-surface_material_override/0 = SubResource("Mat_bucket")

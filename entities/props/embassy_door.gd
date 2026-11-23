@@ -24,7 +24,7 @@ var bucket_side_sign: float = 1.0
 
 var _hinge_pivot: Node3D = null
 var _door_body: StaticBody3D = null
-var _bucket_visual: MeshInstance3D = null
+var _bucket_visual: Node3D = null
 var _swing_tween: Tween = null
 var _step_start_rad: float = 0.0
 
@@ -71,9 +71,9 @@ func _ensure_nodes() -> void:
 	else:
 		_door_body.collision_layer = (GameConfig.LAYER_ENVIRONMENT | GameConfig.LAYER_INTERACTABLE) if GameConfig != null else 3
 
-	_bucket_visual = get_node_or_null("BucketMount") as MeshInstance3D
+	_bucket_visual = get_node_or_null("BucketMount") as Node3D
 	if _bucket_visual == null:
-		_bucket_visual = PICKUP_SCRIPT.build_item_mesh("BUCKET")
+		_bucket_visual = PICKUP_SCRIPT.build_item_visual("BUCKET")
 		_bucket_visual.name = "BucketMount"
 		_bucket_visual.visible = has_rigged_bucket
 		add_child(_bucket_visual)
@@ -467,7 +467,7 @@ func _rpc_play_bucket_drop_fx(drop_local_pos: Vector3) -> void:
 	var fx_root := Node3D.new()
 	fx_root.name = "BucketDropFX"
 	add_child(fx_root)
-	var falling := PICKUP_SCRIPT.build_item_mesh("BUCKET")
+	var falling: Node3D = PICKUP_SCRIPT.build_item_visual("BUCKET")
 	falling.position = drop_local_pos
 	fx_root.add_child(falling)
 	var tw := fx_root.create_tween()

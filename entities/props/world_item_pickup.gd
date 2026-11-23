@@ -14,6 +14,17 @@ enum ItemSlotType {
 const OBJECTIVE_IDS: Array[String] = ["KEY", "MONEY", "PASSPORT", "PLANS"]
 const GADGET_IDS: Array[String] = ["BUCKET", "TRIPWIRE", "SPRING", "BOMB", "DART_GUN"]
 
+const KEY_SCENE: PackedScene = preload("res://Assets/Models/Samleobjekter/Key.glb")
+const MONEY_SCENE: PackedScene = preload("res://Assets/Models/Samleobjekter/Money.glb")
+const PASSPORT_SCENE: PackedScene = preload("res://Assets/Models/Samleobjekter/Passport.glb")
+const PLANS_SCENE: PackedScene = preload("res://Assets/Models/Samleobjekter/Plans.glb")
+
+const BOMB_SCENE: PackedScene = preload("res://Assets/Prefab_Traps/bomb.tscn")
+const TRIPWIRE_SCENE: PackedScene = preload("res://Assets/Prefab_Traps/tripwire.tscn")
+const BUCKET_SCENE: PackedScene = preload("res://Assets/Prefab_Traps/bucket.tscn")
+const DART_GUN_SCENE: PackedScene = preload("res://Assets/Prefab_Traps/dart_gun.tscn")
+const SPRING_SCENE: PackedScene = preload("res://Assets/Prefab_Traps/spring.tscn")
+
 const ITEM_COLORS: Dictionary = {
 	"KEY": Color(0.95, 0.80, 0.15),       # Gold
 	"MONEY": Color(0.20, 0.78, 0.30),     # Dollar Green
@@ -58,7 +69,7 @@ const ITEM_DISPLAY_NAMES: Dictionary = {
 @export var armed_bomb: bool = false
 @export var bomb_owner_peer_id: int = 0
 
-var _mesh_instance: MeshInstance3D = null
+var _visual_root: Node3D = null
 var _collision_shape: CollisionShape3D = null
 var _briefcase_container: Node = null
 var _is_consumed: bool = false
@@ -95,8 +106,43 @@ static func get_display_name(id: String, briefcase_items: Array = []) -> String:
 	return base_name
 
 
-static func build_item_mesh(id: String) -> MeshInstance3D:
+const _MODEL_VISUAL_SPECS: Dictionary = {
+	"KEY": {"scene": KEY_SCENE, "scale": Vector3(1.15, 1.15, 1.15), "offset": Vector3(0.0, 0.0, -0.005), "rot": Vector3.ZERO, "floor_y": 0.025},
+	"MONEY": {"scene": MONEY_SCENE, "scale": Vector3(0.90, 0.90, 0.90), "offset": Vector3(0.0, -0.105, 0.0), "rot": Vector3.ZERO, "floor_y": 0.105},
+	"PASSPORT": {"scene": PASSPORT_SCENE, "scale": Vector3(1.15, 1.15, 1.15), "offset": Vector3(0.004, 0.0, 0.0), "rot": Vector3.ZERO, "floor_y": 0.025},
+	"PLANS": {"scene": PLANS_SCENE, "scale": Vector3(1.10, 1.10, 1.10), "offset": Vector3.ZERO, "rot": Vector3.ZERO, "floor_y": 0.025},
+	"BUCKET": {"scene": BUCKET_SCENE, "scale": Vector3(0.38, 0.38, 0.38), "offset": Vector3(0.0, -0.156, 0.0), "rot": Vector3.ZERO, "floor_y": 0.156},
+	"TRIPWIRE": {"scene": TRIPWIRE_SCENE, "scale": Vector3(1.40, 1.40, 1.40), "offset": Vector3(0.0, -0.107, 0.0), "rot": Vector3.ZERO, "floor_y": 0.107},
+	"SPRING": {"scene": SPRING_SCENE, "scale": Vector3(1.15, 1.15, 1.15), "offset": Vector3(-0.005, -0.015, -0.003), "rot": Vector3.ZERO, "floor_y": 0.101},
+	"DART_GUN": {"scene": DART_GUN_SCENE, "scale": Vector3(0.85, 0.85, 0.85), "offset": Vector3(0.0, 0.021, 0.029), "rot": Vector3(0.0, PI * 0.5, 0.0), "floor_y": 0.106},
+	"BOMB": {"scene": BOMB_SCENE, "scale": Vector3(0.85, 0.85, 0.85), "offset": Vector3(0.001, -0.146, 0.001), "rot": Vector3.ZERO, "floor_y": 0.146},
+	"LIVE_BOMB": {"scene": BOMB_SCENE, "scale": Vector3(0.85, 0.85, 0.85), "offset": Vector3(0.001, -0.146, 0.001), "rot": Vector3.ZERO, "floor_y": 0.146}
+}
+
+
+static func get_item_floor_y(id: String) -> float:
 	var upper: String = id.to_upper()
+	if _MODEL_VISUAL_SPECS.has(upper):
+		return float(_MODEL_VISUAL_SPECS[upper]["floor_y"])
+	return 0.18
+
+
+## Instantiates a centered visual Node3D for any trap, objective, briefcase, or melee item.
+static func build_item_visual(id: String) -> Node3D:
+	var upper: String = id.to_upper()
+	if _MODEL_VISUAL_SPECS.has(upper):
+		var spec: Dictionary = _MODEL_VISUAL_SPECS[upper]
+		var wrapper := Node3D.new()
+		var scene: PackedScene = spec["scene"] as PackedScene
+		var model: Node3D = scene.instantiate() as Node3D
+		model.position = spec["offset"] as Vector3
+		model.rotation = spec["rot"] as Vector3
+		model.scale = spec["scale"] as Vector3
+		wrapper.add_child(model)
+		if upper == "LIVE_BOMB":
+			_attach_live_bomb_fuse_fx(wrapper, model)
+		return wrapper
+
 	var mi := MeshInstance3D.new()
 	var mat := StandardMaterial3D.new()
 	mat.albedo_color = ITEM_COLORS.get(upper, Color(0.8, 0.8, 0.8))
@@ -106,37 +152,6 @@ static func build_item_mesh(id: String) -> MeshInstance3D:
 			var box := BoxMesh.new()
 			box.size = Vector3(0.42, 0.30, 0.12)
 			mi.mesh = box
-		"KEY":
-			var box := BoxMesh.new()
-			box.size = Vector3(0.18, 0.06, 0.30)
-			mi.mesh = box
-		"MONEY":
-			var sph := SphereMesh.new()
-			sph.radius = 0.16
-			sph.height = 0.28
-			mi.mesh = sph
-		"PASSPORT":
-			var box := BoxMesh.new()
-			box.size = Vector3(0.18, 0.04, 0.24)
-			mi.mesh = box
-		"PLANS":
-			var cyl := CylinderMesh.new()
-			cyl.top_radius = 0.05
-			cyl.bottom_radius = 0.05
-			cyl.height = 0.36
-			mi.mesh = cyl
-			mi.rotation.z = PI * 0.5
-		"BUCKET":
-			var cyl := CylinderMesh.new()
-			cyl.top_radius = 0.16
-			cyl.bottom_radius = 0.12
-			cyl.height = 0.28
-			mi.mesh = cyl
-		"BOMB", "LIVE_BOMB":
-			var sph := SphereMesh.new()
-			sph.radius = 0.14
-			sph.height = 0.28
-			mi.mesh = sph
 		"CLUB":
 			var cyl := CylinderMesh.new()
 			cyl.top_radius = 0.06
@@ -149,12 +164,66 @@ static func build_item_mesh(id: String) -> MeshInstance3D:
 			box.size = Vector3(0.22, 0.14, 0.22)
 			mi.mesh = box
 
-	if is_objective_item(upper) or is_briefcase_item(upper):
+	if is_briefcase_item(upper):
 		mat.emission_enabled = true
 		mat.emission = mat.albedo_color * 0.45
 		mat.emission_energy_multiplier = 0.65
 	mi.material_override = mat
 	return mi
+
+
+## Backwards-compatible alias for callers expecting build_item_mesh.
+static func build_item_mesh(id: String) -> Node3D:
+	return build_item_visual(id)
+
+
+static func _attach_live_bomb_fuse_fx(wrapper: Node3D, model: Node3D) -> void:
+	for mi in model.find_children("*", "MeshInstance3D", true, false):
+		var mesh_node: MeshInstance3D = mi as MeshInstance3D
+		var src_mat: Material = mesh_node.material_override
+		if src_mat == null and mesh_node.mesh != null and mesh_node.mesh.get_surface_count() > 0:
+			src_mat = mesh_node.mesh.surface_get_material(0)
+		if src_mat is StandardMaterial3D:
+			var lit_mat: StandardMaterial3D = (src_mat as StandardMaterial3D).duplicate() as StandardMaterial3D
+			lit_mat.emission_enabled = true
+			lit_mat.emission = Color(0.95, 0.30, 0.06)
+			lit_mat.emission_energy_multiplier = 0.35
+			mesh_node.material_override = lit_mat
+
+	var ember := MeshInstance3D.new()
+	ember.name = "FuseEmber"
+	var sph := SphereMesh.new()
+	sph.radius = 0.022
+	sph.height = 0.044
+	var ember_mat := StandardMaterial3D.new()
+	ember_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	ember_mat.albedo_color = Color(1.0, 0.55, 0.15)
+	ember.mesh = sph
+	ember.material_override = ember_mat
+	ember.position = Vector3(0.0, 0.145, 0.0)
+	wrapper.add_child(ember)
+
+	var sparks := CPUParticles3D.new()
+	sparks.name = "FuseSparks"
+	sparks.amount = 10
+	sparks.lifetime = 0.35
+	sparks.local_coords = true
+	sparks.emitting = true
+	sparks.position = Vector3(0.0, 0.145, 0.0)
+	sparks.direction = Vector3(0.0, 1.0, 0.0)
+	sparks.spread = 55.0
+	sparks.gravity = Vector3(0.0, -3.5, 0.0)
+	sparks.initial_velocity_min = 0.35
+	sparks.initial_velocity_max = 0.75
+	var spark_mesh := QuadMesh.new()
+	spark_mesh.size = Vector2(0.022, 0.022)
+	var spark_mat := StandardMaterial3D.new()
+	spark_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	spark_mat.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+	spark_mat.albedo_color = Color(1.0, 0.72, 0.20)
+	spark_mesh.material = spark_mat
+	sparks.mesh = spark_mesh
+	wrapper.add_child(sparks)
 
 
 static func create_objective_glint_particles(in_drawer: bool = false) -> CPUParticles3D:
@@ -385,12 +454,16 @@ func _ensure_child_nodes() -> void:
 		_collision_shape.position = Vector3(0.0, 0.18, 0.0)
 		add_child(_collision_shape)
 
-	_mesh_instance = get_node_or_null("VisualMesh") as MeshInstance3D
-	if _mesh_instance == null:
-		_mesh_instance = MeshInstance3D.new()
-		_mesh_instance.name = "VisualMesh"
-		_mesh_instance.position = Vector3(0.0, 0.18, 0.0)
-		add_child(_mesh_instance)
+	var legacy_mesh := get_node_or_null("VisualMesh") as MeshInstance3D
+	if legacy_mesh != null:
+		legacy_mesh.visible = false
+
+	_visual_root = get_node_or_null("VisualRoot") as Node3D
+	if _visual_root == null:
+		_visual_root = Node3D.new()
+		_visual_root.name = "VisualRoot"
+		_visual_root.position = Vector3(0.0, 0.18, 0.0)
+		add_child(_visual_root)
 
 
 func _rebuild_visuals() -> void:
@@ -400,10 +473,15 @@ func _rebuild_visuals() -> void:
 		remove_child(old_glint)
 		old_glint.queue_free()
 
+	if _visual_root != null:
+		for child in _visual_root.get_children():
+			_visual_root.remove_child(child)
+			child.queue_free()
+
 	if is_briefcase_item(item_id):
 		# Floor Briefcase uses BriefcaseContainer's unified hinged 3D BriefcaseVisualRig (zero double-mesh clipping!)
-		if _mesh_instance != null:
-			_mesh_instance.visible = false
+		if _visual_root != null:
+			_visual_root.visible = false
 		if _collision_shape != null:
 			var b_shape := BoxShape3D.new()
 			b_shape.size = Vector3(0.58, 0.16, 0.40)
@@ -411,20 +489,19 @@ func _rebuild_visuals() -> void:
 			_collision_shape.position = Vector3(0.0, 0.08, 0.0)
 		return
 
-	if _mesh_instance != null:
-		_mesh_instance.visible = true
+	if _visual_root != null:
+		_visual_root.visible = true
+		_visual_root.position = Vector3(0.0, get_item_floor_y(item_id), 0.0)
 	if _collision_shape != null:
 		var std_shape := BoxShape3D.new()
 		std_shape.size = Vector3(0.45, 0.35, 0.45)
 		_collision_shape.shape = std_shape
 		_collision_shape.position = Vector3(0.0, 0.18, 0.0)
 
-	var template: MeshInstance3D = build_item_mesh(item_id)
-	_mesh_instance.mesh = template.mesh
-	_mesh_instance.material_override = template.material_override
-	_mesh_instance.rotation = template.rotation
-	template.free()
+	var visual_node: Node3D = build_item_visual(item_id)
+	visual_node.name = "ModelInstance"
+	_visual_root.add_child(visual_node)
 	if is_objective_item(item_id):
 		var glint := create_objective_glint_particles(false)
-		glint.position = Vector3(0.0, 0.22, 0.0)
+		glint.position = Vector3(0.0, maxf(get_item_floor_y(item_id) + 0.06, 0.14), 0.0)
 		add_child(glint)

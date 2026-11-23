@@ -2410,7 +2410,7 @@ func _refresh_hand_and_back_sockets() -> void:
 		for c in b_socket.get_children():
 			c.queue_free()
 		if right_hand_item_id != "CLUB":
-			var club_back: MeshInstance3D = PICKUP_SCRIPT.build_item_mesh("CLUB")
+			var club_back: Node3D = PICKUP_SCRIPT.build_item_visual("CLUB")
 			club_back.name = "HolsteredClubMesh"
 			_set_visual_layer_recursive(club_back, get_crt_body_visual_layer())
 			b_socket.add_child(club_back)
@@ -2419,15 +2419,17 @@ func _refresh_hand_and_back_sockets() -> void:
 		for c in l_socket.get_children():
 			c.queue_free()
 		if left_hand_item_id != "NONE":
-			var l_mesh: MeshInstance3D = PICKUP_SCRIPT.build_item_mesh(left_hand_item_id)
+			var l_mesh: Node3D = PICKUP_SCRIPT.build_item_visual(left_hand_item_id)
 			l_mesh.name = "LeftHeldMesh"
+			if left_hand_item_id in ["KEY", "PASSPORT", "PLANS"]:
+				l_mesh.rotation.x = deg_to_rad(32.0)
 			l_socket.add_child(l_mesh)
 
 	if r_socket != null:
 		for c in r_socket.get_children():
 			c.queue_free()
 		if right_hand_item_id != "NONE":
-			var r_mesh: MeshInstance3D = PICKUP_SCRIPT.build_item_mesh(right_hand_item_id)
+			var r_mesh: Node3D = PICKUP_SCRIPT.build_item_visual(right_hand_item_id)
 			r_mesh.name = "RightHeldMesh"
 			if right_hand_item_id == "CLUB" and is_charging_club:
 				r_mesh.position = Vector3(-0.12, 0.34, 0.05)

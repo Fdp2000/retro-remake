@@ -62,6 +62,13 @@ const CLUTTER_PROP_SPECS: Array[Dictionary] = [
 @export var container_id: String = "Drawer"
 @export var container_seed: int = 0
 @export var is_briefcase_container: bool = false
+@export var use_custom_tray_mesh: bool = false
+@export var drawer_closed_z: float = DRAWER_CLOSED_Z
+@export var drawer_open_z: float = DRAWER_OPEN_Z
+@export var tray_local_center_xz: Vector2 = Vector2.ZERO
+@export var tray_local_half_extents: Vector2 = Vector2(0.33, 0.17)
+@export var min_pick_local_z: float = 0.34
+@export var lip_spring_local_pos: Vector3 = Vector3(0.0, 0.055, 0.19)
 @export var clutter_count: int = 6
 @export var stored_items: Array[String] = []
 @export var armed_spring: bool = false
@@ -109,6 +116,7 @@ func _ready() -> void:
 	else:
 		collision_layer = 0
 	collision_mask = 0
+	_tray_target_z = 0.0 if is_briefcase_container else drawer_closed_z
 	if not is_briefcase_container:
 		if clutter_positions.is_empty() and not _layout_randomized:
 			_randomize_initial_drawer_layout()
@@ -124,6 +132,8 @@ func _ready() -> void:
 			MatchManager.match_started.connect(_on_match_started_reseed)
 		_ensure_3d_tray_structure()
 		_rebuild_3d_interior()
+		if _tray_drawer_node != null and not is_briefcase_container:
+			_tray_drawer_node.position.z = lerpf(drawer_closed_z, drawer_open_z, drawer_visual_ratio)
 
 
 func _process(delta: float) -> void:
@@ -173,7 +183,7 @@ func _get_drawer_mesh_scale() -> float:
 		var v: Variant = GameConfig.get("drawer_interior_mesh_scale")
 		if v is float or v is int:
 			return maxf(float(v), 0.1)
-	return 0.70
+	return 1.10
 
 
 func _get_max_clutter_layers() -> int:
@@ -386,6 +396,8 @@ func get_interaction_prompt() -> String:
 		return "[IN USE]"
 	if is_briefcase_container:
 		return "[Hold E] Inspect Briefcase"
+	if not container_id.is_empty() and container_id != "Drawer":
+		return "[E] Look Inside %s" % container_id
 	return "[E] Look Inside Drawer"
 
 
@@ -567,7 +579,7 @@ func focus_container(peer_id: int, player_override: Node = null) -> bool:
 		if _lid_tween != null and _lid_tween.is_valid():
 			_lid_tween.kill()
 		if _tray_drawer_node != null:
-			_tray_drawer_node.position.z = 0.0 if is_briefcase_container else DRAWER_CLOSED_Z
+			_tray_drawer_node.position.z = 0.0 if is_briefcase_container else drawer_closed_z
 			_tray_target_z = _tray_drawer_node.position.z
 		if is_briefcase_container:
 			_apply_briefcase_lid_ratio(0.0)
@@ -1375,7 +1387,7 @@ func _apply_open_visual_ratio(ratio: float) -> void:
 			_lid_tween.kill()
 		_apply_briefcase_lid_ratio(clamped_ratio)
 	else:
-		_tray_target_z = lerpf(DRAWER_CLOSED_Z, DRAWER_OPEN_Z, clamped_ratio)
+		_tray_target_z = lerpf(drawer_closed_z, drawer_open_z, clamped_ratio)
 		if _slide_tween != null and _slide_tween.is_valid():
 			_slide_tween.kill()
 		if _tray_drawer_node != null:
@@ -1419,12 +1431,12 @@ func _animate_tray_to_ratio(ratio: float, slow: bool) -> void:
 			_apply_briefcase_lid_ratio(clamped_ratio)
 		return
 
-	var target_z: float = lerpf(DRAWER_CLOSED_Z, DRAWER_OPEN_Z, clamped_ratio)
+	var target_z: float = lerpf(drawer_closed_z, drawer_open_z, clamped_ratio)
 	var current_z: float = _tray_drawer_node.position.z
 	if slow and is_equal_approx(_tray_target_z, target_z) and _slide_tween != null and _slide_tween.is_valid() and _slide_tween.is_running():
 		return
 
-	var travel: float = maxf(DRAWER_OPEN_Z - DRAWER_CLOSED_Z, 0.01)
+	var travel: float = maxf(absf(drawer_open_z - drawer_closed_z), 0.01)
 	var frac: float = clampf(absf(target_z - current_z) / travel, 0.12, 1.0)
 	var dur: float = base_dur * frac
 	_tray_target_z = target_z
@@ -1697,7 +1709,7 @@ func _rpc_sync_container_state(state_dict: Dictionary) -> void:
 		elif is_briefcase_container:
 			_animate_tray_to_ratio(drawer_visual_ratio, false)
 		else:
-			var desired_z: float = lerpf(DRAWER_CLOSED_Z, DRAWER_OPEN_Z, drawer_visual_ratio)
+			var desired_z: float = lerpf(drawer_closed_z, drawer_open_z, drawer_visual_ratio)
 			if not is_equal_approx(_tray_target_z, desired_z):
 				_animate_tray_to_ratio(drawer_visual_ratio, false)
 
@@ -1734,16 +1746,20 @@ func container_local_xz_to_norm(local_x: float, local_z: float) -> Vector2:
 
 
 func norm_to_tray_local_xz(norm: Vector2) -> Vector2:
+	var half_x: float = maxf(tray_local_half_extents.x, 0.05)
+	var half_z: float = maxf(tray_local_half_extents.y, 0.05)
 	return Vector2(
-		lerpf(-0.33, 0.33, clampf(norm.x, 0.0, 1.0)),
-		lerpf(-0.17, 0.17, clampf(norm.y, 0.0, 1.0))
+		tray_local_center_xz.x + lerpf(-half_x, half_x, clampf(norm.x, 0.0, 1.0)),
+		tray_local_center_xz.y + lerpf(-half_z, half_z, clampf(norm.y, 0.0, 1.0))
 	)
 
 
 func tray_local_xz_to_norm(local_x: float, local_z: float) -> Vector2:
+	var half_x: float = maxf(tray_local_half_extents.x, 0.05)
+	var half_z: float = maxf(tray_local_half_extents.y, 0.05)
 	return Vector2(
-		clampf((local_x + 0.33) / 0.66, 0.05, 0.95),
-		clampf((local_z + 0.17) / 0.34, 0.05, 0.95)
+		clampf((local_x - tray_local_center_xz.x + half_x) / (2.0 * half_x), 0.05, 0.95),
+		clampf((local_z - tray_local_center_xz.y + half_z) / (2.0 * half_z), 0.05, 0.95)
 	)
 
 
@@ -1782,9 +1798,11 @@ func _ensure_3d_tray_structure() -> void:
 		_tray_drawer_node.position = Vector3(0.0, 0.075 if is_briefcase_container else 0.62, 0.0)
 		add_child(_tray_drawer_node)
 
-	var legacy_mesh: Node3D = _tray_drawer_node.get_node_or_null("TrayMesh") as Node3D
-	if legacy_mesh != null:
-		legacy_mesh.visible = false
+	var has_custom_mesh: bool = use_custom_tray_mesh or (_tray_drawer_node.get_node_or_null("DrawerMesh") != null)
+	if not has_custom_mesh:
+		var legacy_mesh: Node3D = _tray_drawer_node.get_node_or_null("TrayMesh") as Node3D
+		if legacy_mesh != null:
+			legacy_mesh.visible = false
 
 	if not _hollow_built:
 		_hollow_built = true
@@ -1793,69 +1811,71 @@ func _ensure_3d_tray_structure() -> void:
 			_briefcase_lid_pivot = rig.get("lid_pivot") as Node3D
 			_briefcase_interior_light = rig.get("interior_light") as OmniLight3D
 		else:
-			var geom := Node3D.new()
-			geom.name = "HollowTrayGeometry"
-			_tray_drawer_node.add_child(geom)
+			if not has_custom_mesh:
+				var geom := Node3D.new()
+				geom.name = "HollowTrayGeometry"
+				_tray_drawer_node.add_child(geom)
 
-			var floor_w: float = 0.88
-			var floor_d: float = 0.50
-			var wall_h: float = 0.16
+				var floor_w: float = 0.88
+				var floor_d: float = 0.50
+				var wall_h: float = 0.16
 
-			var floor_mat := StandardMaterial3D.new()
-			floor_mat.albedo_color = Color(0.14, 0.22, 0.18)
-			var wall_mat := StandardMaterial3D.new()
-			wall_mat.albedo_color = Color(0.58, 0.42, 0.26)
-			var brass_mat := StandardMaterial3D.new()
-			brass_mat.albedo_color = Color(0.86, 0.72, 0.28)
-			brass_mat.metallic = 0.65
+				var floor_mat := StandardMaterial3D.new()
+				floor_mat.albedo_color = Color(0.14, 0.22, 0.18)
+				var wall_mat := StandardMaterial3D.new()
+				wall_mat.albedo_color = Color(0.58, 0.42, 0.26)
+				var brass_mat := StandardMaterial3D.new()
+				brass_mat.albedo_color = Color(0.86, 0.72, 0.28)
+				brass_mat.metallic = 0.65
 
-			var floor_mi := MeshInstance3D.new()
-			var floor_box := BoxMesh.new()
-			floor_box.size = Vector3(floor_w, 0.02, floor_d)
-			floor_mi.mesh = floor_box
-			floor_mi.material_override = floor_mat
-			floor_mi.position = Vector3(0.0, -0.07, 0.0)
-			geom.add_child(floor_mi)
+				var floor_mi := MeshInstance3D.new()
+				var floor_box := BoxMesh.new()
+				floor_box.size = Vector3(floor_w, 0.02, floor_d)
+				floor_mi.mesh = floor_box
+				floor_mi.material_override = floor_mat
+				floor_mi.position = Vector3(0.0, -0.07, 0.0)
+				geom.add_child(floor_mi)
 
-			var side_box := BoxMesh.new()
-			side_box.size = Vector3(0.03, wall_h, floor_d + 0.02)
-			for side_sign in [-1.0, 1.0]:
-				var s_mi := MeshInstance3D.new()
-				s_mi.mesh = side_box
-				s_mi.material_override = wall_mat
-				s_mi.position = Vector3(side_sign * (floor_w * 0.5), 0.0, 0.0)
-				geom.add_child(s_mi)
+				var side_box := BoxMesh.new()
+				side_box.size = Vector3(0.03, wall_h, floor_d + 0.02)
+				for side_sign in [-1.0, 1.0]:
+					var s_mi := MeshInstance3D.new()
+					s_mi.mesh = side_box
+					s_mi.material_override = wall_mat
+					s_mi.position = Vector3(side_sign * (floor_w * 0.5), 0.0, 0.0)
+					geom.add_child(s_mi)
 
-			var back_mi := MeshInstance3D.new()
-			var back_box := BoxMesh.new()
-			back_box.size = Vector3(floor_w + 0.03, wall_h, 0.03)
-			back_mi.mesh = back_box
-			back_mi.material_override = wall_mat
-			back_mi.position = Vector3(0.0, 0.0, -floor_d * 0.5)
-			geom.add_child(back_mi)
+				var back_mi := MeshInstance3D.new()
+				var back_box := BoxMesh.new()
+				back_box.size = Vector3(floor_w + 0.03, wall_h, 0.03)
+				back_mi.mesh = back_box
+				back_mi.material_override = wall_mat
+				back_mi.position = Vector3(0.0, 0.0, -floor_d * 0.5)
+				geom.add_child(back_mi)
 
-			var front_mi := MeshInstance3D.new()
-			var front_box := BoxMesh.new()
-			front_box.size = Vector3(floor_w + 0.06, wall_h + 0.02, 0.03)
-			front_mi.mesh = front_box
-			front_mi.material_override = wall_mat
-			front_mi.position = Vector3(0.0, 0.0, floor_d * 0.5)
-			geom.add_child(front_mi)
+				var front_mi := MeshInstance3D.new()
+				var front_box := BoxMesh.new()
+				front_box.size = Vector3(floor_w + 0.06, wall_h + 0.02, 0.03)
+				front_mi.mesh = front_box
+				front_mi.material_override = wall_mat
+				front_mi.position = Vector3(0.0, 0.0, floor_d * 0.5)
+				geom.add_child(front_mi)
 
-			var handle_mi := MeshInstance3D.new()
-			var handle_box := BoxMesh.new()
-			handle_box.size = Vector3(0.22, 0.03, 0.03)
-			handle_mi.mesh = handle_box
-			handle_mi.material_override = brass_mat
-			handle_mi.position = Vector3(0.0, 0.01, floor_d * 0.5 + 0.025)
-			geom.add_child(handle_mi)
+				var handle_mi := MeshInstance3D.new()
+				var handle_box := BoxMesh.new()
+				handle_box.size = Vector3(0.22, 0.03, 0.03)
+				handle_mi.mesh = handle_box
+				handle_mi.material_override = brass_mat
+				handle_mi.position = Vector3(0.0, 0.01, floor_d * 0.5 + 0.025)
+				geom.add_child(handle_mi)
 
-			var light := OmniLight3D.new()
-			light.name = "DrawerInteriorLight"
-			light.position = Vector3(0.0, 0.55, 0.0)
-			light.omni_range = 1.6
-			light.light_energy = 0.85
-			_tray_drawer_node.add_child(light)
+			if _tray_drawer_node.get_node_or_null("DrawerInteriorLight") == null:
+				var light := OmniLight3D.new()
+				light.name = "DrawerInteriorLight"
+				light.position = Vector3(tray_local_center_xz.x, 0.55, tray_local_center_xz.y)
+				light.omni_range = 1.6
+				light.light_energy = 0.85
+				_tray_drawer_node.add_child(light)
 
 	_contents_root = _tray_drawer_node.get_node_or_null("ContentsRoot") as Node3D
 	if _contents_root == null:
@@ -1866,22 +1886,31 @@ func _ensure_3d_tray_structure() -> void:
 		_apply_briefcase_lid_ratio(drawer_visual_ratio)
 
 
-func _get_stored_item_tray_layout(item_id: String) -> Dictionary:
+func _get_stored_item_tray_layout(item_id: String, for_briefcase: bool = false) -> Dictionary:
+	# Drawers match 1:1 ground XZ footprint while flattening only vertical Y <= ~0.04m
+	# so items rest cleanly under the 3 clutter strata in top-down search view.
+	var s: float = 0.62 if for_briefcase else 1.0
 	match item_id.to_upper():
 		"KEY":
-			return {"scale": Vector3(0.70, 0.25, 0.55), "size": Vector3(0.126, 0.015, 0.165)}
+			return {"scale": Vector3(s, s, s), "size": Vector3(0.266, 0.020, 0.093) * s, "rot": Vector3(0.0, PI * 0.5, 0.0)}
 		"MONEY":
-			return {"scale": Vector3(0.50, 0.06, 0.50), "size": Vector3(0.160, 0.017, 0.160)}
+			return {"scale": Vector3(0.30, s, s), "size": Vector3(0.209 * s, 0.039, 0.160 * s), "rot": Vector3(0.0, 0.0, PI * 0.5)}
 		"PASSPORT":
-			return {"scale": Vector3(0.72, 0.38, 0.72), "size": Vector3(0.130, 0.015, 0.173)}
+			return {"scale": Vector3(s, s, s), "size": Vector3(0.142, 0.014, 0.228) * s, "rot": Vector3.ZERO}
 		"PLANS":
-			return {"scale": Vector3(0.16, 0.55, 0.55), "size": Vector3(0.198, 0.016, 0.055)}
+			return {"scale": Vector3(s, s, s), "size": Vector3(0.251, 0.012, 0.202) * s, "rot": Vector3.ZERO}
 		"BUCKET":
-			return {"scale": Vector3(0.45, 0.06, 0.45), "size": Vector3(0.144, 0.017, 0.144)}
+			return {"scale": Vector3(0.95 * s, 0.95 * s, 0.14), "size": Vector3(0.281 * s, 0.040, 0.295 * s), "rot": Vector3(PI * 0.5, 0.0, 0.0)}
 		"BOMB", "LIVE_BOMB":
-			return {"scale": Vector3(0.50, 0.06, 0.50), "size": Vector3(0.140, 0.017, 0.140)}
+			return {"scale": Vector3(0.92 * s, 0.92 * s, 0.20), "size": Vector3(0.175 * s, 0.040, 0.267 * s), "rot": Vector3(-PI * 0.5, 0.0, 0.0)}
+		"TRIPWIRE":
+			return {"scale": Vector3(s, s, s), "size": Vector3(0.081 * s, 0.018, 0.211 * s), "rot": Vector3(PI * 0.5, 0.0, 0.0)}
+		"DART_GUN":
+			return {"scale": Vector3(0.60, s, s), "size": Vector3(0.212 * s, 0.036, 0.353 * s), "rot": Vector3(0.0, 0.0, PI * 0.5)}
+		"SPRING":
+			return {"scale": Vector3(s, s, 0.25), "size": Vector3(0.148 * s, 0.037, 0.202 * s), "rot": Vector3(PI * 0.5, 0.0, 0.0)}
 		_:
-			return {"scale": Vector3(0.72, 0.11, 0.72), "size": Vector3(0.158, 0.016, 0.158)}
+			return {"scale": Vector3(0.72 * s, 0.11, 0.72 * s), "size": Vector3(0.158 * s, 0.016, 0.158 * s), "rot": Vector3.ZERO}
 
 
 func pick_drawer_object_at_ray(ray_origin: Vector3, ray_dir: Vector3) -> Dictionary:
@@ -1911,7 +1940,8 @@ func pick_drawer_object_at_ray(ray_origin: Vector3, ray_dir: Vector3) -> Diction
 		if not (local_hit is Vector3):
 			continue
 		var world_hit: Vector3 = area.global_transform * (local_hit as Vector3)
-		if not is_briefcase_container and to_local(world_hit).z < (0.31 if role == "lip_spring" else 0.34):
+		var pick_z_limit: float = (min_pick_local_z - 0.03) if role == "lip_spring" else min_pick_local_z
+		if not is_briefcase_container and to_local(world_hit).z < pick_z_limit:
 			continue
 		var dist_sq: float = ray_origin.distance_squared_to(world_hit)
 		if dist_sq < best_dist_sq:
@@ -1938,7 +1968,6 @@ func _rebuild_3d_interior() -> void:
 		child.queue_free()
 
 	var drawer_scale: float = _get_drawer_mesh_scale()
-	var scale_mult: float = 1.0 if is_briefcase_container else drawer_scale
 
 	# 1. Front-Inside Lip Spring Trap (Both Drawers AND Briefcases!)
 	if armed_spring or spring_unlatched or staged_spring_on_lip:
@@ -1946,9 +1975,9 @@ func _rebuild_3d_interior() -> void:
 		lip_area.name = "LipSpringTrap"
 		lip_area.collision_layer = DRAWER_CONTENTS_MASK
 		lip_area.collision_mask = 0
-		lip_area.position = Vector3(0.0, 0.010, 0.145) if is_briefcase_container else Vector3(0.0, 0.055, 0.19)
+		lip_area.position = Vector3(0.0, 0.010, 0.145) if is_briefcase_container else lip_spring_local_pos
 		lip_area.set_meta("container_role", "lip_spring")
-		var lip_size := Vector3(0.20, 0.055, 0.080) if is_briefcase_container else Vector3(0.242, 0.059, 0.092) * drawer_scale
+		var lip_size := Vector3(0.14, 0.10, 0.14) if is_briefcase_container else Vector3(0.16, 0.16, 0.20)
 		lip_area.set_meta("exact_aabb", AABB(-lip_size * 0.5, lip_size))
 
 		var lip_col := CollisionShape3D.new()
@@ -1957,17 +1986,27 @@ func _rebuild_3d_interior() -> void:
 		lip_col.shape = lip_shape
 		lip_area.add_child(lip_col)
 
-		var spring_mesh := PICKUP_SCRIPT.build_item_mesh("SPRING")
-		spring_mesh.scale = Vector3(0.88, 0.38, 0.36) if is_briefcase_container else Vector3(1.10, 0.42, 0.42) * drawer_scale
-		var mat: StandardMaterial3D = spring_mesh.material_override as StandardMaterial3D
-		if mat != null:
-			if armed_spring:
-				mat.albedo_color = Color(0.95, 0.18, 0.18)
-			elif spring_unlatched:
-				mat.albedo_color = Color(0.22, 0.82, 0.72)
-			else:
-				mat.albedo_color = Color(0.95, 0.65, 0.18)
-		lip_area.add_child(spring_mesh)
+		var spring_visual: Node3D = PICKUP_SCRIPT.build_item_visual("SPRING")
+		var lip_scale: float = 0.52 if is_briefcase_container else 0.85
+		spring_visual.scale = Vector3(lip_scale, lip_scale, lip_scale)
+		spring_visual.rotation.x = PI * 0.5
+		var state_color := Color(0.95, 0.65, 0.18)
+		if armed_spring:
+			state_color = Color(0.95, 0.18, 0.18)
+		elif spring_unlatched:
+			state_color = Color(0.22, 0.82, 0.72)
+		for child_mi in spring_visual.find_children("*", "MeshInstance3D", true, false):
+			var mesh_node := child_mi as MeshInstance3D
+			var src_mat: Material = mesh_node.material_override
+			if src_mat == null and mesh_node.mesh != null and mesh_node.mesh.get_surface_count() > 0:
+				src_mat = mesh_node.mesh.surface_get_material(0)
+			var tint_mat: StandardMaterial3D = (src_mat.duplicate() as StandardMaterial3D) if src_mat is StandardMaterial3D else StandardMaterial3D.new()
+			tint_mat.albedo_color = state_color.lerp(Color.WHITE, 0.25)
+			tint_mat.emission_enabled = true
+			tint_mat.emission = state_color
+			tint_mat.emission_energy_multiplier = 0.55
+			mesh_node.material_override = tint_mat
+		lip_area.add_child(spring_visual)
 		_contents_root.add_child(lip_area)
 
 	# 2. Lit or Planted Time Bomb in Tray (Layer 0 in Briefcase & below clutter in Drawers)
@@ -1984,7 +2023,7 @@ func _rebuild_3d_interior() -> void:
 			bomb_area.position = Vector3(d_bxz.x, -0.048, d_bxz.y)
 		bomb_area.set_meta("container_role", "lit_bomb" if live_bomb_lit else "planted_bomb")
 		bomb_area.set_meta("base_y", bomb_area.position.y)
-		var bomb_size := Vector3(0.14, 0.018, 0.14) if is_briefcase_container else Vector3(0.16, 0.034, 0.16) * drawer_scale
+		var bomb_size := Vector3(0.13, 0.026, 0.16) if is_briefcase_container else Vector3(0.18, 0.042, 0.24)
 		bomb_area.set_meta("exact_aabb", AABB(-bomb_size * 0.5, bomb_size))
 
 		var bomb_col := CollisionShape3D.new()
@@ -1993,16 +2032,18 @@ func _rebuild_3d_interior() -> void:
 		bomb_col.shape = bomb_shape
 		bomb_area.add_child(bomb_col)
 
-		var bomb_mesh := PICKUP_SCRIPT.build_item_mesh("LIVE_BOMB" if live_bomb_lit else "BOMB")
-		bomb_mesh.scale = Vector3(0.48, 0.06, 0.48) if is_briefcase_container else Vector3(0.55, 0.12, 0.55) * drawer_scale
-		bomb_area.add_child(bomb_mesh)
+		var bomb_visual: Node3D = PICKUP_SCRIPT.build_item_visual("LIVE_BOMB" if live_bomb_lit else "BOMB")
+		var b_s: float = 0.56 if is_briefcase_container else 0.92
+		bomb_visual.scale = Vector3(b_s, b_s, 0.18 if is_briefcase_container else 0.20)
+		bomb_visual.rotation.x = -PI * 0.5
+		bomb_area.add_child(bomb_visual)
 		_contents_root.add_child(bomb_area)
 
-	# 3. Stored Objectives & Gadgets — Freeform XZ + Disjoint Vertical Layers (0.70x in Drawers)
+	# 3. Stored Objectives & Gadgets — Freeform XZ + Disjoint Vertical Layers
 	for i in range(stored_items.size()):
 		var item_id: String = str(stored_items[i]).to_upper()
 		var xz := Vector2.ZERO
-		var item_y: float = -0.053 + float(i) * 0.012
+		var item_y: float = -0.049 + float(i) * 0.005
 		if is_briefcase_container:
 			var fallback_norm: Vector2 = BRIEFCASE_BUILDER.DEFAULT_ITEM_NORM_POSITIONS[i % BRIEFCASE_BUILDER.DEFAULT_ITEM_NORM_POSITIONS.size()]
 			var norm_pos: Vector2 = item_positions.get(item_id, fallback_norm) as Vector2
@@ -2012,8 +2053,8 @@ func _rebuild_3d_interior() -> void:
 			var fallback_drawer_norm: Vector2 = ITEM_TRAY_POSITIONS[i % ITEM_TRAY_POSITIONS.size()]
 			var drawer_norm: Vector2 = item_positions.get(item_id, fallback_drawer_norm) as Vector2
 			xz = norm_to_tray_local_xz(drawer_norm)
-		var layout: Dictionary = _get_stored_item_tray_layout(item_id)
-		var exact_size: Vector3 = (layout["size"] as Vector3) * scale_mult
+		var layout: Dictionary = _get_stored_item_tray_layout(item_id, is_briefcase_container)
+		var exact_size: Vector3 = layout["size"] as Vector3
 
 		var item_area := Area3D.new()
 		item_area.name = "TrayItem_%d_%s" % [i, item_id]
@@ -2031,14 +2072,13 @@ func _rebuild_3d_interior() -> void:
 		item_col.shape = item_shape
 		item_area.add_child(item_col)
 
-		var item_mesh := PICKUP_SCRIPT.build_item_mesh(item_id)
-		item_mesh.scale = (layout["scale"] as Vector3) * scale_mult
-		item_area.add_child(item_mesh)
+		var item_visual: Node3D = PICKUP_SCRIPT.build_item_visual(item_id)
+		item_visual.scale = layout["scale"] as Vector3
+		item_visual.rotation = layout.get("rot", Vector3.ZERO) as Vector3
+		item_area.add_child(item_visual)
 		if PICKUP_SCRIPT.is_objective_item(item_id) or PICKUP_SCRIPT.is_briefcase_item(item_id):
 			var glint: CPUParticles3D = PICKUP_SCRIPT.create_objective_glint_particles(true)
-			if not is_briefcase_container:
-				glint.emission_box_extents *= drawer_scale
-			glint.position = Vector3(0.0, 0.007, 0.0)
+			glint.position = Vector3(0.0, 0.012, 0.0)
 			item_area.add_child(glint)
 		_contents_root.add_child(item_area)
 

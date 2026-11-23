@@ -328,10 +328,26 @@ func populate_level(
 		var typed_items: Array[String] = []
 		for entry in (drawer_loot[i] as Array):
 			typed_items.append(str(entry))
-		drawer.set("stored_items", typed_items)
-		drawer.set("armed_spring", false)
-		drawer.set("armed_bomb", false)
-		drawer.set("container_seed", int(manifest["seed"]) + i * 31)
+		var left_seed: int = int(manifest["seed"]) + i * 31
+		var right_drawer: Node = drawer.get_node_or_null("RightUpperDrawer")
+		if right_drawer != null:
+			var empty_items: Array[String] = []
+			var put_in_left: bool = (rng.randi() % 2) == 0
+			drawer.set("container_id", "Left Drawer")
+			drawer.set("stored_items", typed_items if put_in_left else empty_items)
+			drawer.set("armed_spring", false)
+			drawer.set("armed_bomb", false)
+			drawer.set("container_seed", left_seed)
+			right_drawer.set("container_id", "Right Drawer")
+			right_drawer.set("stored_items", empty_items if put_in_left else typed_items)
+			right_drawer.set("armed_spring", false)
+			right_drawer.set("armed_bomb", false)
+			right_drawer.set("container_seed", left_seed + 17)
+		else:
+			drawer.set("stored_items", typed_items)
+			drawer.set("armed_spring", false)
+			drawer.set("armed_bomb", false)
+			drawer.set("container_seed", left_seed)
 		spawn_root.add_child(drawer)
 		if drawer is Node3D and marker.is_inside_tree():
 			(drawer as Node3D).global_transform = _compute_inward_facing_drawer_transform(marker)

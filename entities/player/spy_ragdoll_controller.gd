@@ -41,7 +41,7 @@ var _head_eye_bone_local: Transform3D = Transform3D.IDENTITY
 var _pending_impulse: Vector3 = Vector3.ZERO
 var _pending_reason: String = ""
 var _pending_impulse_frames: int = 0
-var _bucket_head_mount: MeshInstance3D = null
+var _bucket_head_mount: Node3D = null
 var _bucket_on_head_active: bool = false
 
 
@@ -179,7 +179,14 @@ func _apply_first_person_visibility_mode() -> void:
 		keep_alive.layers = body_visual_layer
 		keep_alive.visible = is_first_person_local
 	if _bucket_head_mount != null and is_instance_valid(_bucket_head_mount):
-		_bucket_head_mount.layers = body_visual_layer
+		_set_visual_layer_recursive(_bucket_head_mount, body_visual_layer)
+
+
+func _set_visual_layer_recursive(node: Node, layer_mask: int) -> void:
+	if node is VisualInstance3D:
+		(node as VisualInstance3D).layers = layer_mask
+	for child in node.get_children():
+		_set_visual_layer_recursive(child, layer_mask)
 
 
 func set_bucket_on_head(active: bool) -> void:
@@ -207,15 +214,15 @@ func _ensure_bucket_head_mount() -> void:
 		head_anchor.name = "HeadAnchor"
 		head_anchor.transform = _head_eye_bone_local
 		attach.add_child(head_anchor)
-	_bucket_head_mount = head_anchor.get_node_or_null("BucketHeadMount") as MeshInstance3D
+	_bucket_head_mount = head_anchor.get_node_or_null("BucketHeadMount") as Node3D
 	if _bucket_head_mount == null:
 		const PICKUP_SCRIPT = preload("res://entities/props/world_item_pickup.gd")
-		_bucket_head_mount = PICKUP_SCRIPT.build_item_mesh("BUCKET")
+		_bucket_head_mount = PICKUP_SCRIPT.build_item_visual("BUCKET")
 		_bucket_head_mount.name = "BucketHeadMount"
 		_bucket_head_mount.scale = Vector3(1.35, 1.10, 1.35)
 		_bucket_head_mount.position = Vector3(0.0, 0.08, 0.0)
 		_bucket_head_mount.rotation = Vector3(0.0, 0.0, PI)
-		_bucket_head_mount.layers = body_visual_layer
+		_set_visual_layer_recursive(_bucket_head_mount, body_visual_layer)
 		_bucket_head_mount.visible = _bucket_on_head_active
 		head_anchor.add_child(_bucket_head_mount)
 

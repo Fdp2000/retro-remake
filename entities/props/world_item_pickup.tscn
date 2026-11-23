@@ -14,5 +14,5 @@ script = ExtResource("1_pickup")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.18, 0)
 shape = SubResource("BoxShape3D_pickup")
 
-[node name="VisualMesh" type="MeshInstance3D" parent="."]
+[node name="VisualRoot" type="Node3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.18, 0)
