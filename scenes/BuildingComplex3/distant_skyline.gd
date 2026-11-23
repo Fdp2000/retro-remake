@@ -12,6 +12,7 @@ const WALL_TEXTURES: Array[Texture2D] = [
 ]
 const ORIGIN := Vector3(0.0, -24.0, -4.5)
 const TOWER_DROP := 25.0
+const BELOW_MIST_EXTENSION := 160.0
 const SKYLINE_SEED := 8027
 const ROOF_COLOR := Color("#657885")
 const HAZE_COLOR := Color("#9cabb6")
@@ -62,7 +63,7 @@ func _add_ring(rng: RandomNumberGenerator, box: BoxMesh, tower_count: int, dista
 		if index % 11 == 2:
 			height += 24.0
 		var facade := rng.randi_range(0, WALL_TEXTURES.size() - 1)
-		towers[facade].append(_box_at(center, Vector3(width, height, depth)))
+		towers[facade].append(_box_at(center + Vector3.DOWN * BELOW_MIST_EXTENSION, Vector3(width, height + BELOW_MIST_EXTENSION, depth)))
 		if index % 4 != 1:
 			var setback_height := rng.randf_range(7.0, 17.0)
 			towers[facade].append(_box_at(center + Vector3.UP * height, Vector3(width * 0.69, setback_height, depth * 0.72)))

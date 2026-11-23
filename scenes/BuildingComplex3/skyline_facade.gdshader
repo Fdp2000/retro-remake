@@ -6,6 +6,7 @@ uniform float haze_amount = 0.38;
 uniform bool has_windows = true;
 uniform vec3 cloud_mist : source_color;
 uniform float cloud_level = -24.0;
+uniform vec3 near_mist : source_color = vec3(0.76, 0.83, 0.89);
 
 varying vec3 facade_position;
 varying vec3 facade_normal;
@@ -33,7 +34,10 @@ void fragment() {
 	float fog_top = cloud_level + 28.0 + sin(across * 0.11) * 3.2;
 	float cloud_cover = 1.0 - smoothstep(cloud_level + 2.0, fog_top, facade_position.y);
 	ALBEDO = distant_color * 0.72 * (1.0 - cloud_cover);
-	EMISSION = mix(distant_color * 0.24, cloud_mist, cloud_cover);
+	float mist_distance = distance(facade_position.xz, CAMERA_POSITION_WORLD.xz);
+	float mist_depth = smoothstep(24.0, 215.0, mist_distance);
+	vec3 base_mist = mix(near_mist, cloud_mist, mist_depth);
+	EMISSION = mix(distant_color * 0.24, base_mist, cloud_cover);
 	ROUGHNESS = 0.92;
 	SPECULAR = 0.1;
 }
