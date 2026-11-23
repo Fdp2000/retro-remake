@@ -53,6 +53,42 @@ static func get_remote_spy_visual_layer(slot_index: int) -> int:
 	return 1 << (VISUAL_LAYER_REMOTE_SPY_BASE_BIT + posmod(slot_index, VISUAL_LAYER_REMOTE_SPY_SLOTS))
 
 # ==========================================
+# 4-Player Free-For-All Spy Role Definitions (Slots 1..4)
+# ==========================================
+const SPY_ROLE_NAMES: Dictionary = {
+	1: "SPY GREEN",
+	2: "SPY PURPLE",
+	3: "SPY BLUE",
+	4: "SPY RED"
+}
+
+const SPY_ROLE_COLORS: Dictionary = {
+	1: Color(0.22, 0.68, 0.32, 1.0),
+	2: Color(0.52, 0.24, 0.76, 1.0),
+	3: Color(0.20, 0.48, 0.88, 1.0),
+	4: Color(0.84, 0.22, 0.24, 1.0)
+}
+
+const SPY_ROLE_BADGE_COLORS: Dictionary = {
+	1: Color(0.45, 0.95, 0.55, 1.0),
+	2: Color(0.78, 0.55, 1.00, 1.0),
+	3: Color(0.45, 0.75, 1.00, 1.0),
+	4: Color(1.00, 0.48, 0.48, 1.0)
+}
+
+
+static func get_spy_role_name(role: int) -> String:
+	return str(SPY_ROLE_NAMES.get(role, "SPY %d" % role))
+
+
+static func get_spy_role_color(role: int) -> Color:
+	return SPY_ROLE_COLORS.get(role, Color(0.92, 0.92, 0.92, 1.0)) as Color
+
+
+static func get_spy_role_badge_color(role: int) -> Color:
+	return SPY_ROLE_BADGE_COLORS.get(role, Color(0.92, 0.92, 0.92, 1.0)) as Color
+
+# ==========================================
 # Mouse Sensitivity & Per-User DPI Normalization
 # ==========================================
 @export_group("Mouse & Look Controls")

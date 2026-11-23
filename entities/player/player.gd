@@ -5,7 +5,11 @@ extends CharacterBody3D
 
 enum SpyRole {
 	SPY_WHITE = 1,
-	SPY_BLACK = 2
+	SPY_BLACK = 2,
+	SPY_GREEN = 1,
+	SPY_PURPLE = 2,
+	SPY_BLUE = 3,
+	SPY_RED = 4
 }
 
 const INTERACTIVE_LADDER := preload("res://scenes/BuildingComplex3/interactive_ladder.gd")
@@ -34,7 +38,7 @@ const PELVIS_SYNC_INTERVAL: float = 0.20
 # ==========================================
 # Replicated Properties (MultiplayerSynchronizer — Client Locomotion/Stance Authority)
 # ==========================================
-@export var spy_role: int = 1:
+@export var spy_role: int = 0:
 	set(value):
 		spy_role = value
 		_update_mesh_color()
@@ -236,7 +240,12 @@ var _drop_counter: int = 0
 func _enter_tree() -> void:
 	add_to_group("spy_players")
 	if name.is_valid_int():
-		spy_role = SpyRole.SPY_WHITE if name.to_int() == 1 else SpyRole.SPY_BLACK
+		var pid: int = name.to_int()
+		var assigned_role: int = MatchManager.get_peer_role(pid) if (MatchManager != null and MatchManager.has_method("get_peer_role")) else 0
+		if assigned_role > 0:
+			spy_role = assigned_role
+		elif spy_role <= 0:
+			spy_role = SpyRole.SPY_GREEN if pid == 1 else SpyRole.SPY_PURPLE
 	if Engine.is_editor_hint():
 		return
 	set_multiplayer_authority(name.to_int())
@@ -1294,7 +1303,7 @@ func apply_clock_elimination() -> Array[Dictionary]:
 		if stance_label != null:
 			stance_label.text = "ELIMINATED (00:00)"
 		if prompt_label != null:
-			prompt_label.text = "CLOCK EXPIRED — ELIMINATED! Waiting for rival..."
+			prompt_label.text = "CLOCK EXPIRED — ELIMINATED! Waiting for remaining spies..."
 			prompt_label.visible = true
 		if clock_label != null:
 			clock_label.text = "CLOCK: 00:00 [OUT]"
@@ -2340,7 +2349,10 @@ func _update_mesh_color() -> void:
 		return
 	if mesh_instance != null:
 		var mat := StandardMaterial3D.new()
-		mat.albedo_color = COLOR_SPY_BLACK if spy_role == SpyRole.SPY_BLACK else COLOR_SPY_WHITE
+		if GameConfig != null:
+			mat.albedo_color = GameConfig.get_spy_role_color(spy_role)
+		else:
+			mat.albedo_color = COLOR_SPY_BLACK if spy_role == SpyRole.SPY_BLACK else COLOR_SPY_WHITE
 		mesh_instance.material_override = mat
 	_ensure_ragdoll_controller()
 	if _ragdoll_ctrl != null:

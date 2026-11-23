@@ -7,6 +7,8 @@ extends Node3D
 
 const AGENT_GREEN_SCENE: PackedScene = preload("res://Assets/Prefabs_Agents/AgentGreen.tscn")
 const AGENT_PURPLE_SCENE: PackedScene = preload("res://Assets/Prefabs_Agents/AgentPurple.tscn")
+const AGENT_BLUE_SCENE: PackedScene = preload("res://Assets/Prefabs_Agents/AgentBlue.tscn")
+const AGENT_RED_SCENE: PackedScene = preload("res://Assets/Prefabs_Agents/AgentRed.tscn")
 
 # Continuous 13-bone ragdoll chain (no missing intermediate spine links, and leg capsules sized cleanly above y=0 floor)
 const RAGDOLL_BONE_DEFS: Array[Dictionary] = [
@@ -78,7 +80,18 @@ func setup_for_role(role: int, local_first_person: bool = false) -> void:
 		_bucket_head_mount = null
 		physical_bones.clear()
 
-	var packed: PackedScene = AGENT_PURPLE_SCENE if role == 2 else AGENT_GREEN_SCENE
+	var packed: PackedScene = AGENT_GREEN_SCENE
+	match role:
+		1:
+			packed = AGENT_GREEN_SCENE
+		2:
+			packed = AGENT_PURPLE_SCENE
+		3:
+			packed = AGENT_BLUE_SCENE
+		4:
+			packed = AGENT_RED_SCENE
+		_:
+			packed = AGENT_GREEN_SCENE
 	if packed == null:
 		return
 

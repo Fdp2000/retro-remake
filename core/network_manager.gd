@@ -23,14 +23,15 @@ signal p2p_diagnostic_logged(network_type_str: String, is_relay: bool)
 
 const PORT: int = 8910
 const SOCKET_NAME: String = "SpyVsSpySocket"
-const MAX_PLAYERS: int = 2
+const MIN_PLAYERS: int = 2
+const MAX_PLAYERS: int = 4
 const DEFAULT_ENET_HOST: String = "127.0.0.1"
 
 var current_mode: NetworkMode = NetworkMode.EOS_P2P
 var current_relay_mode: RelayControlMode = RelayControlMode.ALLOW_RELAYS
 var peer: MultiplayerPeer = null
 var last_p2p_network_type: String = "NONE"
-var _interrupted_timer: SceneTreeTimer = null
+var _interrupted_timers: Dictionary = {} # remote_user_id (String) -> SceneTreeTimer
 
 
 func _ready() -> void:
@@ -99,7 +100,7 @@ func start_host() -> Error:
 
 	if current_mode == NetworkMode.ENET_LOCAL:
 		var enet_peer := ENetMultiplayerPeer.new()
-		var err = enet_peer.create_server(PORT, MAX_PLAYERS)
+		var err = enet_peer.create_server(PORT, MAX_PLAYERS - 1)
 		if err != OK:
 			push_error("NetworkManager: Failed to create ENet server on port %d: %s" % [PORT, error_string(err)])
 			return err as Error
@@ -179,9 +180,21 @@ func _connect_eos_peer_diagnostics(eos_peer: EOSGMultiplayerPeer) -> void:
 	eos_peer.peer_connection_closed.connect(_on_eos_peer_connection_closed)
 
 
+func _resolve_eos_peer_id(remote_user_id: String) -> int:
+	if peer == null or remote_user_id.is_empty():
+		return 0
+	if peer.has_method("get_peer_id"):
+		return int(peer.call("get_peer_id", remote_user_id))
+	if peer.has_method("get_peer_user_id") and multiplayer != null and multiplayer.has_multiplayer_peer():
+		for pid in multiplayer.get_peers():
+			if str(peer.call("get_peer_user_id", int(pid))) == remote_user_id:
+				return int(pid)
+	return 0
+
+
 func _on_eos_peer_connection_established(data: Dictionary) -> void:
-	_interrupted_timer = null
 	var remote_user_id: String = str(data.get("remote_user_id", ""))
+	_interrupted_timers.erase(remote_user_id)
 	var net_type: int = int(data.get("network_type", -1))
 	var type_str: String = "UNKNOWN"
 	var is_relay: bool = false
@@ -211,23 +224,28 @@ func _on_eos_peer_connection_interrupted(data: Dictionary) -> void:
 	print("NetworkManager: Connection interrupted with peer %s" % remote_user_id)
 
 	# Start a 3-second watchdog timer in case peer abruptly terminated
-	if _interrupted_timer == null:
-		_interrupted_timer = get_tree().create_timer(3.0)
-		_interrupted_timer.timeout.connect(func():
-			_interrupted_timer = null
+	if not _interrupted_timers.has(remote_user_id):
+		var timer: SceneTreeTimer = get_tree().create_timer(3.0)
+		_interrupted_timers[remote_user_id] = timer
+		timer.timeout.connect(func():
+			if _interrupted_timers.get(remote_user_id) != timer:
+				return
+			_interrupted_timers.erase(remote_user_id)
 			if peer != null and not is_host():
 				print("NetworkManager: Host connection interruption timed out. Triggering server_disconnected.")
 				_cleanup_peer(true)
 				server_disconnected.emit()
 			elif peer != null and is_host():
-				print("NetworkManager: Client connection interruption timed out. Triggering player_disconnected.")
-				player_disconnected.emit(2)
+				var resolved_pid: int = _resolve_eos_peer_id(remote_user_id)
+				print("NetworkManager: Client connection interruption timed out for %s (peer %d)." % [remote_user_id, resolved_pid])
+				if resolved_pid > 1:
+					player_disconnected.emit(resolved_pid)
 		)
 
 
 func _on_eos_peer_connection_closed(data: Dictionary) -> void:
-	_interrupted_timer = null
 	var remote_user_id: String = str(data.get("remote_user_id", ""))
+	_interrupted_timers.erase(remote_user_id)
 	var reason: String = str(data.get("reason", ""))
 	print("NetworkManager: Connection closed with peer %s (reason: %s)" % [remote_user_id, reason])
 
@@ -236,8 +254,10 @@ func _on_eos_peer_connection_closed(data: Dictionary) -> void:
 		_cleanup_peer(true)
 		server_disconnected.emit()
 	else:
-		print("NetworkManager: Client peer connection was closed. Triggering player_disconnected.")
-		player_disconnected.emit(2)
+		var resolved_pid: int = _resolve_eos_peer_id(remote_user_id)
+		print("NetworkManager: Client peer connection was closed for %s (peer %d)." % [remote_user_id, resolved_pid])
+		if resolved_pid > 1:
+			player_disconnected.emit(resolved_pid)
 
 
 func disconnect_session() -> void:
@@ -245,6 +265,7 @@ func disconnect_session() -> void:
 
 
 func _cleanup_peer(clean_session: bool = true) -> void:
+	_interrupted_timers.clear()
 	if peer != null:
 		peer.close()
 		peer = null

@@ -1,0 +1,24 @@
+[gd_scene format=3]
+
+[ext_resource type="PackedScene" uid="uid://o0fgut2ti0ea" path="res://Assets/Models/Agents/Agent.glb" id="1_jh770"]
+[ext_resource type="Texture2D" uid="uid://4dn3u4xglt7b" path="res://Assets/Models/Agents/Texture_RedAgent.png" id="2_red"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_red_body"]
+albedo_texture = ExtResource("2_red")
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_red_eyes"]
+albedo_texture = ExtResource("2_red")
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_red_head"]
+albedo_texture = ExtResource("2_red")
+
+[node name="Agent" unique_id=1359979186 instance=ExtResource("1_jh770")]
+
+[node name="Body" parent="metarig/Skeleton3D" parent_id_path=PackedInt32Array(1336050409) index="0" unique_id=2059133222]
+material_override = SubResource("StandardMaterial3D_red_body")
+
+[node name="Eyes" parent="metarig/Skeleton3D" parent_id_path=PackedInt32Array(1336050409) index="1" unique_id=1194749203]
+material_override = SubResource("StandardMaterial3D_red_eyes")
+
+[node name="Head" parent="metarig/Skeleton3D" parent_id_path=PackedInt32Array(1336050409) index="2" unique_id=1700016798]
+material_override = SubResource("StandardMaterial3D_red_head")

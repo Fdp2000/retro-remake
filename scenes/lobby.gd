@@ -3,17 +3,16 @@ extends Control
 const TEST_GYM_SCENE_PATH: String = "res://scenes/test_gym.tscn"
 const SPAWNER_CHEATSHEET_UI_SCRIPT = preload("res://ui/spawner_cheatsheet_ui.gd")
 
-# State Dictionary (1 = Host/Spy White, 2 = Client/Spy Black)
-var lobby_state: Dictionary = {
-	1: {"role": 1, "ready": false, "name": "Host"},
-	2: {"role": 2, "ready": false, "name": "Waiting for opponent..."}
-}
+# State Dictionary: slot (1..4) -> {"slot": int, "role": int, "peer_id": int, "ready": bool, "name": String}
+var lobby_state: Dictionary = {}
 
 var _local_ready: bool = false
-var client_peer_id: int = 0
+var _auto_launch_scheduled: bool = false
+var _is_launching: bool = false
 var is_in_matchmaking_queue: bool = false
 var matchmaking_search_elapsed: float = 0.0
 var _spawner_cheatsheet_ui: Control = null
+var _slot_cards: Dictionary = {} # slot (1..4) -> {"card": PanelContainer, "title": Label, "swatch": ColorRect, "name": Label, "status": Label}
 
 # UI References
 @onready var matchmaking_container: PanelContainer = $MarginContainer/MatchmakingContainer
@@ -44,10 +43,7 @@ var _spawner_cheatsheet_ui: Control = null
 
 # Staging Controls
 @onready var header_label: Label = $MarginContainer/StagingContainer/HeaderLabel
-@onready var p1_name_label: Label = $MarginContainer/StagingContainer/CardsContainer/Player1Card/VBoxContainer/P1NameLabel
-@onready var p1_status_label: Label = $MarginContainer/StagingContainer/CardsContainer/Player1Card/VBoxContainer/P1StatusLabel
-@onready var p2_name_label: Label = $MarginContainer/StagingContainer/CardsContainer/Player2Card/VBoxContainer/P2NameLabel
-@onready var p2_status_label: Label = $MarginContainer/StagingContainer/CardsContainer/Player2Card/VBoxContainer/P2StatusLabel
+@onready var cards_container: HBoxContainer = $MarginContainer/StagingContainer/CardsContainer
 
 @onready var ready_button: Button = $MarginContainer/StagingContainer/ActionsContainer/ReadyButton
 @onready var start_button: Button = $MarginContainer/StagingContainer/ActionsContainer/StartButton
@@ -58,19 +54,8 @@ func _ready() -> void:
 	# Ensure mouse is visible in lobby
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
-	# Update Lobby Staging Card titles and swatches to Spy Green (Host) vs Spy Purple (Contender)
-	var p1_title_lbl: Label = get_node_or_null("MarginContainer/StagingContainer/CardsContainer/Player1Card/VBoxContainer/P1Title") as Label
-	var p1_swatch_rect: ColorRect = get_node_or_null("MarginContainer/StagingContainer/CardsContainer/Player1Card/VBoxContainer/CenterContainer/P1Swatch") as ColorRect
-	var p2_title_lbl: Label = get_node_or_null("MarginContainer/StagingContainer/CardsContainer/Player2Card/VBoxContainer/P2Title") as Label
-	var p2_swatch_rect: ColorRect = get_node_or_null("MarginContainer/StagingContainer/CardsContainer/Player2Card/VBoxContainer/CenterContainer/P2Swatch") as ColorRect
-	if p1_title_lbl != null:
-		p1_title_lbl.text = "SPY GREEN (HOST)"
-	if p1_swatch_rect != null:
-		p1_swatch_rect.color = Color(0.22, 0.68, 0.32, 1.0)
-	if p2_title_lbl != null:
-		p2_title_lbl.text = "SPY PURPLE (CONTENDER)"
-	if p2_swatch_rect != null:
-		p2_swatch_rect.color = Color(0.52, 0.24, 0.76, 1.0)
+	# Bind and style all 4 FFA spy staging cards (Green, Purple, Blue, Red)
+	_init_slot_cards()
 
 	# Attach per-user Mouse DPI & Sensitivity settings widget + Solo Full Match / Sandbox Gym buttons
 	var matchmaking_panel: VBoxContainer = get_node_or_null("MarginContainer/MatchmakingContainer/MatchmakingPanel")
@@ -188,8 +173,102 @@ func _process(delta: float) -> void:
 # UI Mode / View Visibility
 # ==========================================
 
+func _init_slot_cards() -> void:
+	_slot_cards.clear()
+	for slot in range(1, NetworkManager.MAX_PLAYERS + 1):
+		var card := cards_container.get_node_or_null("Player%dCard" % slot) as PanelContainer
+		if card == null:
+			continue
+		var vbox := card.get_node_or_null("VBoxContainer")
+		if vbox == null:
+			continue
+		var title_lbl := vbox.get_node_or_null("P%dTitle" % slot) as Label
+		var swatch_rect := vbox.get_node_or_null("CenterContainer/P%dSwatch" % slot) as ColorRect
+		var name_lbl := vbox.get_node_or_null("P%dNameLabel" % slot) as Label
+		var status_lbl := vbox.get_node_or_null("P%dStatusLabel" % slot) as Label
+		var role_name: String = GameConfig.get_spy_role_name(slot) if GameConfig != null else ("SPY %d" % slot)
+		if title_lbl != null:
+			title_lbl.text = ("%s (HOST)" % role_name) if slot == 1 else role_name
+		if swatch_rect != null and GameConfig != null:
+			swatch_rect.color = GameConfig.get_spy_role_color(slot)
+		_slot_cards[slot] = {
+			"card": card,
+			"title": title_lbl,
+			"swatch": swatch_rect,
+			"name": name_lbl,
+			"status": status_lbl
+		}
+
+
+func _build_default_lobby_state(host_name: String = "Host") -> Dictionary:
+	var state: Dictionary = {}
+	for slot in range(1, NetworkManager.MAX_PLAYERS + 1):
+		state[slot] = {
+			"slot": slot,
+			"role": slot,
+			"peer_id": 1 if slot == 1 else 0,
+			"ready": false,
+			"name": host_name if slot == 1 else "Open Slot"
+		}
+	return state
+
+
+func _ensure_host_lobby_state() -> void:
+	if lobby_state.is_empty() or not lobby_state.has(1) or int((lobby_state[1] as Dictionary).get("peer_id", 0)) != 1:
+		lobby_state = _build_default_lobby_state(_get_host_name())
+
+
+func _find_slot_by_peer_id(peer_id: int) -> int:
+	for slot in range(1, NetworkManager.MAX_PLAYERS + 1):
+		var slot_data: Dictionary = lobby_state.get(slot, {})
+		if int(slot_data.get("peer_id", 0)) == peer_id:
+			return slot
+	return 0
+
+
+func _find_first_open_slot() -> int:
+	for slot in range(2, NetworkManager.MAX_PLAYERS + 1):
+		var slot_data: Dictionary = lobby_state.get(slot, {})
+		if int(slot_data.get("peer_id", 0)) == 0:
+			return slot
+	return 0
+
+
+func _get_occupied_slot_count() -> int:
+	var count: int = 0
+	for slot in range(1, NetworkManager.MAX_PLAYERS + 1):
+		var slot_data: Dictionary = lobby_state.get(slot, {})
+		if int(slot_data.get("peer_id", 0)) != 0:
+			count += 1
+	return count
+
+
+func _are_all_occupied_ready() -> bool:
+	var occupied: int = 0
+	for slot in range(1, NetworkManager.MAX_PLAYERS + 1):
+		var slot_data: Dictionary = lobby_state.get(slot, {})
+		if int(slot_data.get("peer_id", 0)) == 0:
+			continue
+		occupied += 1
+		if not bool(slot_data.get("ready", false)):
+			return false
+	return occupied > 0
+
+
+func _get_auto_target_players() -> int:
+	var target: int = NetworkManager.MIN_PLAYERS
+	for arg in OS.get_cmdline_args() + OS.get_cmdline_user_args():
+		var s: String = str(arg)
+		if s.begins_with("--auto-players="):
+			target = clampi(s.trim_prefix("--auto-players=").to_int(), NetworkManager.MIN_PLAYERS, NetworkManager.MAX_PLAYERS)
+	return target
+
+
 func _show_matchmaking() -> void:
 	is_in_matchmaking_queue = false
+	_auto_launch_scheduled = false
+	_is_launching = false
+	lobby_state.clear()
 	matchmaking_container.visible = true
 	searching_container.visible = false
 	staging_container.visible = false
@@ -205,6 +284,8 @@ func _show_searching_view() -> void:
 
 func _enter_staging() -> void:
 	is_in_matchmaking_queue = false
+	_auto_launch_scheduled = false
+	_is_launching = false
 	matchmaking_container.visible = false
 	searching_container.visible = false
 	staging_container.visible = true
@@ -212,20 +293,26 @@ func _enter_staging() -> void:
 	ready_button.text = "READY UP"
 
 	if multiplayer.is_server():
-		lobby_state = {
-			1: {"role": 1, "ready": false, "name": _get_host_name()},
-			2: {"role": 2, "ready": false, "name": "Waiting for opponent..."}
-		}
-		client_peer_id = 0
+		_ensure_host_lobby_state()
+		lobby_state[1]["name"] = _get_host_name()
+		lobby_state[1]["ready"] = false
 		start_button.visible = true
 		start_button.disabled = true
 	else:
+		if lobby_state.is_empty():
+			lobby_state = _build_default_lobby_state("Host")
 		start_button.visible = false
 		var my_name: String = _get_client_name()
 		register_client_identity.rpc_id(1, my_name)
 
 	_update_header()
 	_update_staging_ui()
+
+	if multiplayer.is_server() and ("--auto-ready" in OS.get_cmdline_args() + OS.get_cmdline_user_args()):
+		get_tree().create_timer(0.25).timeout.connect(func():
+			if is_inside_tree() and staging_container.visible and not _local_ready:
+				_on_ready_pressed()
+		)
 
 
 func _update_mode_ui(mode: NetworkManager.NetworkMode) -> void:
@@ -261,28 +348,71 @@ func _update_header() -> void:
 
 
 func _update_staging_ui() -> void:
-	# Update Player 1 (Spy White - Host)
-	var p1_data: Dictionary = lobby_state.get(1, {"name": "Host", "ready": false})
-	p1_name_label.text = str(p1_data.get("name", "Host"))
-	var p1_ready: bool = bool(p1_data.get("ready", false))
-	p1_status_label.text = "READY" if p1_ready else "NOT READY"
-	p1_status_label.modulate = Color(0.2, 0.85, 0.3) if p1_ready else Color(0.65, 0.65, 0.65)
+	if _slot_cards.is_empty():
+		_init_slot_cards()
 
-	# Update Player 2 (Spy Black - Contender)
-	var p2_data: Dictionary = lobby_state.get(2, {"name": "Waiting for opponent...", "ready": false})
-	p2_name_label.text = str(p2_data.get("name", "Waiting for opponent..."))
-	var p2_ready: bool = bool(p2_data.get("ready", false))
-	p2_status_label.text = "READY" if p2_ready else "NOT READY"
-	p2_status_label.modulate = Color(0.2, 0.85, 0.3) if p2_ready else Color(0.65, 0.65, 0.65)
+	for slot in range(1, NetworkManager.MAX_PLAYERS + 1):
+		var card_ui: Dictionary = _slot_cards.get(slot, {})
+		if card_ui.is_empty():
+			continue
+		var slot_data: Dictionary = lobby_state.get(slot, {
+			"slot": slot,
+			"role": slot,
+			"peer_id": 0,
+			"ready": false,
+			"name": "Open Slot"
+		})
+		var slot_peer_id: int = int(slot_data.get("peer_id", 0))
+		var is_occupied: bool = slot_peer_id != 0
+		var is_ready: bool = bool(slot_data.get("ready", false))
+		var card_panel := card_ui.get("card") as PanelContainer
+		var name_lbl := card_ui.get("name") as Label
+		var status_lbl := card_ui.get("status") as Label
+
+		if is_occupied:
+			if name_lbl != null:
+				name_lbl.text = str(slot_data.get("name", "Player"))
+			if status_lbl != null:
+				status_lbl.text = "READY" if is_ready else "NOT READY"
+				status_lbl.modulate = Color(0.2, 0.85, 0.3) if is_ready else Color(0.65, 0.65, 0.65)
+			if card_panel != null:
+				card_panel.modulate = Color(1.0, 1.0, 1.0, 1.0)
+		else:
+			if name_lbl != null:
+				name_lbl.text = "Open Slot"
+			if status_lbl != null:
+				status_lbl.text = "EMPTY"
+				status_lbl.modulate = Color(0.45, 0.45, 0.45)
+			if card_panel != null:
+				card_panel.modulate = Color(0.75, 0.75, 0.75, 0.85)
+
+	var occupied_count: int = _get_occupied_slot_count()
+	var all_ready: bool = _are_all_occupied_ready()
 
 	# Update Start Button (Host only)
 	if multiplayer.is_server():
 		start_button.visible = true
-		start_button.disabled = not (p1_ready and p2_ready)
-		if p1_ready and p2_ready and ("--auto-ready" in OS.get_cmdline_args() + OS.get_cmdline_user_args()):
+		start_button.text = "LAUNCH MATCH (%d/%d)" % [occupied_count, NetworkManager.MAX_PLAYERS]
+		start_button.disabled = not (occupied_count >= NetworkManager.MIN_PLAYERS and all_ready)
+		if (
+			occupied_count >= _get_auto_target_players()
+			and all_ready
+			and not _auto_launch_scheduled
+			and ("--auto-ready" in OS.get_cmdline_args() + OS.get_cmdline_user_args())
+		):
+			_auto_launch_scheduled = true
 			get_tree().create_timer(0.3).timeout.connect(func():
-				if is_inside_tree() and multiplayer.is_server() and start_button.visible and not start_button.disabled:
+				if (
+					is_inside_tree()
+					and multiplayer.is_server()
+					and start_button.visible
+					and not start_button.disabled
+					and _get_occupied_slot_count() >= _get_auto_target_players()
+					and _are_all_occupied_ready()
+				):
 					_on_start_pressed()
+				else:
+					_auto_launch_scheduled = false
 			)
 	else:
 		start_button.visible = false
@@ -457,17 +587,29 @@ func _on_player_connected(peer_id: int) -> void:
 	if peer_id == 1:
 		return
 
-	print("Lobby: Contender connected with peer ID %d" % peer_id)
-	client_peer_id = peer_id
-	lobby_state[2] = {
-		"role": 2,
+	_ensure_host_lobby_state()
+	if _find_slot_by_peer_id(peer_id) != 0:
+		return
+
+	var open_slot: int = _find_first_open_slot()
+	if open_slot == 0:
+		print("Lobby: Rejecting peer %d — lobby full (%d/%d)." % [peer_id, NetworkManager.MAX_PLAYERS, NetworkManager.MAX_PLAYERS])
+		if multiplayer.multiplayer_peer != null:
+			multiplayer.multiplayer_peer.disconnect_peer(peer_id)
+		return
+
+	print("Lobby: Spy connected with peer ID %d -> Slot %d" % [peer_id, open_slot])
+	lobby_state[open_slot] = {
+		"slot": open_slot,
+		"role": open_slot,
+		"peer_id": peer_id,
 		"ready": false,
-		"name": "Contender (Peer %d)" % peer_id
+		"name": "Spy (Peer %d)" % peer_id
 	}
 	sync_lobby_state.rpc(lobby_state)
 
-	# Session is full (2/2) — unadvertise from Epic quick match searches
-	if NetworkManager.current_mode == NetworkManager.NetworkMode.EOS_P2P:
+	# Close quick match advertisement only when all 4 slots are filled
+	if NetworkManager.current_mode == NetworkManager.NetworkMode.EOS_P2P and _get_occupied_slot_count() >= NetworkManager.MAX_PLAYERS:
 		SessionManager.set_session_matchmaking_open(false)
 
 	if is_in_matchmaking_queue:
@@ -478,7 +620,7 @@ func _on_player_connected(peer_id: int) -> void:
 
 	if "--auto-ready" in OS.get_cmdline_args() + OS.get_cmdline_user_args():
 		get_tree().create_timer(0.4).timeout.connect(func():
-			if not _local_ready:
+			if is_inside_tree() and not _local_ready:
 				_on_ready_pressed()
 		)
 
@@ -486,30 +628,33 @@ func _on_player_connected(peer_id: int) -> void:
 func _on_player_disconnected(peer_id: int) -> void:
 	if not multiplayer.is_server():
 		return
+	if peer_id == 1:
+		return
 
-	print("Lobby: Peer %d disconnected in staging." % peer_id)
-	if peer_id == client_peer_id or peer_id != 1:
-		client_peer_id = 0
-		lobby_state[2] = {
-			"role": 2,
-			"ready": false,
-			"name": "Waiting for opponent..."
-		}
-		# Reset host readiness to avoid accidental start
-		_local_ready = false
-		ready_button.text = "READY UP"
-		lobby_state[1]["ready"] = false
-		sync_lobby_state.rpc(lobby_state)
-		_update_staging_ui()
+	var slot: int = _find_slot_by_peer_id(peer_id)
+	if slot == 0:
+		return
 
-		# Contender left — re-open session to quick match searches
-		if NetworkManager.current_mode == NetworkManager.NetworkMode.EOS_P2P:
-			SessionManager.set_session_matchmaking_open(true)
-		_local_ready = false
-		ready_button.text = "READY UP"
+	print("Lobby: Peer %d (Slot %d) disconnected in staging." % [peer_id, slot])
+	lobby_state[slot] = {
+		"slot": slot,
+		"role": slot,
+		"peer_id": 0,
+		"ready": false,
+		"name": "Open Slot"
+	}
+	# Reset host readiness to avoid accidental start
+	_local_ready = false
+	_auto_launch_scheduled = false
+	ready_button.text = "READY UP"
+	if lobby_state.has(1):
 		lobby_state[1]["ready"] = false
-		sync_lobby_state.rpc(lobby_state)
-		_update_staging_ui()
+	sync_lobby_state.rpc(lobby_state)
+	_update_staging_ui()
+
+	# Re-open EOS quick match searches while below MAX_PLAYERS
+	if NetworkManager.current_mode == NetworkManager.NetworkMode.EOS_P2P and _get_occupied_slot_count() < NetworkManager.MAX_PLAYERS:
+		SessionManager.set_session_matchmaking_open(true)
 
 
 @rpc("any_peer", "call_local", "reliable")
@@ -520,8 +665,16 @@ func register_client_identity(display_name: String) -> void:
 	if sender_id == 0 or sender_id == 1:
 		return
 
-	client_peer_id = sender_id
-	lobby_state[2]["name"] = display_name
+	_ensure_host_lobby_state()
+	var slot: int = _find_slot_by_peer_id(sender_id)
+	if slot == 0:
+		slot = _find_first_open_slot()
+		if slot == 0:
+			return
+		lobby_state[slot]["peer_id"] = sender_id
+		lobby_state[slot]["ready"] = false
+
+	lobby_state[slot]["name"] = display_name
 	sync_lobby_state.rpc(lobby_state)
 	_update_staging_ui()
 
@@ -544,11 +697,12 @@ func server_set_ready(is_ready: bool) -> void:
 	if sender_id == 0:
 		sender_id = multiplayer.get_unique_id()
 
-	if sender_id == 1:
-		lobby_state[1]["ready"] = is_ready
-	else:
-		lobby_state[2]["ready"] = is_ready
+	_ensure_host_lobby_state()
+	var slot: int = _find_slot_by_peer_id(sender_id)
+	if slot == 0:
+		return
 
+	lobby_state[slot]["ready"] = is_ready
 	sync_lobby_state.rpc(lobby_state)
 	_update_staging_ui()
 
@@ -560,16 +714,29 @@ func sync_lobby_state(new_state: Dictionary) -> void:
 
 
 func _on_start_pressed() -> void:
-	if not multiplayer.is_server():
+	if not multiplayer.is_server() or _is_launching:
 		return
-	var p1_ready: bool = bool(lobby_state.get(1, {}).get("ready", false))
-	var p2_ready: bool = bool(lobby_state.get(2, {}).get("ready", false))
-	if not (p1_ready and p2_ready):
+	var occupied_count: int = _get_occupied_slot_count()
+	if occupied_count < NetworkManager.MIN_PLAYERS or not _are_all_occupied_ready():
 		return
+
+	_is_launching = true
+	if NetworkManager.current_mode == NetworkManager.NetworkMode.EOS_P2P:
+		SessionManager.set_session_matchmaking_open(false)
+
+	var roles_map: Dictionary = {}
+	for slot in range(1, NetworkManager.MAX_PLAYERS + 1):
+		var slot_data: Dictionary = lobby_state.get(slot, {})
+		var pid: int = int(slot_data.get("peer_id", 0))
+		if pid != 0:
+			roles_map[pid] = int(slot_data.get("role", slot))
+
+	if MatchManager != null and MatchManager.has_method("sync_peer_roles"):
+		MatchManager.sync_peer_roles(roles_map)
 
 	if GameConfig != null:
 		GameConfig.sandbox_gym_mode = false
-	print("Lobby: Both players ready. Launching match into arena...")
+	print("Lobby: %d players ready. Launching FFA match into arena..." % occupied_count)
 	rpc_load_arena.rpc(TEST_GYM_SCENE_PATH)
 
 
