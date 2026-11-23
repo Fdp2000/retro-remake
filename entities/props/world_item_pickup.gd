@@ -13,6 +13,7 @@ enum ItemSlotType {
 
 const OBJECTIVE_IDS: Array[String] = ["KEY", "MONEY", "PASSPORT", "PLANS"]
 const GADGET_IDS: Array[String] = ["BUCKET", "TRIPWIRE", "SPRING", "BOMB", "DART_GUN"]
+const BRIEFCASE_BUILDER = preload("res://entities/props/briefcase_visual_builder.gd")
 
 const KEY_SCENE: PackedScene = preload("res://Assets/Models/Samleobjekter/Key.glb")
 const MONEY_SCENE: PackedScene = preload("res://Assets/Models/Samleobjekter/Money.glb")
@@ -130,6 +131,16 @@ static func get_item_floor_y(id: String) -> float:
 ## Instantiates a centered visual Node3D for any trap, objective, briefcase, or melee item.
 static func build_item_visual(id: String) -> Node3D:
 	var upper: String = id.to_upper()
+	if upper == "BRIEFCASE":
+		var wrapper := Node3D.new()
+		var model: Node3D = BRIEFCASE_BUILDER.instantiate_textured_briefcase()
+		if model != null:
+			model.scale = Vector3(0.65, 0.65, 0.65)
+			model.rotation = Vector3(-PI * 0.5, 0.0, 0.0)
+			model.position = Vector3(0.0, -0.04, 0.0)
+			wrapper.add_child(model)
+		return wrapper
+
 	if _MODEL_VISUAL_SPECS.has(upper):
 		var spec: Dictionary = _MODEL_VISUAL_SPECS[upper]
 		var wrapper := Node3D.new()
@@ -148,10 +159,6 @@ static func build_item_visual(id: String) -> Node3D:
 	mat.albedo_color = ITEM_COLORS.get(upper, Color(0.8, 0.8, 0.8))
 
 	match upper:
-		"BRIEFCASE":
-			var box := BoxMesh.new()
-			box.size = Vector3(0.42, 0.30, 0.12)
-			mi.mesh = box
 		"CLUB":
 			var cyl := CylinderMesh.new()
 			cyl.top_radius = 0.06

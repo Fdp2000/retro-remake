@@ -6,6 +6,11 @@ extends RefCounted
 ## Keeps closed and open visuals in a single rig (eliminating overlapping closed-box / open-tray clipping).
 ## Interior is open, slot-free dark felt with freeform XY placement and strictly disjoint vertical layers.
 
+const BRIEFCASE_SCENE: PackedScene = preload("res://Assets/Models/Kuffert/Briefcase.glb")
+const BRIEFCASE_TEXTURE: Texture2D = preload("res://Assets/Models/Traps/Texture_Briefcase.png")
+const MODEL_SCALE: float = 0.82
+const MODEL_Y_OFFSET: float = -0.048
+
 const CASE_WIDTH: float = 0.56
 const CASE_DEPTH: float = 0.38
 const BASE_HEIGHT: float = 0.085
@@ -57,111 +62,33 @@ static func get_item_layer_y(layer_idx: int) -> float:
 	return ITEM_LAYER_BASE_Y + float(maxi(layer_idx, 0)) * ITEM_LAYER_STEP_Y
 
 
+static func instantiate_textured_briefcase() -> Node3D:
+	var model: Node3D = BRIEFCASE_SCENE.instantiate() as Node3D
+	if model == null:
+		return Node3D.new()
+	var mat := StandardMaterial3D.new()
+	mat.albedo_texture = BRIEFCASE_TEXTURE
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	mat.roughness = 0.72
+	for child_mi in model.find_children("*", "MeshInstance3D", true, false):
+		var mi := child_mi as MeshInstance3D
+		if mi != null:
+			mi.material_override = mat
+	return model
+
+
 static func build_briefcase_rig(parent: Node3D) -> Dictionary:
 	var rig_root := Node3D.new()
 	rig_root.name = "BriefcaseVisualRig"
 	parent.add_child(rig_root)
 
-	var leather_mat := StandardMaterial3D.new()
-	leather_mat.albedo_color = Color(0.36, 0.20, 0.10)
-	leather_mat.roughness = 0.72
+	var model: Node3D = instantiate_textured_briefcase()
+	model.name = "BriefcaseModel"
+	model.scale = Vector3(MODEL_SCALE, MODEL_SCALE, MODEL_SCALE)
+	model.position = Vector3(0.0, MODEL_Y_OFFSET, 0.0)
+	rig_root.add_child(model)
 
-	var trim_mat := StandardMaterial3D.new()
-	trim_mat.albedo_color = Color(0.24, 0.13, 0.07)
-	trim_mat.roughness = 0.68
-
-	var felt_mat := StandardMaterial3D.new()
-	felt_mat.albedo_color = Color(0.16, 0.22, 0.19)
-	felt_mat.roughness = 0.92
-
-	var brass_mat := StandardMaterial3D.new()
-	brass_mat.albedo_color = Color(0.88, 0.74, 0.28)
-	brass_mat.metallic = 0.72
-	brass_mat.roughness = 0.28
-
-	# Base bottom floor (y = -0.075 to -0.059 in TrayPivot space -> rests flush on world y = 0 when TrayPivot.y = 0.075)
-	var floor_mi := _make_box(Vector3(CASE_WIDTH, 0.016, CASE_DEPTH), leather_mat)
-	floor_mi.name = "BaseFloor"
-	floor_mi.position = Vector3(0.0, -0.067, 0.0)
-	rig_root.add_child(floor_mi)
-
-	# Continuous open slot-free dark-felt interior liner
-	var liner_mi := _make_box(Vector3(CASE_WIDTH - WALL_THICK * 2.0, 0.004, CASE_DEPTH - WALL_THICK * 2.0), felt_mat)
-	liner_mi.name = "FeltLiner"
-	liner_mi.position = Vector3(0.0, -0.057, 0.0)
-	rig_root.add_child(liner_mi)
-
-	# Base walls (left, right, back, front)
-	var half_w: float = CASE_WIDTH * 0.5
-	var half_d: float = CASE_DEPTH * 0.5
-	var wall_center_y: float = -0.075 + BASE_HEIGHT * 0.5
-
-	for side_sign in [-1.0, 1.0]:
-		var side_w := _make_box(Vector3(WALL_THICK, BASE_HEIGHT, CASE_DEPTH), leather_mat)
-		side_w.position = Vector3(side_sign * (half_w - WALL_THICK * 0.5), wall_center_y, 0.0)
-		rig_root.add_child(side_w)
-
-	var back_w := _make_box(Vector3(CASE_WIDTH, BASE_HEIGHT, WALL_THICK), leather_mat)
-	back_w.position = Vector3(0.0, wall_center_y, -(half_d - WALL_THICK * 0.5))
-	rig_root.add_child(back_w)
-
-	var front_w := _make_box(Vector3(CASE_WIDTH, BASE_HEIGHT, WALL_THICK), leather_mat)
-	front_w.position = Vector3(0.0, wall_center_y, half_d - WALL_THICK * 0.5)
-	rig_root.add_child(front_w)
-
-	# Carrying handle on front face (+Z)
-	var handle_bar := _make_box(Vector3(0.16, 0.022, 0.022), trim_mat)
-	handle_bar.position = Vector3(0.0, wall_center_y + 0.004, half_d + 0.036)
-	rig_root.add_child(handle_bar)
-	for post_sign in [-1.0, 1.0]:
-		var post := _make_box(Vector3(0.020, 0.022, 0.034), brass_mat)
-		post.position = Vector3(post_sign * 0.072, wall_center_y + 0.004, half_d + 0.017)
-		rig_root.add_child(post)
-
-	# Two brass latch clasps on front face (+Z)
-	for clasp_sign in [-1.0, 1.0]:
-		var clasp := _make_box(Vector3(0.044, 0.030, 0.016), brass_mat)
-		clasp.position = Vector3(clasp_sign * 0.165, wall_center_y + 0.030, half_d + 0.008)
-		rig_root.add_child(clasp)
-
-	# Hinged Top Lid pivoting at back edge (-Z)
-	var lid_pivot := Node3D.new()
-	lid_pivot.name = "BriefcaseLidPivot"
-	lid_pivot.position = Vector3(0.0, -0.075 + BASE_HEIGHT, -half_d)
-	rig_root.add_child(lid_pivot)
-
-	# Lid top panel (centered at z = +half_d relative to back hinge)
-	var lid_top := _make_box(Vector3(CASE_WIDTH + 0.006, 0.014, CASE_DEPTH + 0.006), leather_mat)
-	lid_top.position = Vector3(0.0, LID_HEIGHT - 0.007, half_d)
-	lid_pivot.add_child(lid_top)
-
-	# Lid inner felt lining
-	var lid_liner := _make_box(Vector3(CASE_WIDTH - WALL_THICK * 2.0, 0.004, CASE_DEPTH - WALL_THICK * 2.0), felt_mat)
-	lid_liner.position = Vector3(0.0, LID_HEIGHT - 0.016, half_d)
-	lid_pivot.add_child(lid_liner)
-
-	# Lid skirt walls
-	var skirt_h: float = LID_HEIGHT - 0.012
-	var skirt_y: float = skirt_h * 0.5
-	for side_sign in [-1.0, 1.0]:
-		var l_side := _make_box(Vector3(WALL_THICK, skirt_h, CASE_DEPTH), leather_mat)
-		l_side.position = Vector3(side_sign * (half_w - WALL_THICK * 0.5), skirt_y, half_d)
-		lid_pivot.add_child(l_side)
-
-	var l_back := _make_box(Vector3(CASE_WIDTH, skirt_h, WALL_THICK), leather_mat)
-	l_back.position = Vector3(0.0, skirt_y, WALL_THICK * 0.5)
-	lid_pivot.add_child(l_back)
-
-	var l_front := _make_box(Vector3(CASE_WIDTH, skirt_h, WALL_THICK), leather_mat)
-	l_front.position = Vector3(0.0, skirt_y, CASE_DEPTH - WALL_THICK * 0.5)
-	lid_pivot.add_child(l_front)
-
-	# Brass corner bumpers on top lid
-	for sx in [-1.0, 1.0]:
-		for sz in [0.0, 1.0]:
-			var corner := _make_box(Vector3(0.048, 0.018, 0.048), brass_mat)
-			corner.position = Vector3(sx * (half_w - 0.016), LID_HEIGHT - 0.006, 0.016 + sz * (CASE_DEPTH - 0.032))
-			lid_pivot.add_child(corner)
+	var lid_pivot: Node3D = model.find_child("KnogleKuffertTop", true, false) as Node3D
 
 	# Soft interior OmniLight3D (only turned on while opened)
 	var light := OmniLight3D.new()
@@ -185,12 +112,3 @@ static func set_lid_open_ratio(lid_pivot: Node3D, ratio: float, interior_light: 
 		lid_pivot.rotation.x = deg_to_rad(OPEN_LID_ANGLE_DEG * clamped)
 	if interior_light != null and is_instance_valid(interior_light):
 		interior_light.visible = clamped > 0.04
-
-
-static func _make_box(sz: Vector3, mat: Material) -> MeshInstance3D:
-	var mi := MeshInstance3D.new()
-	var b := BoxMesh.new()
-	b.size = sz
-	mi.mesh = b
-	mi.material_override = mat
-	return mi

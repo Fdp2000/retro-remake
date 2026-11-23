@@ -2043,14 +2043,6 @@ func _ensure_3d_tray_structure() -> void:
 				handle_mi.position = Vector3(0.0, 0.01, floor_d * 0.5 + 0.025)
 				geom.add_child(handle_mi)
 
-			if _tray_drawer_node.get_node_or_null("DrawerInteriorLight") == null:
-				var light := OmniLight3D.new()
-				light.name = "DrawerInteriorLight"
-				light.position = Vector3(tray_local_center_xz.x, 0.55, tray_local_center_xz.y)
-				light.omni_range = 1.6
-				light.light_energy = 0.85
-				_tray_drawer_node.add_child(light)
-
 	_contents_root = _tray_drawer_node.get_node_or_null("ContentsRoot") as Node3D
 	if _contents_root == null:
 		_contents_root = Node3D.new()

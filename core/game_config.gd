@@ -118,7 +118,7 @@ static func get_spy_role_badge_color(role: int) -> Color:
 @export var standing_neck_y: float = 1.6
 @export var crouched_neck_y: float = 0.85
 @export var stance_transition_speed: float = 12.0
-@export var interact_reach: float = 2.2
+@export var interact_reach: float = 1.75
 
 @export_group("Speed Multipliers")
 @export var speed_mult_normal: float = 1.00
@@ -147,7 +147,7 @@ static func get_spy_role_badge_color(role: int) -> Color:
 @export var door_bucket_ajar_angle_deg: float = 10.0
 @export var door_bucket_release_angle_deg: float = 28.0
 @export var door_bucket_same_side_release_delta_deg: float = 4.0
-@export var bucket_hit_radius: float = 1.2
+@export var bucket_hit_radius: float = 1.45
 @export var bucket_max_safe_reach: float = 1.8
 @export var bucket_fall_impact_delay: float = 0.10
 

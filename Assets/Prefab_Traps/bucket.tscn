@@ -6,7 +6,76 @@
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_55ggm"]
 albedo_texture = ExtResource("2_n2gqr")
 
+[sub_resource type="Shader" id="Shader_2mbuo"]
+code = "shader_type spatial;
+render_mode blend_mix, depth_draw_opaque, cull_back, diffuse_burley, specular_schlick_ggx;
+
+uniform vec4 deep_color : source_color = vec4(0.10, 0.44, 0.68, 0.82);
+uniform vec4 shallow_color : source_color = vec4(0.42, 0.80, 0.95, 0.72);
+uniform float ripple_speed : hint_range(0.0, 5.0) = 1.6;
+uniform float ripple_strength : hint_range(0.0, 0.2) = 0.045;
+
+varying vec3 local_pos;
+
+void vertex() {
+	local_pos = VERTEX;
+	// Subtle surface wave on top face only, damped near the rim to avoid clipping
+	if (NORMAL.y > 0.5) {
+		float radial = length(VERTEX.xz);
+		float edge_fade = clamp(1.0 - radial / 0.30, 0.0, 1.0);
+		float wave = sin(VERTEX.x * 22.0 + TIME * ripple_speed) * cos(VERTEX.z * 22.0 - TIME * ripple_speed * 0.8);
+		VERTEX.y += wave * 0.004 * edge_fade;
+	}
+}
+
+void fragment() {
+	float r = length(local_pos.xz);
+	float t = TIME * ripple_speed;
+	float ripple1 = sin(r * 38.0 - t * 2.2) * 0.5 + 0.5;
+	float ripple2 = sin(local_pos.x * 26.0 + local_pos.z * 19.0 + t * 1.4) * 0.5 + 0.5;
+	float ripple = mix(ripple1, ripple2, 0.5);
+
+	// Perturb normal slightly for wet shimmering highlights
+	vec3 n = normalize(vec3(
+		cos(local_pos.x * 28.0 + t * 1.7) * ripple_strength,
+		1.0,
+		sin(local_pos.z * 28.0 - t * 1.5) * ripple_strength
+	));
+	NORMAL = normalize((VIEW_MATRIX * MODEL_MATRIX * vec4(n, 0.0)).xyz);
+
+	float fresnel = pow(1.0 - clamp(dot(NORMAL, VIEW), 0.0, 1.0), 2.5);
+	vec3 col = mix(deep_color.rgb, shallow_color.rgb, clamp(fresnel * 0.7 + ripple * 0.22, 0.0, 1.0));
+
+	ALBEDO = col;
+	ALPHA = mix(deep_color.a, shallow_color.a, fresnel);
+	ROUGHNESS = 0.07;
+	SPECULAR = 0.75;
+	METALLIC = 0.05;
+}
+"
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_n2gqr"]
+render_priority = 0
+shader = SubResource("Shader_2mbuo")
+shader_parameter/deep_color = Color(0.1, 0.44, 0.68, 0.82)
+shader_parameter/shallow_color = Color(0.42, 0.8, 0.95, 0.72)
+shader_parameter/ripple_speed = 1.6
+shader_parameter/ripple_strength = 0.045
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_55ggm"]
+top_radius = 0.3
+bottom_radius = 0.21
+height = 0.58
+radial_segments = 24
+rings = 1
+
 [node name="Bucket" unique_id=948858710 instance=ExtResource("1_2mbuo")]
 
-[node name="Spand" parent="." index="0" unique_id=1850667529]
+[node name="Spand" parent="." index="0" unique_id=68576505]
 material_override = SubResource("StandardMaterial3D_55ggm")
+
+[node name="Water" type="MeshInstance3D" parent="." index="1" unique_id=1106588963]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.36, 0)
+material_override = SubResource("ShaderMaterial_n2gqr")
+cast_shadow = 0
+mesh = SubResource("CylinderMesh_55ggm")
