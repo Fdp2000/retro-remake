@@ -292,9 +292,9 @@ container_id = "Left Drawer"
 use_custom_tray_mesh = true
 drawer_closed_z = 0.05637
 drawer_open_z = 0.57637
-tray_local_center_xz = Vector2(0, 0.05)
-tray_local_half_extents = Vector2(0.42, 0.17)
-min_pick_local_z = 0.41
+tray_local_center_xz = Vector2(0, 0.02)
+tray_local_half_extents = Vector2(0.42, 0.20)
+min_pick_local_z = 0.39
 lip_spring_local_pos = Vector3(0, 0.055, 0.20)
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
@@ -346,9 +346,9 @@ container_id = "Right Drawer"
 use_custom_tray_mesh = true
 drawer_closed_z = 0.05637
 drawer_open_z = 0.57637
-tray_local_center_xz = Vector2(0, 0.05)
-tray_local_half_extents = Vector2(0.42, 0.17)
-min_pick_local_z = 0.41
+tray_local_center_xz = Vector2(0, 0.02)
+tray_local_half_extents = Vector2(0.42, 0.20)
+min_pick_local_z = 0.39
 lip_spring_local_pos = Vector3(0, 0.055, 0.20)
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="RightUpperDrawer"]

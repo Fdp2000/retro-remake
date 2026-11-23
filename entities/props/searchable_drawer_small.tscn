@@ -156,10 +156,13 @@ container_id = "Middle Drawer"
 use_custom_tray_mesh = true
 drawer_closed_z = 0.1281
 drawer_open_z = 0.57
-tray_local_center_xz = Vector2(0, 0)
-tray_local_half_extents = Vector2(0.24, 0.15)
+tray_local_center_xz = Vector2(0, -0.015)
+tray_local_half_extents = Vector2(0.24, 0.165)
 min_pick_local_z = 0.36
 lip_spring_local_pos = Vector3(0, 0.055, 0.165)
+clutter_count = 4
+max_clutter_layers_override = 2
+clutter_scale_multiplier = 0.85
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.53, 0.01)

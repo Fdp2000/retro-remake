@@ -205,7 +205,7 @@ var _drag_3d_offset_xz: Vector2 = Vector2.ZERO
 var _drag_3d_start_screen_pos: Vector2 = Vector2.ZERO
 var _drag_3d_moved: bool = false
 var _drag_3d_samples: Array = []
-var _active_3d_slides: Dictionary = {} # key -> {"container": Node, "role": String, "clutter_idx": int, "item_id": String, "pos": Vector2, "vel": Vector2, "bounds_min": float, "bounds_max": float, "bounce_sfx_cd": float}
+var _active_3d_slides: Dictionary = {} # key -> {"container": Node, "role": String, "clutter_idx": int, "item_id": String, "pos": Vector2, "vel": Vector2, "bounds_min_v": Vector2, "bounds_max_v": Vector2, "bounce_sfx_cd": float}
 var _drawer_focus_just_entered: bool = false
 var _drawer_e_held: bool = false
 var _drawer_e_hold_elapsed: float = 0.0
@@ -3067,8 +3067,23 @@ func _handle_container_3d_mouse_down(screen_pos: Vector2, button_index: int) -> 
 	return false
 
 
+func _rebind_active_drag_3d_node() -> Node3D:
+	if not _drag_3d_active or active_container == null or not is_instance_valid(active_container):
+		return null
+	if _drag_3d_node != null and is_instance_valid(_drag_3d_node):
+		return _drag_3d_node
+	if active_container.has_method("get_content_area_node"):
+		var lookup_key: Variant = _drag_3d_clutter_idx if _drag_3d_role == "clutter" else _drag_3d_item_id
+		_drag_3d_node = active_container.get_content_area_node(_drag_3d_role, lookup_key)
+	return _drag_3d_node
+
+
 func _update_container_3d_drag(screen_pos: Vector2) -> void:
-	if active_container == null or not is_instance_valid(active_container) or _drag_3d_node == null or not is_instance_valid(_drag_3d_node):
+	if active_container == null or not is_instance_valid(active_container):
+		_clear_drag_3d_state()
+		return
+	var drag_node: Node3D = _rebind_active_drag_3d_node()
+	if drag_node == null or not is_instance_valid(drag_node):
 		_clear_drag_3d_state()
 		return
 	if not _drag_3d_moved and screen_pos.distance_to(_drag_3d_start_screen_pos) >= 12.0:
@@ -3098,22 +3113,24 @@ func _update_container_3d_drag(screen_pos: Vector2) -> void:
 		var raw_z: float = local_pt.z + _drag_3d_offset_xz.y
 		if active_container.has_method("container_local_xz_to_norm") and active_container.has_method("norm_to_container_local_xz"):
 			var norm_pos: Vector2 = active_container.container_local_xz_to_norm(raw_x, raw_z)
+			if active_container.has_method("clamp_item_norm_to_tray_walls"):
+				norm_pos = active_container.clamp_item_norm_to_tray_walls(norm_pos, _drag_3d_role, _drag_3d_clutter_idx, _drag_3d_item_id)
 			var clamped_xz: Vector2 = active_container.norm_to_container_local_xz(norm_pos)
-			_drag_3d_node.position.x = clamped_xz.x
-			_drag_3d_node.position.z = clamped_xz.y
-			_drag_3d_node.position.y = float(_drag_3d_node.get_meta("base_y", _drag_3d_node.position.y))
+			drag_node.position.x = clamped_xz.x
+			drag_node.position.z = clamped_xz.y
+			drag_node.position.y = float(drag_node.get_meta("base_y", drag_node.position.y))
 			SHOVE_PHYSICS.record_sample(_drag_3d_samples, norm_pos, Time.get_ticks_usec() * 1e-6)
 		else:
-			_drag_3d_node.position.x = clampf(raw_x, -0.33, 0.33)
-			_drag_3d_node.position.z = clampf(raw_z, -0.17, 0.17)
-			_drag_3d_node.position.y = float(_drag_3d_node.get_meta("base_y", _drag_3d_node.position.y))
+			drag_node.position.x = clampf(raw_x, -0.33, 0.33)
+			drag_node.position.z = clampf(raw_z, -0.17, 0.17)
+			drag_node.position.y = float(drag_node.get_meta("base_y", drag_node.position.y))
 
 
 func _finish_container_3d_drag(release_pos: Vector2) -> void:
 	var role: String = _drag_3d_role
 	var c_idx: int = _drag_3d_clutter_idx
 	var item_id: String = _drag_3d_item_id
-	var node: Node3D = _drag_3d_node
+	var node: Node3D = _rebind_active_drag_3d_node()
 	var moved: bool = _drag_3d_moved
 	var samples: Array = _drag_3d_samples.duplicate()
 	var container_ref: Node = active_container
@@ -3154,8 +3171,19 @@ func _finish_container_3d_drag(release_pos: Vector2) -> void:
 		if container_ref.has_method("container_local_xz_to_norm")
 		else Vector2(0.5, 0.5)
 	)
+	if container_ref.has_method("clamp_item_norm_to_tray_walls"):
+		norm_pos = container_ref.clamp_item_norm_to_tray_walls(norm_pos, role, c_idx, item_id)
 	var vel: Vector2 = SHOVE_PHYSICS.compute_release_velocity(samples, norm_pos, Time.get_ticks_usec() * 1e-6)
 	launch_3d_container_slide(container_ref, role, c_idx, item_id, norm_pos, vel)
+
+
+func _get_3d_slide_norm_rect(container: Node, role: String, clutter_idx: int, item_id: String) -> Dictionary:
+	if container != null and container.has_method("clamp_item_norm_to_tray_walls"):
+		var min_v: Vector2 = container.clamp_item_norm_to_tray_walls(Vector2(0.0, 0.0), role, clutter_idx, item_id)
+		var max_v: Vector2 = container.clamp_item_norm_to_tray_walls(Vector2(1.0, 1.0), role, clutter_idx, item_id)
+		return {"min": min_v, "max": Vector2(maxf(max_v.x, min_v.x), maxf(max_v.y, min_v.y))}
+	var bounds: Vector2 = container.get_norm_bounds() if (container != null and container.has_method("get_norm_bounds")) else Vector2(0.02, 0.98)
+	return {"min": Vector2(bounds.x, bounds.x), "max": Vector2(bounds.y, bounds.y)}
 
 
 func launch_3d_container_slide(
@@ -3168,8 +3196,10 @@ func launch_3d_container_slide(
 ) -> void:
 	if container == null or not is_instance_valid(container):
 		return
-	var bounds: Vector2 = container.get_norm_bounds() if container.has_method("get_norm_bounds") else Vector2(0.05, 0.95)
-	var clamped: Vector2 = Vector2(clampf(start_norm.x, bounds.x, bounds.y), clampf(start_norm.y, bounds.x, bounds.y))
+	var rect: Dictionary = _get_3d_slide_norm_rect(container, role, clutter_idx, item_id)
+	var min_v: Vector2 = rect["min"] as Vector2
+	var max_v: Vector2 = rect["max"] as Vector2
+	var clamped: Vector2 = Vector2(clampf(start_norm.x, min_v.x, max_v.x), clampf(start_norm.y, min_v.y, max_v.y))
 	var key: String = _make_3d_slide_key(role, clutter_idx, item_id)
 	var cfg: Dictionary = SHOVE_PHYSICS.get_config_dict()
 	var stop_speed: float = float(cfg.get("stop_speed", 0.04))
@@ -3182,8 +3212,8 @@ func launch_3d_container_slide(
 			"item_id": item_id.to_upper(),
 			"pos": clamped,
 			"vel": vel,
-			"bounds_min": bounds.x,
-			"bounds_max": bounds.y,
+			"bounds_min_v": min_v,
+			"bounds_max_v": max_v,
 			"bounce_sfx_cd": 0.0
 		}
 		if vel.length() >= 0.6 and AudioBridge != null:
@@ -3205,20 +3235,38 @@ func _step_active_3d_slides(delta: float) -> void:
 		if c == null or not is_instance_valid(c):
 			to_commit.append({"key": key, "commit": false})
 			continue
-		var res: Dictionary = SHOVE_PHYSICS.step_slide(
-			entry["pos"] as Vector2,
-			entry["vel"] as Vector2,
-			delta,
-			float(entry["bounds_min"]),
-			float(entry["bounds_max"]),
-			cfg
+		var min_v: Vector2 = entry.get("bounds_min_v", Vector2(0.02, 0.02)) as Vector2
+		var max_v: Vector2 = entry.get("bounds_max_v", Vector2(0.98, 0.98)) as Vector2
+		var span: Vector2 = max_v - min_v
+		var pos_v: Vector2 = entry["pos"] as Vector2
+		var vel_v: Vector2 = entry["vel"] as Vector2
+		var sub_pos := Vector2(
+			clampf((pos_v.x - min_v.x) / span.x, 0.0, 1.0) if span.x > 0.001 else 0.5,
+			clampf((pos_v.y - min_v.y) / span.y, 0.0, 1.0) if span.y > 0.001 else 0.5
 		)
-		var next_pos: Vector2 = res["pos"] as Vector2
+		var sub_vel := Vector2(
+			vel_v.x / span.x if span.x > 0.001 else 0.0,
+			vel_v.y / span.y if span.y > 0.001 else 0.0
+		)
+		var res: Dictionary = SHOVE_PHYSICS.step_slide(sub_pos, sub_vel, delta, 0.0, 1.0, cfg)
+		var res_pos: Vector2 = res["pos"] as Vector2
+		var res_vel: Vector2 = res["vel"] as Vector2
+		var next_pos := Vector2(
+			min_v.x + res_pos.x * span.x if span.x > 0.001 else (min_v.x + max_v.x) * 0.5,
+			min_v.y + res_pos.y * span.y if span.y > 0.001 else (min_v.y + max_v.y) * 0.5
+		)
+		var next_vel := Vector2(
+			res_vel.x * span.x if span.x > 0.001 else 0.0,
+			res_vel.y * span.y if span.y > 0.001 else 0.0
+		)
 		entry["pos"] = next_pos
-		entry["vel"] = res["vel"] as Vector2
+		entry["vel"] = next_vel
 		entry["bounce_sfx_cd"] = maxf(float(entry.get("bounce_sfx_cd", 0.0)) - delta, 0.0)
-		_apply_3d_slide_node_xz(c, str(entry["role"]), int(entry["clutter_idx"]), str(entry["item_id"]), next_pos)
-		if bool(res["bounced"]) and float(res["impact_speed"]) >= 0.35 and float(entry["bounce_sfx_cd"]) <= 0.0:
+		var role_str: String = str(entry["role"])
+		var entry_c_idx: int = int(entry["clutter_idx"])
+		_apply_3d_slide_node_xz(c, role_str, entry_c_idx, str(entry["item_id"]), next_pos)
+		var impact_world: float = float(res["impact_speed"]) * maxf(span.x, span.y)
+		if bool(res["bounced"]) and impact_world >= 0.35 and float(entry["bounce_sfx_cd"]) <= 0.0:
 			entry["bounce_sfx_cd"] = 0.09
 			if AudioBridge != null:
 				var my_id: int = multiplayer.get_unique_id() if _is_peer_connected() else name.to_int()
@@ -3228,11 +3276,18 @@ func _step_active_3d_slides(delta: float) -> void:
 				"key": key,
 				"commit": true,
 				"container": c,
-				"role": str(entry["role"]),
-				"clutter_idx": int(entry["clutter_idx"]),
+				"role": role_str,
+				"clutter_idx": entry_c_idx,
 				"item_id": str(entry["item_id"]),
 				"pos": next_pos
 			})
+	var live_drag_pos := Vector3.ZERO
+	var had_live_drag: bool = false
+	if _drag_3d_active:
+		var active_drag_node: Node3D = _rebind_active_drag_3d_node()
+		if active_drag_node != null and is_instance_valid(active_drag_node):
+			live_drag_pos = active_drag_node.position
+			had_live_drag = true
 	for item in to_commit:
 		_active_3d_slides.erase(item["key"])
 		if bool(item.get("commit", false)):
@@ -3243,6 +3298,11 @@ func _step_active_3d_slides(delta: float) -> void:
 				str(item["item_id"]),
 				item["pos"] as Vector2
 			)
+	# Preserve live dragged node position if a slide commit ran mid-drag
+	if had_live_drag and _drag_3d_active:
+		var drag_node_after: Node3D = _rebind_active_drag_3d_node()
+		if drag_node_after != null and is_instance_valid(drag_node_after):
+			drag_node_after.position = live_drag_pos
 	# Re-apply any still-active slides after server state sync/rebuild so concurrent drags stay smooth
 	for key in _active_3d_slides.keys():
 		var rem: Dictionary = _active_3d_slides[key] as Dictionary
@@ -3263,18 +3323,31 @@ func _flush_active_3d_slides(commit: bool = true) -> void:
 	for key in keys:
 		var entry: Dictionary = _active_3d_slides[key] as Dictionary
 		var c: Node = entry.get("container") as Node
-		var rest_pos: Vector2 = SHOVE_PHYSICS.simulate_to_rest(
-			entry["pos"] as Vector2,
-			entry["vel"] as Vector2,
-			float(entry["bounds_min"]),
-			float(entry["bounds_max"]),
-			cfg
+		var min_v: Vector2 = entry.get("bounds_min_v", Vector2(0.02, 0.02)) as Vector2
+		var max_v: Vector2 = entry.get("bounds_max_v", Vector2(0.98, 0.98)) as Vector2
+		var span: Vector2 = max_v - min_v
+		var pos_v: Vector2 = entry["pos"] as Vector2
+		var vel_v: Vector2 = entry["vel"] as Vector2
+		var sub_pos := Vector2(
+			clampf((pos_v.x - min_v.x) / span.x, 0.0, 1.0) if span.x > 0.001 else 0.5,
+			clampf((pos_v.y - min_v.y) / span.y, 0.0, 1.0) if span.y > 0.001 else 0.5
+		)
+		var sub_vel := Vector2(
+			vel_v.x / span.x if span.x > 0.001 else 0.0,
+			vel_v.y / span.y if span.y > 0.001 else 0.0
+		)
+		var res_sub: Vector2 = SHOVE_PHYSICS.simulate_to_rest(sub_pos, sub_vel, 0.0, 1.0, cfg)
+		var rest_pos := Vector2(
+			min_v.x + res_sub.x * span.x if span.x > 0.001 else (min_v.x + max_v.x) * 0.5,
+			min_v.y + res_sub.y * span.y if span.y > 0.001 else (min_v.y + max_v.y) * 0.5
 		)
 		_active_3d_slides.erase(key)
 		if c != null and is_instance_valid(c):
-			_apply_3d_slide_node_xz(c, str(entry["role"]), int(entry["clutter_idx"]), str(entry["item_id"]), rest_pos)
+			var role_str: String = str(entry["role"])
+			var entry_c_idx: int = int(entry["clutter_idx"])
+			_apply_3d_slide_node_xz(c, role_str, entry_c_idx, str(entry["item_id"]), rest_pos)
 			if commit:
-				_commit_3d_slide_position(c, str(entry["role"]), int(entry["clutter_idx"]), str(entry["item_id"]), rest_pos)
+				_commit_3d_slide_position(c, role_str, entry_c_idx, str(entry["item_id"]), rest_pos)
 
 
 func _apply_3d_slide_node_xz(container: Node, role: String, clutter_idx: int, item_id: String, norm_pos: Vector2) -> void:
