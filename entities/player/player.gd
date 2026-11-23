@@ -209,6 +209,7 @@ var _drawer_focus_just_entered: bool = false
 var _drawer_e_held: bool = false
 var _drawer_e_hold_elapsed: float = 0.0
 var _interact_steal_bucket: bool = false
+var _interact_step_push_want_open: int = -1
 
 # Doc 4, 5 & 6 Combat, Trap Setup, Hot-Potato Bomb & Anti-Camp State
 var live_bomb_remaining: float = 0.0
@@ -2682,7 +2683,9 @@ func _tick_active_interact_hold(delta: float) -> void:
 			_interact_hold_elapsed += delta
 			if _interact_hold_elapsed >= TAP_RELEASE_THRESHOLD:
 				_interact_hold_triggered = true
-				_interact_target.request_step_push(my_peer_id, delta)
+				var cur_open_i: int = 1 if (_interact_target.get("is_open") == true) else 0
+				if _interact_step_push_want_open == -1 or cur_open_i != _interact_step_push_want_open:
+					_interact_target.request_step_push(my_peer_id, delta, _interact_step_push_want_open)
 		else:
 			if not _interact_hold_triggered:
 				_interact_target.request_interaction(my_peer_id)
@@ -2800,6 +2803,7 @@ func _try_trigger_interact_target(target_collider: Object, aiming_bucket_steal: 
 	_interact_hold_triggered = false
 	_interact_target = target_collider
 	_interact_steal_bucket = aiming_bucket_steal
+	_interact_step_push_want_open = (0 if (target_collider.get("is_open") == true) else 1) if target_collider.has_method("request_step_push") else -1
 	if not supports_hold:
 		_interact_hold_triggered = true
 		target_collider.request_interaction(my_peer_id)
@@ -2812,6 +2816,7 @@ func _reset_interact_hold() -> void:
 	_interact_hold_triggered = false
 	_interact_target = null
 	_interact_steal_bucket = false
+	_interact_step_push_want_open = -1
 	var tw_holding: bool = (_tripwire_ctrl != null and _tripwire_ctrl.is_holding_lmb())
 	if hold_progress_bar != null and not _lmb_trap_hold_active and not tw_holding:
 		hold_progress_bar.visible = false

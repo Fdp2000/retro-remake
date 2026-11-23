@@ -113,11 +113,11 @@ func get_hold_interaction_duration() -> float:
 	return GameConfig.door_slow_peek_hold_time if GameConfig != null else 2.80
 
 
-func request_step_push(_peer_id: int, delta: float) -> void:
+func request_step_push(_peer_id: int, delta: float, want_open: int = -1) -> void:
 	if multiplayer.is_server():
-		server_step_push(delta)
+		server_step_push(delta, want_open)
 	else:
-		server_step_push.rpc_id(1, delta)
+		server_step_push.rpc_id(1, delta, want_open)
 
 
 func request_begin_peek(_peer_id: int) -> void:
@@ -422,8 +422,10 @@ func _compute_away_target_y(player: CharacterBody3D) -> float:
 
 
 @rpc("any_peer", "call_remote", "reliable")
-func server_step_push(delta: float) -> void:
+func server_step_push(delta: float, want_open: int = -1) -> void:
 	if not multiplayer.is_server() or _busy:
+		return
+	if (want_open == 1 and is_open) or (want_open == 0 and not is_open):
 		return
 	var sender: int = multiplayer.get_remote_sender_id()
 	if sender == 0:

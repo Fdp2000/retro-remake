@@ -1,66 +1,246 @@
-[gd_scene format=3]
+[gd_scene load_steps=18 format=3]
 
 [ext_resource type="Script" path="res://entities/props/embassy_door.gd" id="1_door"]
+[ext_resource type="Texture2D" uid="uid://ckr4c1m2b1wru" path="res://Assets/Models/Import/Interiors_A/texture/Updated_Textures/Texture_Floor.png" id="2_floor_tex"]
+[ext_resource type="Texture2D" uid="uid://c8m7v4n0xp1qe" path="res://Assets/Models/Import/Interiors_A/texture/Updated_Textures/Texture_Ceiling.png" id="3_ceil_tex"]
 
-[sub_resource type="BoxShape3D" id="BoxShape3D_leaf"]
-size = Vector3(1.3, 2.15, 0.1)
+[sub_resource type="Shader" id="Shader_comic_door"]
+code = "shader_type spatial;
+render_mode cull_back, diffuse_toon, specular_toon;
 
-[sub_resource type="BoxMesh" id="BoxMesh_leaf"]
-size = Vector3(1.3, 2.15, 0.1)
+uniform sampler2D wood_tex : source_color, filter_linear_mipmap, repeat_enable;
+uniform sampler2D detail_tex : source_color, filter_linear_mipmap, repeat_enable;
+uniform vec4 base_tint : source_color = vec4(0.46, 0.29, 0.16, 1.0);
+uniform vec4 ink_color : source_color = vec4(0.07, 0.05, 0.04, 1.0);
+uniform vec3 box_half_extents = vec3(0.59, 1.04, 0.034);
+uniform int part_mode = 0; // 0 = door leaf, 1 = door frame, 2 = brass plate, 3 = brass handle
 
-[sub_resource type="StandardMaterial3D" id="Mat_leaf"]
-albedo_color = Color(0.55, 0.38, 0.24, 1)
+varying vec3 local_pos;
+varying vec3 local_norm;
 
-[sub_resource type="BoxMesh" id="BoxMesh_handle"]
-size = Vector3(0.14, 0.04, 0.18)
+void vertex() {
+	local_pos = VERTEX;
+	local_norm = NORMAL;
+}
 
-[sub_resource type="StandardMaterial3D" id="Mat_handle"]
-albedo_color = Color(0.85, 0.72, 0.25, 1)
+void fragment() {
+	if (part_mode == 2) {
+		// Brass backplate with comic ink border and keyhole slot
+		float nx = abs(local_pos.x) / max(box_half_extents.x, 0.001);
+		float ny = abs(local_pos.y) / max(box_half_extents.y, 0.001);
+		float border = step(0.84, max(nx, ny));
+		// Keyhole circle + slot on the lower half of the plate
+		float kh_circle = step(length(vec2(local_pos.x, local_pos.y + 0.038)), 0.0085);
+		float kh_slot = step(abs(local_pos.x), 0.004) * step(abs(local_pos.y + 0.054), 0.016);
+		float ink = clamp(border + kh_circle + kh_slot, 0.0, 1.0);
+		vec3 brass = base_tint.rgb * (0.95 + 0.12 * (local_pos.y / max(box_half_extents.y, 0.01)));
+		ALBEDO = mix(brass, ink_color.rgb, ink);
+		ROUGHNESS = 0.32;
+		METALLIC = 0.30;
+	} else if (part_mode == 3) {
+		// Contoured brass lever / spindle with toon rim outline
+		float rim = 1.0 - clamp(dot(NORMAL, VIEW), 0.0, 1.0);
+		float outline = smoothstep(0.68, 0.78, rim);
+		vec3 brass = base_tint.rgb * (0.92 + 0.16 * NORMAL.y);
+		ALBEDO = mix(brass, ink_color.rgb, outline);
+		ROUGHNESS = 0.28;
+		METALLIC = 0.38;
+	} else if (part_mode == 0) {
+		// Clean symmetric wood door leaf without inner square
+		vec2 face_uv = vec2(
+			(local_pos.x / max(box_half_extents.x, 0.001)) * 0.5 + 0.5,
+			(local_pos.y / max(box_half_extents.y, 0.001)) * 0.5 + 0.5
+		);
+		vec2 wood_uv = vec2(face_uv.y * 1.45, face_uv.x * 0.90);
+		vec3 tex_wood = texture(wood_tex, wood_uv).rgb;
+		vec3 tex_det = texture(detail_tex, face_uv * 1.1).rgb;
+		float grain_dark = clamp((tex_wood.r + tex_wood.g + tex_wood.b) / 3.0, 0.0, 1.0);
+		float ink_stroke = smoothstep(0.32, 0.18, grain_dark);
+
+		vec3 wood_col = base_tint.rgb * mix(0.84, 1.12, grain_dark) * mix(0.94, 1.05, tex_det.r);
+
+		// Clean outer perimeter comic ink border in local 3D coordinates (works identically on both faces)
+		float nx = abs(local_pos.x) / max(box_half_extents.x, 0.001);
+		float ny = abs(local_pos.y) / max(box_half_extents.y, 0.001);
+		float outer_border = step(0.955, max(nx, ny));
+
+		float total_ink = clamp(outer_border + ink_stroke * 0.85, 0.0, 1.0);
+		ALBEDO = mix(wood_col, ink_color.rgb, total_ink);
+		ROUGHNESS = 0.78;
+		METALLIC = 0.0;
+	} else {
+		// Door frame trim with wood grain & comic edge outline
+		vec2 wood_uv = vec2(local_pos.y * 0.7, (local_pos.x + local_pos.z) * 1.2);
+		vec3 tex_wood = texture(wood_tex, wood_uv).rgb;
+		float grain_dark = clamp((tex_wood.r + tex_wood.g + tex_wood.b) / 3.0, 0.0, 1.0);
+		float ink_stroke = smoothstep(0.30, 0.16, grain_dark);
+		float nx = abs(local_pos.x) / max(box_half_extents.x, 0.001);
+		float ny = abs(local_pos.y) / max(box_half_extents.y, 0.001);
+		float nz = abs(local_pos.z) / max(box_half_extents.z, 0.001);
+		float edge_count = step(0.82, nx) + step(0.985, ny) + step(0.86, nz);
+		float outer_b = step(1.5, edge_count);
+		vec3 frame_col = base_tint.rgb * mix(0.85, 1.10, grain_dark);
+		float total_ink = clamp(outer_b + ink_stroke * 0.75, 0.0, 1.0);
+		ALBEDO = mix(frame_col, ink_color.rgb, total_ink);
+		ROUGHNESS = 0.82;
+		METALLIC = 0.0;
+	}
+}
+"
+
+[sub_resource type="ShaderMaterial" id="Mat_leaf"]
+shader = SubResource("Shader_comic_door")
+shader_parameter/wood_tex = ExtResource("2_floor_tex")
+shader_parameter/detail_tex = ExtResource("3_ceil_tex")
+shader_parameter/base_tint = Color(0.48, 0.30, 0.17, 1)
+shader_parameter/ink_color = Color(0.07, 0.05, 0.04, 1)
+shader_parameter/box_half_extents = Vector3(0.59, 1.04, 0.034)
+shader_parameter/part_mode = 0
+
+[sub_resource type="ShaderMaterial" id="Mat_frame_jamb"]
+shader = SubResource("Shader_comic_door")
+shader_parameter/wood_tex = ExtResource("2_floor_tex")
+shader_parameter/detail_tex = ExtResource("3_ceil_tex")
+shader_parameter/base_tint = Color(0.28, 0.19, 0.13, 1)
+shader_parameter/ink_color = Color(0.06, 0.04, 0.03, 1)
+shader_parameter/box_half_extents = Vector3(0.035, 1.065, 0.115)
+shader_parameter/part_mode = 1
+
+[sub_resource type="ShaderMaterial" id="Mat_frame_header"]
+shader = SubResource("Shader_comic_door")
+shader_parameter/wood_tex = ExtResource("2_floor_tex")
+shader_parameter/detail_tex = ExtResource("3_ceil_tex")
+shader_parameter/base_tint = Color(0.28, 0.19, 0.13, 1)
+shader_parameter/ink_color = Color(0.06, 0.04, 0.03, 1)
+shader_parameter/box_half_extents = Vector3(0.66, 0.035, 0.115)
+shader_parameter/part_mode = 1
+
+[sub_resource type="ShaderMaterial" id="Mat_plate"]
+shader = SubResource("Shader_comic_door")
+shader_parameter/base_tint = Color(0.84, 0.67, 0.24, 1)
+shader_parameter/ink_color = Color(0.08, 0.06, 0.04, 1)
+shader_parameter/box_half_extents = Vector3(0.024, 0.10, 0.039)
+shader_parameter/part_mode = 2
+
+[sub_resource type="ShaderMaterial" id="Mat_handle"]
+shader = SubResource("Shader_comic_door")
+shader_parameter/base_tint = Color(0.92, 0.75, 0.28, 1)
+shader_parameter/ink_color = Color(0.08, 0.06, 0.04, 1)
+shader_parameter/part_mode = 3
 
 [sub_resource type="BoxMesh" id="BoxMesh_jamb"]
-size = Vector3(0.12, 2.25, 0.18)
+size = Vector3(0.07, 2.13, 0.23)
 
 [sub_resource type="BoxMesh" id="BoxMesh_header"]
-size = Vector3(1.56, 0.14, 0.18)
+size = Vector3(1.32, 0.07, 0.23)
 
-[sub_resource type="StandardMaterial3D" id="Mat_frame"]
-albedo_color = Color(0.32, 0.34, 0.38, 1)
+[sub_resource type="BoxShape3D" id="BoxShape3D_jamb"]
+size = Vector3(0.07, 2.13, 0.23)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_header"]
+size = Vector3(1.32, 0.07, 0.23)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_leaf"]
+size = Vector3(1.18, 2.08, 0.068)
+
+[sub_resource type="BoxMesh" id="BoxMesh_leaf"]
+size = Vector3(1.18, 2.08, 0.068)
+
+[sub_resource type="BoxMesh" id="BoxMesh_plate"]
+size = Vector3(0.048, 0.20, 0.078)
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_rosette"]
+top_radius = 0.018
+bottom_radius = 0.018
+height = 0.090
+radial_segments = 16
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_spindle"]
+top_radius = 0.010
+bottom_radius = 0.010
+height = 0.138
+radial_segments = 12
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_lever"]
+radius = 0.0125
+height = 0.135
+radial_segments = 12
+rings = 4
 
 [node name="EmbassyDoor" type="Node3D"]
 script = ExtResource("1_door")
 
 [node name="LeftJamb" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.72, 1.125, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.625, 1.065, 0)
 mesh = SubResource("BoxMesh_jamb")
-surface_material_override/0 = SubResource("Mat_frame")
+surface_material_override/0 = SubResource("Mat_frame_jamb")
 
 [node name="RightJamb" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.72, 1.125, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.625, 1.065, 0)
 mesh = SubResource("BoxMesh_jamb")
-surface_material_override/0 = SubResource("Mat_frame")
+surface_material_override/0 = SubResource("Mat_frame_jamb")
 
 [node name="TopHeader" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.25, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.115, 0)
 mesh = SubResource("BoxMesh_header")
-surface_material_override/0 = SubResource("Mat_frame")
+surface_material_override/0 = SubResource("Mat_frame_header")
+
+[node name="FrameBody" type="StaticBody3D" parent="."]
+collision_layer = 1
+collision_mask = 0
+
+[node name="LeftJambCol" type="CollisionShape3D" parent="FrameBody"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.625, 1.065, 0)
+shape = SubResource("BoxShape3D_jamb")
+
+[node name="RightJambCol" type="CollisionShape3D" parent="FrameBody"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.625, 1.065, 0)
+shape = SubResource("BoxShape3D_jamb")
+
+[node name="TopHeaderCol" type="CollisionShape3D" parent="FrameBody"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.115, 0)
+shape = SubResource("BoxShape3D_header")
 
 [node name="HingePivot" type="Node3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.65, 0, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.59, 0, 0)
 
 [node name="DoorLeaf" type="StaticBody3D" parent="HingePivot"]
 collision_layer = 3
 collision_mask = 0
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="HingePivot/DoorLeaf"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.65, 1.075, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.59, 1.04, 0)
 shape = SubResource("BoxShape3D_leaf")
 
 [node name="LeafMesh" type="MeshInstance3D" parent="HingePivot/DoorLeaf"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.65, 1.075, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.59, 1.04, 0)
 mesh = SubResource("BoxMesh_leaf")
 surface_material_override/0 = SubResource("Mat_leaf")
 
-[node name="HandleMesh" type="MeshInstance3D" parent="HingePivot/DoorLeaf"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.15, 1.0, 0)
-mesh = SubResource("BoxMesh_handle")
+[node name="HandlePlateMesh" type="MeshInstance3D" parent="HingePivot/DoorLeaf"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.05, 1.0, 0)
+mesh = SubResource("BoxMesh_plate")
+surface_material_override/0 = SubResource("Mat_plate")
+
+[node name="HandlePivot" type="Node3D" parent="HingePivot/DoorLeaf"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.05, 1.03, 0)
+
+[node name="SpindleRosette" type="MeshInstance3D" parent="HingePivot/DoorLeaf/HandlePivot"]
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0, 0)
+mesh = SubResource("CylinderMesh_rosette")
+surface_material_override/0 = SubResource("Mat_handle")
+
+[node name="SpindleBar" type="MeshInstance3D" parent="HingePivot/DoorLeaf/HandlePivot"]
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0, 0)
+mesh = SubResource("CylinderMesh_spindle")
+surface_material_override/0 = SubResource("Mat_handle")
+
+[node name="LeverFront" type="MeshInstance3D" parent="HingePivot/DoorLeaf/HandlePivot"]
+transform = Transform3D(0, -1, 0, 1, 0, 0, 0, 0, 1, -0.052, 0, 0.064)
+mesh = SubResource("CapsuleMesh_lever")
+surface_material_override/0 = SubResource("Mat_handle")
+
+[node name="LeverBack" type="MeshInstance3D" parent="HingePivot/DoorLeaf/HandlePivot"]
+transform = Transform3D(0, -1, 0, 1, 0, 0, 0, 0, 1, -0.052, 0, -0.064)
+mesh = SubResource("CapsuleMesh_lever")
 surface_material_override/0 = SubResource("Mat_handle")

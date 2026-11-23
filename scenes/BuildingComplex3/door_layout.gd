@@ -1,8 +1,7 @@
 extends RefCounted
 
 const DOOR_WALL_TILE := preload("res://Assets/Models/Import/Interiors_A/Scenes/Walls/wall_3m_door_a.tscn")
-const DOOR_SCENE := preload("res://Assets/Models/Import/Interiors_A/Scenes/Doors/door_b_grp.tscn")
-const INTERACTIVE_DOOR := preload("res://scenes/BuildingComplex2/interactive_door.gd")
+const DOOR_SCENE := preload("res://entities/props/embassy_door.tscn")
 
 
 static func randomize_floor(floor: Node3D, grid_size: Vector2i, rng: RandomNumberGenerator, min_doors: int, max_doors: int, reserved_boundary: String = "") -> int:
@@ -73,5 +72,4 @@ static func _add_doorway(floor: Node3D, boundary_name: String) -> void:
 	var door := DOOR_SCENE.instantiate() as Node3D
 	door.name = center_name
 	door.transform = assembly_transform
-	door.get_node("Door_B_Frame/Door_B_Door").set_script(INTERACTIVE_DOOR)
 	doors.add_child(door)

@@ -24,14 +24,27 @@ var bucket_side_sign: float = 1.0
 
 var _hinge_pivot: Node3D = null
 var _door_body: StaticBody3D = null
+var _handle_pivot: Node3D = null
 var _bucket_visual: Node3D = null
 var _swing_tween: Tween = null
+var _handle_tween: Tween = null
+var _handle_release_timer: float = 0.0
 var _step_start_rad: float = 0.0
 
 
 func _ready() -> void:
+	set_multiplayer_authority(1)
 	_ensure_nodes()
 	_apply_closed_visuals()
+
+
+func _process(delta: float) -> void:
+	if Engine.is_editor_hint():
+		return
+	if _handle_release_timer > 0.0:
+		_handle_release_timer -= delta
+		if _handle_release_timer <= 0.0:
+			_release_handle_to_rest()
 
 
 func _ensure_nodes() -> void:
@@ -39,7 +52,7 @@ func _ensure_nodes() -> void:
 	if _hinge_pivot == null:
 		_hinge_pivot = Node3D.new()
 		_hinge_pivot.name = "HingePivot"
-		_hinge_pivot.position = Vector3(-0.65, 0.0, 0.0)
+		_hinge_pivot.position = Vector3(-0.59, 0.0, 0.0)
 		add_child(_hinge_pivot)
 
 	_door_body = _hinge_pivot.get_node_or_null("DoorLeaf") as StaticBody3D
@@ -53,23 +66,25 @@ func _ensure_nodes() -> void:
 		var col := CollisionShape3D.new()
 		col.name = "CollisionShape3D"
 		var box := BoxShape3D.new()
-		box.size = Vector3(1.3, 2.15, 0.1)
+		box.size = Vector3(1.18, 2.08, 0.068)
 		col.shape = box
-		col.position = Vector3(0.65, 1.075, 0.0)
+		col.position = Vector3(0.59, 1.04, 0.0)
 		_door_body.add_child(col)
 
 		var leaf_mesh := MeshInstance3D.new()
 		leaf_mesh.name = "LeafMesh"
 		var b_mesh := BoxMesh.new()
-		b_mesh.size = Vector3(1.3, 2.15, 0.1)
+		b_mesh.size = Vector3(1.18, 2.08, 0.068)
 		leaf_mesh.mesh = b_mesh
-		leaf_mesh.position = Vector3(0.65, 1.075, 0.0)
+		leaf_mesh.position = Vector3(0.59, 1.04, 0.0)
 		var mat := StandardMaterial3D.new()
 		mat.albedo_color = Color(0.55, 0.38, 0.24)
 		leaf_mesh.material_override = mat
 		_door_body.add_child(leaf_mesh)
 	else:
 		_door_body.collision_layer = (GameConfig.LAYER_ENVIRONMENT | GameConfig.LAYER_INTERACTABLE) if GameConfig != null else 3
+
+	_handle_pivot = _door_body.get_node_or_null("HandlePivot") as Node3D
 
 	_bucket_visual = get_node_or_null("BucketMount") as Node3D
 	if _bucket_visual == null:
@@ -104,8 +119,8 @@ func _update_bucket_mount_transform() -> void:
 	if _bucket_visual == null or not is_instance_valid(_bucket_visual):
 		return
 	var ajar_rad: float = _get_bucket_ajar_rad()
-	var hinge_pos: Vector3 = _hinge_pivot.position if _hinge_pivot != null else Vector3(-0.65, 0.0, 0.0)
-	_bucket_visual.position = hinge_pos + Basis(Vector3.UP, ajar_rad) * Vector3(1.02, 2.29, bucket_side_sign * 0.04)
+	var hinge_pos: Vector3 = _hinge_pivot.position if _hinge_pivot != null else Vector3(-0.59, 0.0, 0.0)
+	_bucket_visual.position = hinge_pos + Basis(Vector3.UP, ajar_rad) * Vector3(1.00, 2.244, bucket_side_sign * 0.055)
 	_bucket_visual.rotation = Vector3(0.0, ajar_rad, 0.0)
 
 
@@ -146,12 +161,12 @@ func get_hold_interaction_duration() -> float:
 	return GameConfig.door_slow_peek_hold_time if GameConfig != null else 2.80
 
 
-func request_step_push(caller_peer_id: int, delta: float) -> void:
+func request_step_push(caller_peer_id: int, delta: float, want_open: int = -1) -> void:
 	var opener_pos: Vector3 = _resolve_opener_position(caller_peer_id)
 	if _is_peer_connected():
-		_server_step_push.rpc_id(1, caller_peer_id, delta, opener_pos)
+		_server_step_push.rpc_id(1, caller_peer_id, delta, opener_pos, want_open)
 	else:
-		_execute_step_push(caller_peer_id, delta, opener_pos)
+		_execute_step_push(caller_peer_id, delta, opener_pos, want_open)
 
 
 func request_begin_peek(_caller_peer_id: int) -> void:
@@ -261,7 +276,7 @@ func steal_water_bucket(thief_peer_id: int, player_override: Node = null) -> boo
 
 
 @rpc("any_peer", "call_local", "reliable")
-func _server_step_push(caller_peer_id: int, delta: float, opener_pos: Vector3) -> void:
+func _server_step_push(caller_peer_id: int, delta: float, opener_pos: Vector3, want_open: int = -1) -> void:
 	if _is_peer_connected() and not multiplayer.is_server():
 		return
 	var sender_id: int = multiplayer.get_remote_sender_id()
@@ -272,10 +287,12 @@ func _server_step_push(caller_peer_id: int, delta: float, opener_pos: Vector3) -
 		opener_pos = (player as Node3D).global_position
 		if opener_pos.distance_to(_safe_global_pos()) > 3.5:
 			return
-	_execute_step_push(caller_peer_id, delta, opener_pos)
+	_execute_step_push(caller_peer_id, delta, opener_pos, want_open)
 
 
-func _execute_step_push(peer_id: int, delta: float, opener_pos: Vector3) -> void:
+func _execute_step_push(peer_id: int, delta: float, opener_pos: Vector3, want_open: int = -1) -> void:
+	if (want_open == 1 and is_open) or (want_open == 0 and not is_open):
+		return
 	var slow_dur: float = GameConfig.door_slow_peek_swing_duration if GameConfig != null else 2.80
 	var step: float = clampf(delta, 0.0, 0.15) / maxf(slow_dur, 0.5)
 	if is_open:
@@ -324,9 +341,9 @@ func _execute_step_push(peer_id: int, delta: float, opener_pos: Vector3) -> void
 			_resolve_bucket_drop(peer_id, opener_pos, owner_id)
 
 	if _is_peer_connected():
-		_rpc_sync_door.rpc(is_open, current_target_angle_rad, 0.0, has_rigged_bucket, bucket_side_sign)
+		_rpc_sync_door.rpc(is_open, current_target_angle_rad, 0.0, has_rigged_bucket, bucket_side_sign, true)
 	else:
-		_rpc_sync_door(is_open, current_target_angle_rad, 0.0, has_rigged_bucket, bucket_side_sign)
+		_rpc_sync_door(is_open, current_target_angle_rad, 0.0, has_rigged_bucket, bucket_side_sign, true)
 
 
 @rpc("any_peer", "call_local", "reliable")
@@ -376,10 +393,11 @@ func _execute_door_action(peer_id: int, mode: String, opener_pos: Vector3) -> vo
 		if has_rigged_bucket:
 			_trigger_rigged_bucket_on_open(peer_id, opener_pos, duration)
 
+	var use_handle: bool = (mode != "SPRINT_BASH")
 	if _is_peer_connected():
-		_rpc_sync_door.rpc(is_open, current_target_angle_rad, duration, has_rigged_bucket, bucket_side_sign)
+		_rpc_sync_door.rpc(is_open, current_target_angle_rad, duration, has_rigged_bucket, bucket_side_sign, use_handle)
 	else:
-		_rpc_sync_door(is_open, current_target_angle_rad, duration, has_rigged_bucket, bucket_side_sign)
+		_rpc_sync_door(is_open, current_target_angle_rad, duration, has_rigged_bucket, bucket_side_sign, use_handle)
 
 
 func _trigger_rigged_bucket_on_open(opener_peer_id: int, opener_pos: Vector3, swing_duration: float) -> void:
@@ -492,7 +510,7 @@ func _rpc_play_bucket_drop_fx(drop_local_pos: Vector3) -> void:
 
 
 @rpc("authority", "call_local", "reliable")
-func _rpc_sync_door(opened: bool, target_angle_rad: float, duration: float, bucket_rigged: bool, bucket_side: float = 1.0) -> void:
+func _rpc_sync_door(opened: bool, target_angle_rad: float, duration: float, bucket_rigged: bool, bucket_side: float = 1.0, animate_handle: bool = false) -> void:
 	_ensure_nodes()
 	is_open = opened
 	if duration > 0.0:
@@ -510,6 +528,12 @@ func _rpc_sync_door(opened: bool, target_angle_rad: float, duration: float, buck
 		var hcol: CollisionShape3D = _bucket_visual.get_node_or_null("BucketHitbox/CollisionShape3D") as CollisionShape3D
 		if hcol != null:
 			hcol.disabled = not has_rigged_bucket
+
+	if animate_handle:
+		if duration > 0.0:
+			_pulse_handle_press()
+		else:
+			_hold_handle_pressed()
 
 	var final_rad: float = target_angle_rad
 	if not is_open and absf(target_angle_rad) <= 0.001 and has_rigged_bucket:
@@ -531,6 +555,50 @@ func _rpc_sync_door(opened: bool, target_angle_rad: float, duration: float, buck
 		_swing_tween.tween_property(_hinge_pivot, "rotation:y", final_rad, scaled_dur).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	else:
 		_hinge_pivot.rotation.y = final_rad
+
+
+func _pulse_handle_press() -> void:
+	if _handle_pivot == null or not is_instance_valid(_handle_pivot):
+		return
+	_handle_release_timer = 0.0
+	if _handle_tween != null and _handle_tween.is_valid():
+		_handle_tween.kill()
+	var press_rad: float = deg_to_rad(32.0)
+	if not is_inside_tree():
+		_handle_pivot.rotation.z = 0.0
+		return
+	_handle_tween = create_tween()
+	_handle_tween.tween_property(_handle_pivot, "rotation:z", press_rad, 0.07).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	_handle_tween.tween_property(_handle_pivot, "rotation:z", 0.0, 0.18).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+
+
+func _hold_handle_pressed() -> void:
+	if _handle_pivot == null or not is_instance_valid(_handle_pivot):
+		return
+	_handle_release_timer = 0.14
+	var press_rad: float = deg_to_rad(32.0)
+	if _handle_tween != null and _handle_tween.is_valid():
+		_handle_tween.kill()
+	if not is_inside_tree():
+		_handle_pivot.rotation.z = press_rad
+		return
+	if absf(_handle_pivot.rotation.z - press_rad) > 0.02:
+		_handle_tween = create_tween()
+		_handle_tween.tween_property(_handle_pivot, "rotation:z", press_rad, 0.05).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	else:
+		_handle_pivot.rotation.z = press_rad
+
+
+func _release_handle_to_rest() -> void:
+	if _handle_pivot == null or not is_instance_valid(_handle_pivot):
+		return
+	if _handle_tween != null and _handle_tween.is_valid():
+		_handle_tween.kill()
+	if not is_inside_tree():
+		_handle_pivot.rotation.z = 0.0
+		return
+	_handle_tween = create_tween()
+	_handle_tween.tween_property(_handle_pivot, "rotation:z", 0.0, 0.14).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 
 
 func _apply_closed_visuals() -> void:
@@ -567,6 +635,9 @@ func _find_player_node(peer_id: int) -> Node:
 		var p2: Node = parent.get_node_or_null("Players/" + str(peer_id))
 		if p2 != null:
 			return p2
+	for candidate in get_tree().get_nodes_in_group("spy_players"):
+		if candidate.name.to_int() == peer_id:
+			return candidate
 	return null
 
 
