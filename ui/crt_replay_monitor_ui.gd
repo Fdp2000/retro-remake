@@ -565,10 +565,16 @@ func _resolve_spy_display_name(victim_peer_id: int) -> String:
 		var rival: Node3D = _rival_rigs[victim_peer_id].get("rival") as Node3D
 		if rival != null and is_instance_valid(rival):
 			var role_val: int = int(rival.get("spy_role"))
+			if GameConfig != null and role_val >= 1 and role_val <= 4:
+				return GameConfig.get_spy_role_name(role_val)
 			if role_val == 1:
 				return "SPY GREEN"
 			if role_val == 2:
 				return "SPY PURPLE"
+			if role_val == 3:
+				return "SPY BLUE"
+			if role_val == 4:
+				return "SPY RED"
 	return "SPY %d" % victim_peer_id
 
 

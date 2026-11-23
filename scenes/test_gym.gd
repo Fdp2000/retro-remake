@@ -13,15 +13,21 @@ const LOBBY_SCENE_PATH: String = "res://scenes/lobby.tscn"
 
 const SPAWN_POINTS: Dictionary = {
 	1: Vector3(-3.0, 1.0, 0.0),
-	2: Vector3(3.0, 1.0, 0.0)
+	2: Vector3(3.0, 1.0, 0.0),
+	3: Vector3(-3.0, 1.0, 1.8),
+	4: Vector3(3.0, 1.0, 1.8)
 }
 const FULL_MATCH_SPAWN_POINTS: Dictionary = {
 	1: Vector3(-12.0, 1.0, -9.0), # Room_1_1 (NW Corner — Spy Green)
-	2: Vector3(13.5, 1.0, 6.8)   # Room_3_4 (SE Corner — Spy Purple)
+	2: Vector3(13.5, 1.0, 6.8),   # Room_3_4 (SE Corner — Spy Purple)
+	3: Vector3(15.0, 1.0, -9.0),  # Room_1_4 (NE Corner — Spy Blue)
+	4: Vector3(-12.0, 1.0, 9.0)   # Room_3_1 (SW Corner — Spy Red)
 }
 const FULL_MATCH_SPAWN_YAWS: Dictionary = {
 	1: PI,
-	2: 0.0
+	2: 0.0,
+	3: PI,
+	4: 0.0
 }
 
 @onready var players_container: Node3D = $Players
@@ -32,7 +38,9 @@ const FULL_MATCH_SPAWN_YAWS: Dictionary = {
 @onready var leave_button: Button = $UI/EscMenu/VBoxContainer/LeaveButton
 
 var peers_in_arena: Dictionary = {} # peer_id -> bool
-var client_peer_id: int = 0
+var expected_peers: Array[int] = []
+var peer_roles: Dictionary = {} # peer_id -> role (1..4)
+var _disconnect_drop_counter: int = 0
 var has_spawned_all: bool = false
 var is_terminating: bool = false
 var is_sandbox_mode: bool = false
@@ -125,6 +133,7 @@ func _ready() -> void:
 
 	# Arena loading handshake
 	if multiplayer.is_server():
+		_init_expected_peers_and_roles()
 		_on_peer_arena_loaded(1)
 		# If launched via Solo Playtest (0 remote peers connected), mark slot 2 ready so Peer 1 spawns immediately
 		if not Engine.is_editor_hint() and NetworkManager != null and NetworkManager.is_online() and multiplayer.get_peers().is_empty():
@@ -210,12 +219,20 @@ func _refresh_role_badge() -> void:
 		return
 	var my_id: int = multiplayer.get_unique_id() if _is_network_active() else 1
 	var mode_tag: String = "SANDBOX GYM" if is_sandbox_mode else "FULL MATCH"
-	if my_id == 1:
-		role_label.text = "ROLE: SPY GREEN (HOST) — %s" % mode_tag
-		role_label.modulate = Color(0.45, 0.95, 0.55)
-	else:
-		role_label.text = "ROLE: SPY PURPLE (CONTENDER) — %s" % mode_tag
-		role_label.modulate = Color(0.78, 0.55, 1.0)
+	var role: int = 0
+	if MatchManager != null and MatchManager.has_method("get_peer_role"):
+		role = MatchManager.get_peer_role(my_id)
+	if role <= 0 and players_container != null:
+		var local_player: Node = players_container.get_node_or_null(str(my_id))
+		if local_player != null:
+			role = int(local_player.get("spy_role"))
+	if role <= 0:
+		role = 1 if my_id == 1 else 2
+
+	var role_name: String = GameConfig.get_spy_role_name(role) if GameConfig != null else ("SPY %d" % role)
+	var suffix: String = " (HOST)" if my_id == 1 else ""
+	role_label.text = "ROLE: %s%s — %s" % [role_name, suffix, mode_tag]
+	role_label.modulate = GameConfig.get_spy_role_badge_color(role) if GameConfig != null else Color.WHITE
 
 
 func _refresh_esc_mode_button_text() -> void:
@@ -418,6 +435,20 @@ func _on_switch_mode_rematch_pressed() -> void:
 	trigger_rematch(not is_sandbox_mode)
 
 
+func _get_active_match_peer_ids() -> Array[int]:
+	var active_peers: Array[int] = []
+	var p_root: Node = players_container if players_container != null else get_node_or_null("Players")
+	if p_root != null:
+		for child in p_root.get_children():
+			if child.name.is_valid_int():
+				active_peers.append(child.name.to_int())
+	if active_peers.is_empty():
+		if not expected_peers.is_empty():
+			return expected_peers.duplicate()
+		return [1, 2]
+	return active_peers
+
+
 func trigger_rematch(next_sandbox_mode: bool, custom_seed: int = 0) -> void:
 	if _is_network_active() and not multiplayer.is_server():
 		return
@@ -426,9 +457,9 @@ func trigger_rematch(next_sandbox_mode: bool, custom_seed: int = 0) -> void:
 	else:
 		_rpc_prepare_arena_round(next_sandbox_mode)
 
-	var c_id: int = client_peer_id if client_peer_id != 0 else 2
+	var active_peers: Array[int] = _get_active_match_peer_ids()
 	if MatchManager != null and is_inside_tree():
-		MatchManager.start_new_match([1, c_id], custom_seed)
+		MatchManager.start_new_match(active_peers, custom_seed)
 
 
 @rpc("authority", "call_local", "reliable")
@@ -453,7 +484,11 @@ func _rpc_prepare_arena_round(next_sandbox_mode: bool) -> void:
 	if p_root != null:
 		for child in p_root.get_children():
 			var pid: int = child.name.to_int()
-			var slot: int = 1 if pid == 1 else 2
+			var slot: int = int(child.get("spy_role"))
+			if slot <= 0 and MatchManager != null and MatchManager.has_method("get_peer_role"):
+				slot = MatchManager.get_peer_role(pid)
+			if slot <= 0:
+				slot = 1 if pid == 1 else 2
 			if child.has_method("reset_for_rematch"):
 				child.call("reset_for_rematch", _resolve_spawn_point(slot), _resolve_spawn_yaw(slot))
 
@@ -515,6 +550,48 @@ func _reset_all_doors_for_round() -> void:
 # Arena Loading Handshake (Host Authority)
 # ==========================================
 
+func _init_expected_peers_and_roles() -> void:
+	expected_peers.clear()
+	peer_roles.clear()
+
+	if not Engine.is_editor_hint() and NetworkManager != null and NetworkManager.is_online():
+		var remote_peers: PackedInt32Array = multiplayer.get_peers()
+		if remote_peers.is_empty():
+			# Solo Playtest / Solo Full Match: Peer 1 + dummy Peer 2
+			expected_peers = [1, 2]
+			peer_roles = {1: 1, 2: 2}
+		else:
+			expected_peers.append(1)
+			for r_pid in remote_peers:
+				expected_peers.append(int(r_pid))
+
+			var used_roles: Dictionary = {}
+			for pid in expected_peers:
+				var existing_role: int = MatchManager.get_peer_role(pid) if (MatchManager != null and MatchManager.has_method("get_peer_role")) else 0
+				if existing_role >= 1 and existing_role <= NetworkManager.MAX_PLAYERS and not used_roles.has(existing_role):
+					peer_roles[pid] = existing_role
+					used_roles[existing_role] = true
+
+			for pid in expected_peers:
+				if peer_roles.has(pid):
+					continue
+				for candidate_role in range(1, NetworkManager.MAX_PLAYERS + 1):
+					if not used_roles.has(candidate_role):
+						peer_roles[pid] = candidate_role
+						used_roles[candidate_role] = true
+						break
+
+			expected_peers.sort_custom(func(a: int, b: int) -> bool:
+				return int(peer_roles.get(a, 99)) < int(peer_roles.get(b, 99))
+			)
+	else:
+		expected_peers = [1, 2]
+		peer_roles = {1: 1, 2: 2}
+
+	if MatchManager != null and MatchManager.has_method("sync_peer_roles"):
+		MatchManager.sync_peer_roles(peer_roles)
+
+
 @rpc("any_peer", "call_local", "reliable")
 func notify_arena_ready() -> void:
 	var sender_id: int = multiplayer.get_remote_sender_id()
@@ -528,13 +605,14 @@ func _on_peer_arena_loaded(peer_id: int) -> void:
 	peers_in_arena[peer_id] = true
 	print("TestGym: Peer %d confirmed loaded in arena." % peer_id)
 
-	if peer_id != 1:
-		client_peer_id = peer_id
-		peers_in_arena[2] = true
+	if expected_peers.is_empty():
+		_init_expected_peers_and_roles()
 
-	# Once both Peer 1 (Host) and Peer 2 (Client) are loaded:
-	if peers_in_arena.has(1) and peers_in_arena.has(2):
-		_spawn_all_players()
+	for pid in expected_peers:
+		if not peers_in_arena.get(pid, false):
+			return
+
+	_spawn_all_players()
 
 
 func _spawn_all_players() -> void:
@@ -544,26 +622,31 @@ func _spawn_all_players() -> void:
 	if is_inside_tree() and GameConfig != null:
 		is_sandbox_mode = GameConfig.sandbox_gym_mode
 
-	print("TestGym: Both peers confirmed arena loaded. Instantiating 1v1 Spies (mode=%s)..." % (
+	var participants: Array[int] = expected_peers.duplicate()
+	if participants.is_empty():
+		participants = [1, 2]
+		peer_roles = {1: 1, 2: 2}
+
+	participants.sort_custom(func(a: int, b: int) -> bool:
+		return int(peer_roles.get(a, 99)) < int(peer_roles.get(b, 99))
+	)
+
+	if MatchManager != null and MatchManager.has_method("sync_peer_roles"):
+		MatchManager.sync_peer_roles(peer_roles)
+
+	print("TestGym: All %d peers confirmed arena loaded. Instantiating FFA Spies (mode=%s)..." % [
+		participants.size(),
 		"Sandbox" if is_sandbox_mode else "FullMatch"
-	))
+	])
 
-	# 1. Host (Peer 1 - Spy Green)
-	var host_player: CharacterBody3D = PLAYER_SCENE.instantiate()
-	host_player.name = "1"
-	host_player.spy_role = 1
-	host_player.position = _resolve_spawn_point(1)
-	host_player.rotation.y = _resolve_spawn_yaw(1)
-	players_container.add_child(host_player)
-
-	# 2. Client (Peer 2 / Contender - Spy Purple)
-	var c_id: int = client_peer_id if client_peer_id != 0 else 2
-	var client_player: CharacterBody3D = PLAYER_SCENE.instantiate()
-	client_player.name = str(c_id)
-	client_player.spy_role = 2
-	client_player.position = _resolve_spawn_point(2)
-	client_player.rotation.y = _resolve_spawn_yaw(2)
-	players_container.add_child(client_player)
+	for pid in participants:
+		var role: int = int(peer_roles.get(pid, 1 if pid == 1 else 2))
+		var player_node: CharacterBody3D = PLAYER_SCENE.instantiate()
+		player_node.name = str(pid)
+		player_node.spy_role = role
+		player_node.position = _resolve_spawn_point(role)
+		player_node.rotation.y = _resolve_spawn_yaw(role)
+		players_container.add_child(player_node)
 
 	if is_inside_tree() and _is_network_active():
 		_rpc_prepare_arena_round.rpc(is_sandbox_mode)
@@ -571,7 +654,7 @@ func _spawn_all_players() -> void:
 		_refresh_role_badge()
 
 	if MatchManager != null and is_inside_tree():
-		MatchManager.start_new_match([1, c_id])
+		MatchManager.start_new_match(participants)
 
 
 func _is_network_active() -> bool:
@@ -586,9 +669,123 @@ func _is_network_active() -> bool:
 # Teardown & Return to Lobby
 # ==========================================
 
+func _scatter_disconnected_player_inventory(player_node: Node, peer_id: int) -> void:
+	if player_node == null or not is_instance_valid(player_node):
+		return
+	var active_c: Variant = player_node.get("active_container")
+	if active_c != null and is_instance_valid(active_c) and active_c.has_method("close_container"):
+		active_c.call("close_container", peer_id, player_node, true)
+	if not player_node.has_method("force_drop_all_hands"):
+		return
+	var drops: Array = player_node.call("force_drop_all_hands")
+	for i in range(drops.size()):
+		var entry: Dictionary = drops[i]
+		var dropped_id: String = str(entry.get("dropped_item_id", "NONE"))
+		if dropped_id == "NONE":
+			continue
+		var angle: float = (TAU * float(i)) / float(maxi(drops.size(), 1))
+		var offset := Vector3(cos(angle) * 0.65, 0.0, sin(angle) * 0.65)
+		var drop_pos: Vector3 = (player_node as Node3D).global_position + offset
+		if player_node.has_method("_compute_safe_drop_position"):
+			drop_pos = player_node.call("_compute_safe_drop_position", offset)
+		_disconnect_drop_counter += 1
+		var drop_name: String = "Dropped_DC_%d_%s_%d" % [peer_id, dropped_id, _disconnect_drop_counter]
+		var b_objs: Array = entry.get("dropped_briefcase_items", [])
+		var b_armed_bomb: bool = bool(entry.get("dropped_briefcase_armed_bomb", false))
+		var b_bomb_owner: int = int(entry.get("dropped_briefcase_bomb_owner", 0))
+		var b_armed_spring: bool = bool(entry.get("dropped_briefcase_armed_spring", false))
+		var b_spring_owner: int = int(entry.get("dropped_briefcase_spring_owner", 0))
+		var b_item_positions: Dictionary = entry.get("dropped_briefcase_item_positions", {})
+		var b_bomb_pos: Vector2 = entry.get("dropped_briefcase_bomb_pos", Vector2(0.5, 0.5))
+		if _is_network_active():
+			_rpc_spawn_disconnect_drop.rpc(
+				dropped_id,
+				b_objs.duplicate(),
+				drop_pos,
+				drop_name,
+				b_armed_bomb,
+				b_bomb_owner,
+				b_armed_spring,
+				b_spring_owner,
+				b_item_positions.duplicate(),
+				b_bomb_pos
+			)
+		else:
+			_rpc_spawn_disconnect_drop(
+				dropped_id,
+				b_objs.duplicate(),
+				drop_pos,
+				drop_name,
+				b_armed_bomb,
+				b_bomb_owner,
+				b_armed_spring,
+				b_spring_owner,
+				b_item_positions.duplicate(),
+				b_bomb_pos
+			)
+
+
+@rpc("authority", "call_local", "reliable")
+func _rpc_spawn_disconnect_drop(
+	dropped_id: String,
+	b_objs: Array,
+	world_pos: Vector3,
+	drop_name: String,
+	b_armed_bomb: bool = false,
+	b_bomb_owner: int = 0,
+	b_armed_spring: bool = false,
+	b_spring_owner: int = 0,
+	b_item_positions: Dictionary = {},
+	b_bomb_pos: Vector2 = Vector2(0.5, 0.5)
+) -> void:
+	var pickup: StaticBody3D = PICKUP_SCENE.instantiate() as StaticBody3D
+	if pickup == null:
+		return
+	pickup.name = drop_name
+	pickup.set("item_id", dropped_id)
+	var typed_objs: Array[String] = []
+	for item in b_objs:
+		typed_objs.append(str(item))
+	pickup.set("packed_objectives", typed_objs)
+	pickup.set("packed_item_positions", b_item_positions.duplicate())
+	pickup.set("bomb_norm_pos", b_bomb_pos)
+	pickup.set("armed_spring", b_armed_spring)
+	pickup.set("spring_owner_peer_id", b_spring_owner)
+	pickup.set("armed_bomb", b_armed_bomb)
+	pickup.set("bomb_owner_peer_id", b_bomb_owner)
+	add_child(pickup)
+	pickup.global_position = Vector3(world_pos.x, maxf(world_pos.y, 0.0), world_pos.z)
+
+
 func _on_player_disconnected(peer_id: int) -> void:
 	print("TestGym: Peer %d disconnected during active match." % peer_id)
-	_terminate_match("Opponent disconnected.")
+	if _is_network_active() and not multiplayer.is_server():
+		return
+
+	expected_peers.erase(peer_id)
+	peers_in_arena.erase(peer_id)
+
+	if not has_spawned_all:
+		if multiplayer.get_peers().is_empty():
+			_terminate_match("All opponents disconnected.")
+			return
+		for pid in expected_peers:
+			if not peers_in_arena.get(pid, false):
+				return
+		_spawn_all_players()
+		return
+
+	if players_container != null:
+		var dc_player: Node = players_container.get_node_or_null(str(peer_id))
+		if dc_player != null and is_instance_valid(dc_player):
+			_scatter_disconnected_player_inventory(dc_player, peer_id)
+			dc_player.queue_free()
+
+	if MatchManager != null and MatchManager.has_method("eliminate_disconnected_peer"):
+		MatchManager.eliminate_disconnected_peer(peer_id)
+
+	if _is_network_active() and multiplayer.get_peers().is_empty():
+		_terminate_match("All opponents disconnected.")
 
 
 func _on_server_disconnected() -> void:

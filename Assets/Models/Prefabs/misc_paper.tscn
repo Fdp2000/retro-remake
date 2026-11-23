@@ -1,0 +1,56 @@
+[gd_scene format=4 uid="uid://cvejtitvho5re"]
+
+[ext_resource type="Texture2D" uid="uid://b31clqwgyyl7c" path="res://Assets/Models/Adjusted/Misc/Misc_Paper_-Colour.png" id="1_0drfa"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ityqo"]
+resource_name = "Material.001"
+cull_mode = 2
+albedo_texture = ExtResource("1_0drfa")
+metadata/_gltf_primary_texture_coord = 0
+
+[sub_resource type="ArrayMesh" id="ArrayMesh_3l6oa"]
+_surfaces = [{
+"aabb": AABB(-1, -0.003969133, -1, 2, 0.12544739, 2),
+"format": 34896613377,
+"index_count": 36,
+"index_data": PackedByteArray("AAABAAIAAAADAAEABAACAAEAAwAEAAEABQAAAAIAAwAAAAUABAAGAAIABQACAAYAAwAHAAQAAwAFAAcABwAGAAQABwAFAAYA"),
+"name": "Material.001",
+"primitive": 3,
+"uv_scale": Vector4(0, 0, 0, 0),
+"vertex_count": 8,
+"vertex_data": PackedByteArray("AAAAAP//AAAAAP//AAAAAAAA/////wAAAAAAAAAAAAD/////AAAAAP//AAD//wAA////////AAD//wAAAAAAAA==")
+}]
+blend_shape_mode = 0
+
+[sub_resource type="ArrayMesh" id="ArrayMesh_barts"]
+resource_name = "Misc_Paper_Cube_001"
+_surfaces = [{
+"aabb": AABB(-1, -0.003969133, -1, 2, 0.12544739, 2),
+"attribute_data": PackedByteArray("/1////+f/7//n////1//v/9f/7//n/9//5//v/9f/3//X/9//5//P/+f/3//X/8//1//P/+fAAD/n/8//18AAP8f/3//X/8//1//f/8f/z//n/9//9//P//f/3//n/8/"),
+"format": 34896613399,
+"index_count": 36,
+"index_data": PackedByteArray("AAABAAIAAAADAAEABAAFAAYABAAHAAUACAAJAAoACAALAAkADAANAA4ADAAPAA0AEAARABIAEAATABEAFAAVABYAFAAXABUA"),
+"material": SubResource("StandardMaterial3D_ityqo"),
+"name": "Material.001",
+"primitive": 3,
+"uv_scale": Vector4(0, 0, 0, 0),
+"vertex_count": 24,
+"vertex_data": PackedByteArray("AAAAAP//VNUAAP//AABU1QAA/////1TVAAAAAAAAVNUAAAAAAAD///////8AAP//AAD//wAA/////wAAAAD/////AAAAAFTV////////VNX/////AABU1f//AAD//1TV//8AAP///78AAP//////v/////////+/AAAAAP///78AAAAAAAD/v///AAD///+///8AAAAA/78AAAAA////v/////8AAP//AAD///////8AAP//AAD/////////////VNVU1VTVVNVU1VTVVNVU1f+//7//v/+//7//v/+//7+qKqoqqiqqKqoqqiqqKqoq/////////////////////wAA/38AAP9/AAD/fwAA/3//f/+//3//v/9//7//f/+/")
+}]
+blend_shape_mode = 0
+shadow_mesh = SubResource("ArrayMesh_3l6oa")
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_g3nxs"]
+size = Vector3(2.0029907, 0.13256836, 2.0222168)
+
+[node name="Misc_Paper" type="Node3D" unique_id=1835711496]
+
+[node name="Cube" type="MeshInstance3D" parent="." unique_id=1543503517]
+transform = Transform3D(0.217, 0, 0, 0, 0.217, 0, 0, 0, 0.161, 0, 0, 0)
+mesh = SubResource("ArrayMesh_barts")
+
+[node name="StaticBody3D" type="StaticBody3D" parent="Cube" unique_id=1158153071]
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Cube/StaticBody3D" unique_id=180809492]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0025329564, 0.048217766, -0.00012205664)
+shape = SubResource("BoxShape3D_g3nxs")

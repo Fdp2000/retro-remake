@@ -22,6 +22,7 @@ var match_seed: int = 0
 var active_spawner_config: Dictionary = {}
 var peer_clocks: Dictionary = {}        # peer_id (int) -> remaining_seconds (float)
 var eliminated_peers: Dictionary = {}   # peer_id (int) -> bool
+var peer_roles: Dictionary = {}         # peer_id (int) -> role (int 1..4)
 var winner_peer_id: int = 0
 var end_reason: String = ""
 
@@ -133,8 +134,38 @@ func report_airport_exit_reached(peer_id: int, packed_objectives_count: int) -> 
 	if packed_objectives_count < GameConfig.required_objectives_count:
 		return false
 
-	_finish_match(peer_id, "Escape Victory — Spy %d escaped with all %d Objectives!" % [peer_id, packed_objectives_count])
+	var role: int = get_peer_role(peer_id)
+	var spy_label: String = GameConfig.get_spy_role_name(role) if (GameConfig != null and role > 0) else ("Spy %d" % peer_id)
+	_finish_match(peer_id, "Escape Victory — %s escaped with all %d Objectives!" % [spy_label, packed_objectives_count])
 	return true
+
+
+func sync_peer_roles(roles: Dictionary) -> void:
+	if _is_network_connected() and not multiplayer.is_server():
+		return
+	var clean_roles: Dictionary = {}
+	for k in roles.keys():
+		clean_roles[int(k)] = int(roles[k])
+	if _is_network_connected():
+		_rpc_sync_peer_roles.rpc(clean_roles)
+	else:
+		peer_roles = clean_roles
+
+
+func get_peer_role(peer_id: int) -> int:
+	return int(peer_roles.get(peer_id, 0))
+
+
+func eliminate_disconnected_peer(peer_id: int) -> void:
+	if match_state != MatchState.IN_PROGRESS:
+		return
+	if _is_network_connected() and not multiplayer.is_server():
+		return
+	if not peer_clocks.has(peer_id) or eliminated_peers.get(peer_id, false):
+		return
+	peer_clocks[peer_id] = 0.0
+	eliminated_peers[peer_id] = true
+	_broadcast_clock_elimination(peer_id)
 
 
 func get_private_clock(peer_id: int) -> float:
@@ -178,6 +209,14 @@ func _is_network_connected() -> bool:
 	if multiplayer.multiplayer_peer is OfflineMultiplayerPeer:
 		return false
 	return multiplayer.multiplayer_peer.get_connection_status() == MultiplayerPeer.CONNECTION_CONNECTED
+
+
+@rpc("authority", "call_local", "reliable")
+func _rpc_sync_peer_roles(roles: Dictionary) -> void:
+	var clean_roles: Dictionary = {}
+	for k in roles.keys():
+		clean_roles[int(k)] = int(roles[k])
+	peer_roles = clean_roles
 
 
 @rpc("authority", "call_local", "reliable")

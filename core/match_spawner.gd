@@ -10,7 +10,7 @@ extends RefCounted
 
 const DEFAULT_OBJECTIVES: Array[String] = ["KEY", "MONEY", "PASSPORT", "PLANS"]
 const DEFAULT_GADGETS: Array[String] = ["SPRING", "BOMB", "TRIPWIRE", "DART_GUN"]
-const SPAWN_ROOM_NAMES: Array[String] = ["Room_1_1", "Room_4_4"]
+const SPAWN_ROOM_NAMES: Array[String] = ["Room_1_1", "Room_4_4", "Room_1_4", "Room_4_1"]
 const DEFAULT_DRAWER_SCENE: PackedScene = preload("res://entities/props/searchable_drawer.tscn")
 const DEFAULT_PICKUP_SCENE: PackedScene = preload("res://entities/props/world_item_pickup.tscn")
 
@@ -189,7 +189,12 @@ func populate_level(
 	var spawn_room_keys: Array[String] = SPAWN_ROOM_NAMES.duplicate()
 	if building != null and building.name == &"BuildingComplex3":
 		var grid_size: Vector2i = building.get_meta("grid_size")
-		spawn_room_keys[1] = "Room_%d_%d" % [grid_size.y, grid_size.x]
+		spawn_room_keys = [
+			"Room_1_1",
+			"Room_%d_%d" % [grid_size.y, grid_size.x],
+			"Room_1_%d" % grid_size.x,
+			"Room_%d_1" % grid_size.y
+		]
 
 	for room in _collect_sorted_rooms(level_root, []):
 		var markers := _get_drawer_markers(room)

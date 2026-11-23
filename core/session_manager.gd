@@ -57,7 +57,7 @@ func create_and_host_session(match_type: MatchType, custom_code: String = "") ->
 	var opts := EOS.Sessions.CreateSessionModificationOptions.new()
 	opts.session_name = SESSION_NAME
 	opts.bucket_id = BUCKET_ID
-	opts.max_players = 2
+	opts.max_players = NetworkManager.MAX_PLAYERS
 	opts.presence_enabled = false
 	opts.sanctions_enabled = false
 
@@ -70,7 +70,7 @@ func create_and_host_session(match_type: MatchType, custom_code: String = "") ->
 
 	var session_mod: EOSGSessionModification = mod_res.session_modification
 	session_mod.set_bucket_id(BUCKET_ID)
-	session_mod.set_max_players(2)
+	session_mod.set_max_players(NetworkManager.MAX_PLAYERS)
 	session_mod.set_permission_level(EOS.Sessions.OnlineSessionPermissionLevel.PublicAdvertised)
 	session_mod.set_join_in_progress_allowed(true)
 	session_mod.set_invites_allowed(false)
@@ -108,7 +108,7 @@ func create_and_host_session(match_type: MatchType, custom_code: String = "") ->
 		room_code_created.emit(custom_code)
 		matchmaking_status_changed.emit("Private room created. Code: %s (copied to clipboard)" % custom_code)
 	else:
-		matchmaking_status_changed.emit("Waiting for an opponent to join...")
+		matchmaking_status_changed.emit("Waiting for players to join...")
 		_start_host_reconciliation_poll()
 
 	return true

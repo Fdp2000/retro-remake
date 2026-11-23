@@ -17,7 +17,6 @@ config/icon="res://icon.svg"
 
 [autoload]
 
-_mcp_game_helper="*res://addons/godot_ai/runtime/game_helper.gd"
 NetworkManager="*res://core/network_manager.gd"
 EOSGRuntime="*uid://7saywdx0ipep"
 HPlatform="*uid://yl2muvqrdiud"
@@ -34,6 +33,7 @@ SessionManager="*res://core/session_manager.gd"
 GameConfig="*res://core/game_config.gd"
 AudioBridge="*res://core/audio_bridge.gd"
 MatchManager="*res://core/match_manager.gd"
+_mcp_game_helper="*res://addons/godot_ai/runtime/game_helper.gd"
 
 [display]
 
