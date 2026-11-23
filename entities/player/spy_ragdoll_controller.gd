@@ -165,7 +165,8 @@ func _apply_first_person_visibility_mode() -> void:
 	for child in skeleton.get_children():
 		if child is MeshInstance3D and child.name != "SkeletonKeepAlive":
 			var m: MeshInstance3D = child as MeshInstance3D
-			m.visible = true
+			var hide_for_bucket: bool = _bucket_on_head_active and (m.name == "Head" or m.name == "Eyes")
+			m.visible = not hide_for_bucket
 			m.layers = body_visual_layer
 			m.extra_cull_margin = 16384.0 if (is_first_person_local and m.name == "Body") else 64.0
 
@@ -192,7 +193,7 @@ func _apply_first_person_visibility_mode() -> void:
 		keep_alive.layers = body_visual_layer
 		keep_alive.visible = is_first_person_local
 	if _bucket_head_mount != null and is_instance_valid(_bucket_head_mount):
-		_set_visual_layer_recursive(_bucket_head_mount, body_visual_layer)
+		_set_visual_layer_recursive(_bucket_head_mount, 1)
 
 
 func _set_visual_layer_recursive(node: Node, layer_mask: int) -> void:
@@ -208,6 +209,7 @@ func set_bucket_on_head(active: bool) -> void:
 		_ensure_bucket_head_mount()
 	if _bucket_head_mount != null and is_instance_valid(_bucket_head_mount):
 		_bucket_head_mount.visible = active
+	_apply_first_person_visibility_mode()
 
 
 func _ensure_bucket_head_mount() -> void:
@@ -232,10 +234,22 @@ func _ensure_bucket_head_mount() -> void:
 		const PICKUP_SCRIPT = preload("res://entities/props/world_item_pickup.gd")
 		_bucket_head_mount = PICKUP_SCRIPT.build_item_visual("BUCKET")
 		_bucket_head_mount.name = "BucketHeadMount"
-		_bucket_head_mount.scale = Vector3(1.35, 1.10, 1.35)
-		_bucket_head_mount.position = Vector3(0.0, 0.08, 0.0)
+		var water_node: Node = _bucket_head_mount.find_child("Water", true, false)
+		if water_node != null:
+			if water_node.get_parent() != null:
+				water_node.get_parent().remove_child(water_node)
+			water_node.queue_free()
+		var spand: MeshInstance3D = _bucket_head_mount.find_child("Spand", true, false) as MeshInstance3D
+		if spand != null:
+			spand.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			if spand.material_override is BaseMaterial3D:
+				var mat: BaseMaterial3D = (spand.material_override as BaseMaterial3D).duplicate() as BaseMaterial3D
+				mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+				spand.material_override = mat
+		_bucket_head_mount.scale = Vector3.ONE
+		_bucket_head_mount.position = Vector3(0.0, 0.0, 0.0)
 		_bucket_head_mount.rotation = Vector3(0.0, 0.0, PI)
-		_set_visual_layer_recursive(_bucket_head_mount, body_visual_layer)
+		_set_visual_layer_recursive(_bucket_head_mount, 1)
 		_bucket_head_mount.visible = _bucket_on_head_active
 		head_anchor.add_child(_bucket_head_mount)
 

@@ -112,7 +112,7 @@ const _MODEL_VISUAL_SPECS: Dictionary = {
 	"MONEY": {"scene": MONEY_SCENE, "scale": Vector3(0.90, 0.90, 0.90), "offset": Vector3(0.0, -0.105, 0.0), "rot": Vector3.ZERO, "floor_y": 0.105},
 	"PASSPORT": {"scene": PASSPORT_SCENE, "scale": Vector3(1.15, 1.15, 1.15), "offset": Vector3(0.004, 0.0, 0.0), "rot": Vector3.ZERO, "floor_y": 0.025},
 	"PLANS": {"scene": PLANS_SCENE, "scale": Vector3(1.10, 1.10, 1.10), "offset": Vector3.ZERO, "rot": Vector3.ZERO, "floor_y": 0.025},
-	"BUCKET": {"scene": BUCKET_SCENE, "scale": Vector3(0.38, 0.38, 0.38), "offset": Vector3(0.0, -0.156, 0.0), "rot": Vector3.ZERO, "floor_y": 0.156},
+	"BUCKET": {"scene": BUCKET_SCENE, "scale": Vector3(0.40, 0.40, 0.40), "offset": Vector3(0.0, -0.164, 0.0), "rot": Vector3.ZERO, "floor_y": 0.164},
 	"TRIPWIRE": {"scene": TRIPWIRE_SCENE, "scale": Vector3(1.40, 1.40, 1.40), "offset": Vector3(0.0, -0.107, 0.0), "rot": Vector3.ZERO, "floor_y": 0.107},
 	"SPRING": {"scene": SPRING_SCENE, "scale": Vector3(1.15, 1.15, 1.15), "offset": Vector3(-0.005, -0.015, -0.003), "rot": Vector3.ZERO, "floor_y": 0.101},
 	"DART_GUN": {"scene": DART_GUN_SCENE, "scale": Vector3(0.85, 0.85, 0.85), "offset": Vector3(0.0, 0.021, 0.029), "rot": Vector3(0.0, PI * 0.5, 0.0), "floor_y": 0.106},

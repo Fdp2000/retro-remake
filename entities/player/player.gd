@@ -194,7 +194,6 @@ var wakeup_immunity_remaining: float = 0.0
 var _pelvis_sync_accum: float = 0.0
 var _last_ko_reason: String = ""
 var _last_ko_impulse: Vector3 = Vector3.ZERO
-var _bucket_camera_visor: Control = null
 var _drag_3d_active: bool = false
 var _drag_3d_role: String = ""
 var _drag_3d_clutter_idx: int = -1
@@ -346,7 +345,6 @@ func ensure_overlay_uis() -> void:
 		target_hud.add_child(_crt_replay_ui)
 	if _crt_replay_ui != null:
 		_crt_replay_ui.setup_for_owner(self)
-	_ensure_bucket_camera_visor_ui(target_hud)
 
 
 # ==========================================
@@ -1086,7 +1084,6 @@ func _rpc_apply_ko_state(
 		if _ragdoll_ctrl != null:
 			_ragdoll_ctrl.set_bucket_on_head(is_bucket_ko)
 			_ragdoll_ctrl.start_ragdoll(kick_impulse, reason)
-		_set_bucket_camera_visor(is_bucket_ko)
 		if left_hand_socket != null:
 			left_hand_socket.visible = false
 		if right_hand_socket != null:
@@ -1096,7 +1093,6 @@ func _rpc_apply_ko_state(
 	else:
 		if _ragdoll_ctrl != null:
 			_ragdoll_ctrl.stop_ragdoll()
-		_set_bucket_camera_visor(false)
 		if sync_pos != Vector3.INF:
 			if is_inside_tree():
 				global_position = sync_pos
@@ -1124,70 +1120,6 @@ func _rpc_apply_ko_state(
 		_sync_camera_to_ragdoll_head()
 		_sync_visual_rig_sockets_to_skeleton()
 	_update_hud_status()
-
-
-func _ensure_bucket_camera_visor_ui(target_hud: CanvasLayer = null) -> void:
-	if _bucket_camera_visor != null and is_instance_valid(_bucket_camera_visor):
-		return
-	var hud_node: CanvasLayer = target_hud if target_hud != null else (hud if hud != null else get_node_or_null("HUD") as CanvasLayer)
-	if hud_node == null:
-		return
-	var existing: Control = hud_node.get_node_or_null("BucketCameraVisor") as Control
-	if existing != null:
-		_bucket_camera_visor = existing
-		return
-	var root := Control.new()
-	root.name = "BucketCameraVisor"
-	root.set_anchors_preset(Control.PRESET_FULL_RECT)
-	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	root.visible = false
-
-	var top_wall := ColorRect.new()
-	top_wall.set_anchors_preset(Control.PRESET_FULL_RECT)
-	top_wall.anchor_bottom = 0.64
-	top_wall.color = Color(0.18, 0.21, 0.24, 0.96)
-	top_wall.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	root.add_child(top_wall)
-
-	var rim_band := ColorRect.new()
-	rim_band.set_anchors_preset(Control.PRESET_FULL_RECT)
-	rim_band.anchor_top = 0.61
-	rim_band.anchor_bottom = 0.67
-	rim_band.color = Color(0.42, 0.48, 0.54, 0.98)
-	rim_band.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	root.add_child(rim_band)
-
-	var left_wall := ColorRect.new()
-	left_wall.set_anchors_preset(Control.PRESET_FULL_RECT)
-	left_wall.anchor_top = 0.64
-	left_wall.anchor_right = 0.14
-	left_wall.color = Color(0.16, 0.19, 0.22, 0.92)
-	left_wall.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	root.add_child(left_wall)
-
-	var right_wall := ColorRect.new()
-	right_wall.set_anchors_preset(Control.PRESET_FULL_RECT)
-	right_wall.anchor_top = 0.64
-	right_wall.anchor_left = 0.86
-	right_wall.color = Color(0.16, 0.19, 0.22, 0.92)
-	right_wall.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	root.add_child(right_wall)
-
-	hud_node.add_child(root)
-	hud_node.move_child(root, 0)
-	_bucket_camera_visor = root
-
-
-func _set_bucket_camera_visor(active: bool) -> void:
-	var is_local_cam: bool = not is_inside_tree() or not _is_peer_connected() or is_multiplayer_authority()
-	if not is_local_cam:
-		if _bucket_camera_visor != null and is_instance_valid(_bucket_camera_visor):
-			_bucket_camera_visor.visible = false
-		return
-	if active:
-		_ensure_bucket_camera_visor_ui()
-	if _bucket_camera_visor != null and is_instance_valid(_bucket_camera_visor):
-		_bucket_camera_visor.visible = active
 
 
 func _sync_camera_to_ragdoll_head() -> void:
