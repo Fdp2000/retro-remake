@@ -88,6 +88,9 @@ func start_new_match(participating_peers: Array = [1, 2], custom_seed: int = 0) 
 	end_reason = ""
 	_sync_accumulator = 0.0
 
+	if GameConfig != null and GameConfig.spawner_auto_preset_by_player_count and GameConfig.has_method("apply_player_count_preset"):
+		GameConfig.apply_player_count_preset(clampi(participating_peers.size(), 2, 4))
+
 	for peer_id in participating_peers:
 		peer_clocks[peer_id] = GameConfig.starting_clock_seconds
 		eliminated_peers[peer_id] = false

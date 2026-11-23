@@ -40,7 +40,7 @@
 [ext_resource type="PackedScene" uid="uid://1081g1d8f2ni" path="res://Assets/Models/Import/Interiors_A/Scenes/Walls/wall_3m.tscn" id="wall"]
 [ext_resource type="PackedScene" path="res://scenes/BuildingComplex3/RaisedWindowWall.tscn" id="window"]
 
-[sub_resource type="ShaderMaterial" id="ShaderMaterial_3kvc2"]
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_figis"]
 render_priority = 0
 shader = ExtResource("4_3kvc2")
 shader_parameter/is_wall = false
@@ -50,7 +50,7 @@ shader_parameter/room_colors = PackedColorArray(0.7764706, 0.5254902, 0.4117647,
 shader_parameter/wall_variants = PackedInt32Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
 shader_parameter/building_inverse = Projection(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1)
 
-[sub_resource type="ShaderMaterial" id="ShaderMaterial_ni5j5"]
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_3kvc2"]
 render_priority = 0
 shader = ExtResource("4_3kvc2")
 shader_parameter/is_wall = false
@@ -72,7 +72,7 @@ size = Vector3(36.4, 0.3, 0.2)
 material = SubResource("RoofSealMaterial")
 size = Vector3(0.2, 0.3, 27.4)
 
-[sub_resource type="ShaderMaterial" id="ShaderMaterial_5f0ec"]
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_ni5j5"]
 render_priority = 0
 shader = ExtResource("4_3kvc2")
 shader_parameter/is_wall = true
@@ -121,6 +121,14 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.1, 0, -3.95)
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.1000004, 0, -4.0329094)
 metadata/drawer_size = "small"
 
+[node name="MatchBucketSpawnPoints" type="Node3D" parent="Rooms/Room_1_1" unique_id=1950000100]
+
+[node name="BucketSpawn_1" type="Marker3D" parent="Rooms/Room_1_1/MatchBucketSpawnPoints" unique_id=1950000101]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.274128, 1.08, -2.3257036)
+
+[node name="BucketSpawn_2" type="Marker3D" parent="Rooms/Room_1_1/MatchBucketSpawnPoints" unique_id=1950000102]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.12, 1.375, -2.4)
+
 [node name="LadderSpawn" type="Marker3D" parent="Rooms/Room_1_1" unique_id=145118510]
 transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -4.15, 0, 3.82)
 metadata/upper_floor_tile = "Floor_0_2"
@@ -128,47 +136,47 @@ metadata/ceiling_tile = "Ceiling_0_2"
 
 [node name="Floor_0_0" parent="Rooms/Room_1_1" unique_id=903647033 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0, -3)
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="Floor_0_1" parent="Rooms/Room_1_1" unique_id=586078087 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0, 0)
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="Floor_0_2" parent="Rooms/Room_1_1" unique_id=291776813 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0, 3)
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="Floor_1_0" parent="Rooms/Room_1_1" unique_id=413756732 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -3)
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="Floor_1_1" parent="Rooms/Room_1_1" unique_id=2130354998 instance=ExtResource("floor")]
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="Floor_1_2" parent="Rooms/Room_1_1" unique_id=283222599 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 3)
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="Floor_2_0" parent="Rooms/Room_1_1" unique_id=1216049964 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 0, -3)
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="Floor_2_1" parent="Rooms/Room_1_1" unique_id=1060823460 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 0, 0)
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="Floor_2_2" parent="Rooms/Room_1_1" unique_id=237510326 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 0, 3)
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="NW_ReceptionDesk" parent="Rooms/Room_1_1" unique_id=1533376424 instance=ExtResource("furn_desk_2")]
 transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -2.57, 0, -2.78)
@@ -220,6 +228,14 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.4, 0, -3.95)
 transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 4.0156665, 0, -2.619999)
 metadata/drawer_size = "small"
 
+[node name="MatchBucketSpawnPoints" type="Node3D" parent="Rooms/Room_1_2" unique_id=1950000103]
+
+[node name="BucketSpawn_1" type="Marker3D" parent="Rooms/Room_1_2/MatchBucketSpawnPoints" unique_id=1950000104]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.35, 1.08, -3.8)
+
+[node name="BucketSpawn_2" type="Marker3D" parent="Rooms/Room_1_2/MatchBucketSpawnPoints" unique_id=1950000105]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.02, 1.375, 2.4)
+
 [node name="LadderSpawn" type="Marker3D" parent="Rooms/Room_1_2" unique_id=252745776]
 transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -4.15, 0, 3.82)
 metadata/upper_floor_tile = "Floor_0_2"
@@ -227,47 +243,47 @@ metadata/ceiling_tile = "Ceiling_3_2"
 
 [node name="Floor_0_0" parent="Rooms/Room_1_2" unique_id=135979510 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0, -3)
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="Floor_0_1" parent="Rooms/Room_1_2" unique_id=896382131 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0, 0)
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="Floor_0_2" parent="Rooms/Room_1_2" unique_id=1190247781 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0, 3)
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="Floor_1_0" parent="Rooms/Room_1_2" unique_id=488599375 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -3)
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="Floor_1_1" parent="Rooms/Room_1_2" unique_id=2055489207 instance=ExtResource("floor")]
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="Floor_1_2" parent="Rooms/Room_1_2" unique_id=1022305727 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 3)
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="Floor_2_0" parent="Rooms/Room_1_2" unique_id=947731721 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 0, -3)
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="Floor_2_1" parent="Rooms/Room_1_2" unique_id=1634295547 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 0, 0)
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="Floor_2_2" parent="Rooms/Room_1_2" unique_id=986806412 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 0, 3)
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="NW_Desk" parent="Rooms/Room_1_2" unique_id=630150251 instance=ExtResource("furn_desk_2")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.6, 0, -3.6732407)
@@ -322,6 +338,14 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.35, 0, -3.95)
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.7053418, 0, -4.0329)
 metadata/drawer_size = "small"
 
+[node name="MatchBucketSpawnPoints" type="Node3D" parent="Rooms/Room_1_3" unique_id=1950000106]
+
+[node name="BucketSpawn_1" type="Marker3D" parent="Rooms/Room_1_3/MatchBucketSpawnPoints" unique_id=1950000107]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.4715412, 1, -1.4659309)
+
+[node name="BucketSpawn_2" type="Marker3D" parent="Rooms/Room_1_3/MatchBucketSpawnPoints" unique_id=1950000108]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.78, 1.375, 2.5)
+
 [node name="LadderSpawn" type="Marker3D" parent="Rooms/Room_1_3" unique_id=1276876516]
 transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -4.15, 0, -3.82)
 metadata/upper_floor_tile = "Floor_0_0"
@@ -329,47 +353,47 @@ metadata/ceiling_tile = "Ceiling_6_0"
 
 [node name="Floor_0_0" parent="Rooms/Room_1_3" unique_id=205291101 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0, -3)
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="Floor_0_1" parent="Rooms/Room_1_3" unique_id=198236356 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0, 0)
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="Floor_0_2" parent="Rooms/Room_1_3" unique_id=644261855 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0, 3)
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="Floor_1_0" parent="Rooms/Room_1_3" unique_id=1025003461 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -3)
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="Floor_1_1" parent="Rooms/Room_1_3" unique_id=307625991 instance=ExtResource("floor")]
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="Floor_1_2" parent="Rooms/Room_1_3" unique_id=2116033222 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 3)
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="Floor_2_0" parent="Rooms/Room_1_3" unique_id=1793337883 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 0, -3)
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="Floor_2_1" parent="Rooms/Room_1_3" unique_id=1685467569 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 0, 0)
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="Floor_2_2" parent="Rooms/Room_1_3" unique_id=2110945215 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 0, 3)
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="NW_SortingTable" parent="Rooms/Room_1_3" unique_id=1661219085 instance=ExtResource("furn_table_a")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.3327866, 0, -1.75)
@@ -418,6 +442,14 @@ transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 3.95, 0, 0.5)
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.1, 0, -3.81)
 metadata/drawer_size = "small"
 
+[node name="MatchBucketSpawnPoints" type="Node3D" parent="Rooms/Room_1_4" unique_id=1950000109]
+
+[node name="BucketSpawn_1" type="Marker3D" parent="Rooms/Room_1_4/MatchBucketSpawnPoints" unique_id=1950000110]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.561266, 1.08, 1.5307684)
+
+[node name="BucketSpawn_2" type="Marker3D" parent="Rooms/Room_1_4/MatchBucketSpawnPoints" unique_id=1950000111]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.02, 1.375, -2.4)
+
 [node name="LadderSpawn" type="Marker3D" parent="Rooms/Room_1_4" unique_id=724970783]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.82, 0, -4.15)
 metadata/upper_floor_tile = "Floor_0_0"
@@ -425,47 +457,47 @@ metadata/ceiling_tile = "Ceiling_9_0"
 
 [node name="Floor_0_0" parent="Rooms/Room_1_4" unique_id=1133867954 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0, -3)
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="Floor_0_1" parent="Rooms/Room_1_4" unique_id=140414 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0, 0)
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="Floor_0_2" parent="Rooms/Room_1_4" unique_id=1023451285 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0, 3)
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="Floor_1_0" parent="Rooms/Room_1_4" unique_id=2128431796 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -3)
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="Floor_1_1" parent="Rooms/Room_1_4" unique_id=1013495226 instance=ExtResource("floor")]
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="Floor_1_2" parent="Rooms/Room_1_4" unique_id=1432568690 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 3)
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="Floor_2_0" parent="Rooms/Room_1_4" unique_id=844681031 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 0, -3)
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="Floor_2_1" parent="Rooms/Room_1_4" unique_id=1316807326 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 0, 0)
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="Floor_2_2" parent="Rooms/Room_1_4" unique_id=186428535 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 0, 3)
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="NW_Safe" parent="Rooms/Room_1_4" unique_id=681493426 instance=ExtResource("furn_large_safe")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.6099997, 0, -4.081543)
@@ -534,6 +566,11 @@ metadata/office_use = "Staff break room"
 
 [node name="MatchDrawerSpawnPoints" type="Node3D" parent="Rooms/Room_2_1" unique_id=800978044]
 
+[node name="MatchBucketSpawnPoints" type="Node3D" parent="Rooms/Room_2_1" unique_id=1950000112]
+
+[node name="BucketSpawn_2" type="Marker3D" parent="Rooms/Room_2_1/MatchBucketSpawnPoints" unique_id=1950000114]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.1, 1, -3.38)
+
 [node name="LadderSpawn" type="Marker3D" parent="Rooms/Room_2_1" unique_id=1872277394]
 transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -3.82, 0, 4.15)
 metadata/upper_floor_tile = "Floor_0_2"
@@ -541,47 +578,47 @@ metadata/ceiling_tile = "Ceiling_0_5"
 
 [node name="Floor_0_0" parent="Rooms/Room_2_1" unique_id=621308735 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0, -3)
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="Floor_0_1" parent="Rooms/Room_2_1" unique_id=1005589921 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0, 0)
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="Floor_0_2" parent="Rooms/Room_2_1" unique_id=1444404135 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0, 3)
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="Floor_1_0" parent="Rooms/Room_2_1" unique_id=319073609 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -3)
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="Floor_1_1" parent="Rooms/Room_2_1" unique_id=1212201917 instance=ExtResource("floor")]
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="Floor_1_2" parent="Rooms/Room_2_1" unique_id=1314002176 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 3)
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="Floor_2_0" parent="Rooms/Room_2_1" unique_id=2141900230 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 0, -3)
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="Floor_2_1" parent="Rooms/Room_2_1" unique_id=1685603839 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 0, 0)
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="Floor_2_2" parent="Rooms/Room_2_1" unique_id=720272095 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 0, 3)
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="NW_BreakTable" parent="Rooms/Room_2_1" unique_id=839224013 instance=ExtResource("furn_table_a")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.5699997, 0, -3.3803945)
@@ -648,6 +685,14 @@ transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 3.95, 0, 2.2)
 transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, -4.0585003, 0, -2.1)
 metadata/drawer_size = "small"
 
+[node name="MatchBucketSpawnPoints" type="Node3D" parent="Rooms/Room_2_2" unique_id=1950000115]
+
+[node name="BucketSpawn_1" type="Marker3D" parent="Rooms/Room_2_2/MatchBucketSpawnPoints" unique_id=1950000116]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.82, 1.08, 2.85)
+
+[node name="BucketSpawn_2" type="Marker3D" parent="Rooms/Room_2_2/MatchBucketSpawnPoints" unique_id=1950000117]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.2, 1, 3.9)
+
 [node name="LadderSpawn" type="Marker3D" parent="Rooms/Room_2_2" unique_id=57984117]
 transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -4.15, 0, -3.52)
 metadata/upper_floor_tile = "Floor_0_0"
@@ -655,47 +700,47 @@ metadata/ceiling_tile = "Ceiling_3_3"
 
 [node name="Floor_0_0" parent="Rooms/Room_2_2" unique_id=569495623 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0, -3)
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="Floor_0_1" parent="Rooms/Room_2_2" unique_id=844470170 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0, 0)
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="Floor_0_2" parent="Rooms/Room_2_2" unique_id=1667012311 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0, 3)
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="Floor_1_0" parent="Rooms/Room_2_2" unique_id=42043871 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -3)
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="Floor_1_1" parent="Rooms/Room_2_2" unique_id=1337554863 instance=ExtResource("floor")]
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="Floor_1_2" parent="Rooms/Room_2_2" unique_id=1357527152 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 3)
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="Floor_2_0" parent="Rooms/Room_2_2" unique_id=460006397 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 0, -3)
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="Floor_2_1" parent="Rooms/Room_2_2" unique_id=1373306487 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 0, 0)
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="Floor_2_2" parent="Rooms/Room_2_2" unique_id=458402701 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 0, 3)
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="NW_RecyclingBin" parent="Rooms/Room_2_2" unique_id=1220438522 instance=ExtResource("furn_bin_2")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.44, 0, -3.75)
@@ -749,6 +794,14 @@ metadata/office_use = "Project coordination"
 
 [node name="MatchDrawerSpawnPoints" type="Node3D" parent="Rooms/Room_2_3" unique_id=902657956]
 
+[node name="MatchBucketSpawnPoints" type="Node3D" parent="Rooms/Room_2_3" unique_id=1950000118]
+
+[node name="BucketSpawn_1" type="Marker3D" parent="Rooms/Room_2_3/MatchBucketSpawnPoints" unique_id=1950000119]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.4, 1.08, 3.45)
+
+[node name="BucketSpawn_2" type="Marker3D" parent="Rooms/Room_2_3/MatchBucketSpawnPoints" unique_id=1950000120]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.2, 1, -2.63)
+
 [node name="LadderSpawn" type="Marker3D" parent="Rooms/Room_2_3" unique_id=1919776959]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.82, 0, -4.15)
 metadata/upper_floor_tile = "Floor_2_0"
@@ -756,47 +809,47 @@ metadata/ceiling_tile = "Ceiling_8_3"
 
 [node name="Floor_0_0" parent="Rooms/Room_2_3" unique_id=532533233 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0, -3)
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="Floor_0_1" parent="Rooms/Room_2_3" unique_id=1254301801 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0, 0)
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="Floor_0_2" parent="Rooms/Room_2_3" unique_id=1021052217 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0, 3)
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="Floor_1_0" parent="Rooms/Room_2_3" unique_id=1702851378 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -3)
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="Floor_1_1" parent="Rooms/Room_2_3" unique_id=548911095 instance=ExtResource("floor")]
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="Floor_1_2" parent="Rooms/Room_2_3" unique_id=535869832 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 3)
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="Floor_2_0" parent="Rooms/Room_2_3" unique_id=542520288 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 0, -3)
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="Floor_2_1" parent="Rooms/Room_2_3" unique_id=1781047421 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 0, 0)
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="Floor_2_2" parent="Rooms/Room_2_3" unique_id=60851372 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 0, 3)
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="NW_MeetingTable" parent="Rooms/Room_2_3" unique_id=2061744045 instance=ExtResource("furn_table_a")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.57, 0, -2.63)
@@ -874,6 +927,14 @@ metadata/office_use = "Interview room"
 [node name="DrawerSpawn_1" type="Marker3D" parent="Rooms/Room_2_4/MatchDrawerSpawnPoints" unique_id=723405284]
 transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 3.95, 0, 0.1)
 
+[node name="MatchBucketSpawnPoints" type="Node3D" parent="Rooms/Room_2_4" unique_id=1950000121]
+
+[node name="BucketSpawn_1" type="Marker3D" parent="Rooms/Room_2_4/MatchBucketSpawnPoints" unique_id=1950000122]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.85, 1.08, 2.4)
+
+[node name="BucketSpawn_2" type="Marker3D" parent="Rooms/Room_2_4/MatchBucketSpawnPoints" unique_id=1950000123]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.95, 1, -1.63)
+
 [node name="LadderSpawn" type="Marker3D" parent="Rooms/Room_2_4" unique_id=1026653307]
 transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 4.15, 0, -3.82)
 metadata/upper_floor_tile = "Floor_2_0"
@@ -881,47 +942,47 @@ metadata/ceiling_tile = "Ceiling_11_3"
 
 [node name="Floor_0_0" parent="Rooms/Room_2_4" unique_id=1925227782 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0, -3)
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="Floor_0_1" parent="Rooms/Room_2_4" unique_id=2049095047 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0, 0)
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="Floor_0_2" parent="Rooms/Room_2_4" unique_id=1167993129 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0, 3)
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="Floor_1_0" parent="Rooms/Room_2_4" unique_id=450234282 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -3)
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="Floor_1_1" parent="Rooms/Room_2_4" unique_id=798842702 instance=ExtResource("floor")]
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="Floor_1_2" parent="Rooms/Room_2_4" unique_id=516295762 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 3)
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="Floor_2_0" parent="Rooms/Room_2_4" unique_id=797122160 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 0, -3)
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="Floor_2_1" parent="Rooms/Room_2_4" unique_id=1759149570 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 0, 0)
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="Floor_2_2" parent="Rooms/Room_2_4" unique_id=294534537 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 0, 3)
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="NW_Sofa" parent="Rooms/Room_2_4" unique_id=2142353420 instance=ExtResource("furn_sofa_a")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.64, 0, -3.51)
@@ -996,6 +1057,14 @@ transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -3.95, 0, 0)
 [node name="DrawerSpawn_2" type="Marker3D" parent="Rooms/Room_3_1/MatchDrawerSpawnPoints" unique_id=1518565118]
 transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -1.85, 0, 3.95)
 
+[node name="MatchBucketSpawnPoints" type="Node3D" parent="Rooms/Room_3_1" unique_id=1950000124]
+
+[node name="BucketSpawn_1" type="Marker3D" parent="Rooms/Room_3_1/MatchBucketSpawnPoints" unique_id=1950000125]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.92, 1.08, -2.4)
+
+[node name="BucketSpawn_2" type="Marker3D" parent="Rooms/Room_3_1/MatchBucketSpawnPoints" unique_id=1950000126]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.78, 1.375, 2.4)
+
 [node name="LadderSpawn" type="Marker3D" parent="Rooms/Room_3_1" unique_id=808014233]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.82, 0, -4.15)
 metadata/upper_floor_tile = "Floor_0_0"
@@ -1003,47 +1072,47 @@ metadata/ceiling_tile = "Ceiling_0_6"
 
 [node name="Floor_0_0" parent="Rooms/Room_3_1" unique_id=1961645462 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0, -3)
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="Floor_0_1" parent="Rooms/Room_3_1" unique_id=792180096 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0, 0)
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="Floor_0_2" parent="Rooms/Room_3_1" unique_id=1026747278 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0, 3)
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="Floor_1_0" parent="Rooms/Room_3_1" unique_id=2043716005 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -3)
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="Floor_1_1" parent="Rooms/Room_3_1" unique_id=2021640660 instance=ExtResource("floor")]
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="Floor_1_2" parent="Rooms/Room_3_1" unique_id=711806724 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 3)
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="Floor_2_0" parent="Rooms/Room_3_1" unique_id=1196291079 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 0, -3)
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="Floor_2_1" parent="Rooms/Room_3_1" unique_id=468046648 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 0, 0)
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="Floor_2_2" parent="Rooms/Room_3_1" unique_id=777119474 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 0, 3)
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="NW_ReferenceShelf" parent="Rooms/Room_3_1" unique_id=1019189635 instance=ExtResource("furn_shelf_a")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.7000008, 0, -4.159554)
@@ -1102,6 +1171,11 @@ metadata/drawer_size = "small"
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.1, 0, -3.76)
 metadata/drawer_size = "small"
 
+[node name="MatchBucketSpawnPoints" type="Node3D" parent="Rooms/Room_3_2" unique_id=1950000127]
+
+[node name="BucketSpawn_2" type="Marker3D" parent="Rooms/Room_3_2/MatchBucketSpawnPoints" unique_id=1950000129]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.4, 1.08, 3.85)
+
 [node name="LadderSpawn" type="Marker3D" parent="Rooms/Room_3_2" unique_id=2039007020]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.82, 0, -4.15)
 metadata/upper_floor_tile = "Floor_2_0"
@@ -1109,47 +1183,47 @@ metadata/ceiling_tile = "Ceiling_5_6"
 
 [node name="Floor_0_0" parent="Rooms/Room_3_2" unique_id=762250910 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0, -3)
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="Floor_0_1" parent="Rooms/Room_3_2" unique_id=659673239 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0, 0.005)
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="Floor_0_2" parent="Rooms/Room_3_2" unique_id=1852598572 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0, 3)
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="Floor_1_0" parent="Rooms/Room_3_2" unique_id=574712946 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -3)
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="Floor_1_1" parent="Rooms/Room_3_2" unique_id=1938460806 instance=ExtResource("floor")]
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="Floor_1_2" parent="Rooms/Room_3_2" unique_id=1743278863 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 3)
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="Floor_2_0" parent="Rooms/Room_3_2" unique_id=249769436 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 0, -3)
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="Floor_2_1" parent="Rooms/Room_3_2" unique_id=707421909 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 0, 0)
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="Floor_2_2" parent="Rooms/Room_3_2" unique_id=171049273 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 0, 3)
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="NW_SupplyShelves" parent="Rooms/Room_3_2" unique_id=775869919 instance=ExtResource("furn_shelf_b")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.6, 0, -3.97)
@@ -1206,6 +1280,14 @@ metadata/office_use = "Client services office"
 [node name="DrawerSpawn_1" type="Marker3D" parent="Rooms/Room_3_3/MatchDrawerSpawnPoints" unique_id=1631260458]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.25, 0, -3.95)
 
+[node name="MatchBucketSpawnPoints" type="Node3D" parent="Rooms/Room_3_3" unique_id=1950000130]
+
+[node name="BucketSpawn_1" type="Marker3D" parent="Rooms/Room_3_3/MatchBucketSpawnPoints" unique_id=1950000131]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.4745817, 1.08, 3.5702229)
+
+[node name="BucketSpawn_2" type="Marker3D" parent="Rooms/Room_3_3/MatchBucketSpawnPoints" unique_id=1950000132]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.697664, 1, -3.6659348)
+
 [node name="LadderSpawn" type="Marker3D" parent="Rooms/Room_3_3" unique_id=2091402495]
 transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -4.15, 0, 3.82)
 metadata/upper_floor_tile = "Floor_0_2"
@@ -1213,47 +1295,47 @@ metadata/ceiling_tile = "Ceiling_6_8"
 
 [node name="Floor_0_0" parent="Rooms/Room_3_3" unique_id=1937123683 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0, -3)
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="Floor_0_1" parent="Rooms/Room_3_3" unique_id=586589411 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0, 0)
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="Floor_0_2" parent="Rooms/Room_3_3" unique_id=1089712163 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0, 3)
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="Floor_1_0" parent="Rooms/Room_3_3" unique_id=1460064183 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -3)
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="Floor_1_1" parent="Rooms/Room_3_3" unique_id=1811586485 instance=ExtResource("floor")]
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="Floor_1_2" parent="Rooms/Room_3_3" unique_id=1526576008 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 3)
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="Floor_2_0" parent="Rooms/Room_3_3" unique_id=8824058 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 0, -3)
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="Floor_2_1" parent="Rooms/Room_3_3" unique_id=802073210 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 0, 0)
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="Floor_2_2" parent="Rooms/Room_3_3" unique_id=1674000764 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 0, 3)
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="NW_ReviewTable" parent="Rooms/Room_3_3" unique_id=1850593904 instance=ExtResource("furn_table_a")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.58, 0, -3.9393342)
@@ -1314,6 +1396,14 @@ transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 3.95, 0, -0.25)
 transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 2.619999, 0, 4.0312653)
 metadata/drawer_size = "small"
 
+[node name="MatchBucketSpawnPoints" type="Node3D" parent="Rooms/Room_3_4" unique_id=1950000133]
+
+[node name="BucketSpawn_1" type="Marker3D" parent="Rooms/Room_3_4/MatchBucketSpawnPoints" unique_id=1950000134]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.82, 1.375, -4.12)
+
+[node name="BucketSpawn_2" type="Marker3D" parent="Rooms/Room_3_4/MatchBucketSpawnPoints" unique_id=1950000135]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.5521269, 1, 1.4109898)
+
 [node name="LadderSpawn" type="Marker3D" parent="Rooms/Room_3_4" unique_id=1665834566]
 transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -4.15, 0, 3.82)
 metadata/upper_floor_tile = "Floor_0_2"
@@ -1321,47 +1411,47 @@ metadata/ceiling_tile = "Ceiling_9_8"
 
 [node name="Floor_0_0" parent="Rooms/Room_3_4" unique_id=1361461536 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0, -3)
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="Floor_0_1" parent="Rooms/Room_3_4" unique_id=1753108183 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0, 0)
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="Floor_0_2" parent="Rooms/Room_3_4" unique_id=1255323366 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0, 3)
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="Floor_1_0" parent="Rooms/Room_3_4" unique_id=611137321 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -3)
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="Floor_1_1" parent="Rooms/Room_3_4" unique_id=1983256978 instance=ExtResource("floor")]
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="Floor_1_2" parent="Rooms/Room_3_4" unique_id=2125212498 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 3)
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="Floor_2_0" parent="Rooms/Room_3_4" unique_id=1868624524 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 0, -3)
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="Floor_2_1" parent="Rooms/Room_3_4" unique_id=235945652 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 0, 0)
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="Floor_2_2" parent="Rooms/Room_3_4" unique_id=1311913499 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 0, 3)
-surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
-surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/0 = SubResource("ShaderMaterial_figis")
+surface_material_override/1 = SubResource("ShaderMaterial_figis")
 
 [node name="NW_ArchiveShelf" parent="Rooms/Room_3_4" unique_id=1004422181 instance=ExtResource("furn_shelf_d")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.8199997, 0, -4.1692595)
@@ -1416,543 +1506,543 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -1, 0)
 
 [node name="Ceiling_0_0" parent="Roofs" unique_id=119625381 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, -16.5, 4, -16.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_0_1" parent="Roofs" unique_id=1911179214 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, -16.5, 4, -13.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_0_2" parent="Roofs" unique_id=1400038459 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, -16.5, 4, -10.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_0_3" parent="Roofs" unique_id=126352992 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, -16.5, 4, -7.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_0_4" parent="Roofs" unique_id=919464077 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, -16.5, 4, -4.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_0_5" parent="Roofs" unique_id=2140591359 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, -16.5, 4, -1.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_0_6" parent="Roofs" unique_id=485153978 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, -16.5, 4, 1.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_0_7" parent="Roofs" unique_id=518083161 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, -16.5, 4, 4.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_0_8" parent="Roofs" unique_id=1222267611 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, -16.5, 4, 7.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_1_0" parent="Roofs" unique_id=989197013 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, -13.5, 4, -16.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_1_1" parent="Roofs" unique_id=2096915126 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, -13.5, 4, -13.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_1_2" parent="Roofs" unique_id=1877154582 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, -13.5, 4, -10.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_1_3" parent="Roofs" unique_id=1826978865 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, -13.5, 4, -7.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_1_4" parent="Roofs" unique_id=256521543 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, -13.5, 4, -4.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_1_5" parent="Roofs" unique_id=555848112 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, -13.5, 4, -1.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_1_6" parent="Roofs" unique_id=1419399795 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, -13.5, 4, 1.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_1_7" parent="Roofs" unique_id=2118100775 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, -13.5, 4, 4.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_1_8" parent="Roofs" unique_id=905890101 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, -13.5, 4, 7.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_2_0" parent="Roofs" unique_id=290301362 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, -10.5, 4, -16.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_2_1" parent="Roofs" unique_id=756987592 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, -10.5, 4, -13.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_2_2" parent="Roofs" unique_id=1702308376 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, -10.5, 4, -10.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_2_3" parent="Roofs" unique_id=1747394375 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, -10.5, 4, -7.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_2_4" parent="Roofs" unique_id=1010013932 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, -10.5, 4, -4.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_2_5" parent="Roofs" unique_id=1051706618 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, -10.5, 4, -1.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_2_6" parent="Roofs" unique_id=2045695155 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, -10.5, 4, 1.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_2_7" parent="Roofs" unique_id=2108260274 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, -10.5, 4, 4.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_2_8" parent="Roofs" unique_id=491968254 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, -10.5, 4, 7.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_3_0" parent="Roofs" unique_id=1535790018 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, -7.5, 4, -16.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_3_1" parent="Roofs" unique_id=145624034 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, -7.5, 4, -13.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_3_2" parent="Roofs" unique_id=1516146995 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, -7.5, 4, -10.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_3_3" parent="Roofs" unique_id=2079123476 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, -7.5, 4, -7.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_3_4" parent="Roofs" unique_id=1732847454 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, -7.5, 4, -4.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_3_5" parent="Roofs" unique_id=1440585305 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, -7.5, 4, -1.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_3_6" parent="Roofs" unique_id=180038358 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, -7.5, 4, 1.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_3_7" parent="Roofs" unique_id=1084781715 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, -7.5, 4, 4.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_3_8" parent="Roofs" unique_id=1204105951 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, -7.5, 4, 7.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_4_0" parent="Roofs" unique_id=1943020841 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, -4.5, 4, -16.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_4_1" parent="Roofs" unique_id=152011020 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, -4.5, 4, -13.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_4_2" parent="Roofs" unique_id=1235672144 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, -4.5, 4, -10.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_4_3" parent="Roofs" unique_id=365347228 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, -4.5, 4, -7.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_4_4" parent="Roofs" unique_id=1222012601 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, -4.5, 4, -4.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_4_5" parent="Roofs" unique_id=1574484781 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, -4.5, 4, -1.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_4_6" parent="Roofs" unique_id=482305898 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, -4.5, 4, 1.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_4_7" parent="Roofs" unique_id=1136943851 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, -4.5, 4, 4.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_4_8" parent="Roofs" unique_id=1880920158 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, -4.5, 4, 7.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_5_0" parent="Roofs" unique_id=1998710566 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, -1.5, 4, -16.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_5_1" parent="Roofs" unique_id=691023863 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, -1.5, 4, -13.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_5_2" parent="Roofs" unique_id=1794921722 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, -1.5, 4, -10.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_5_3" parent="Roofs" unique_id=1344304922 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, -1.5, 4, -7.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_5_4" parent="Roofs" unique_id=316064620 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, -1.5, 4, -4.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_5_5" parent="Roofs" unique_id=1776332642 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, -1.5, 4, -1.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_5_6" parent="Roofs" unique_id=990556957 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, -1.5, 4, 1.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_5_7" parent="Roofs" unique_id=1612757850 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, -1.5, 4, 4.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_5_8" parent="Roofs" unique_id=1458069059 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, -1.5, 4, 7.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_6_0" parent="Roofs" unique_id=1407132218 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 1.5, 4, -16.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_6_1" parent="Roofs" unique_id=649439904 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 1.5, 4, -13.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_6_2" parent="Roofs" unique_id=680338502 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 1.5, 4, -10.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_6_3" parent="Roofs" unique_id=1830332859 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 1.5, 4, -7.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_6_4" parent="Roofs" unique_id=511311220 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 1.5, 4, -4.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_6_5" parent="Roofs" unique_id=1207495668 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 1.5, 4, -1.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_6_6" parent="Roofs" unique_id=2039776450 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 1.5, 4, 1.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_6_7" parent="Roofs" unique_id=572762413 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 1.5, 4, 4.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_6_8" parent="Roofs" unique_id=1835379123 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 1.5, 4, 7.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_7_0" parent="Roofs" unique_id=1581940524 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 4.5, 4, -16.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_7_1" parent="Roofs" unique_id=158211594 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 4.5, 4, -13.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_7_2" parent="Roofs" unique_id=1538364700 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 4.5, 4, -10.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_7_3" parent="Roofs" unique_id=1634886027 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 4.5, 4, -7.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_7_4" parent="Roofs" unique_id=529836284 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 4.5, 4, -4.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_7_5" parent="Roofs" unique_id=586680505 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 4.5, 4, -1.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_7_6" parent="Roofs" unique_id=1677502541 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 4.5, 4, 1.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_7_7" parent="Roofs" unique_id=852151712 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 4.5, 4, 4.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_7_8" parent="Roofs" unique_id=281018399 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 4.5, 4, 7.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_8_0" parent="Roofs" unique_id=690489814 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 7.5, 4, -16.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_8_1" parent="Roofs" unique_id=2000099529 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 7.5, 4, -13.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_8_2" parent="Roofs" unique_id=43352557 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 7.5, 4, -10.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_8_3" parent="Roofs" unique_id=511715116 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 7.5, 4, -7.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_8_4" parent="Roofs" unique_id=1917971028 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 7.5, 4, -4.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_8_5" parent="Roofs" unique_id=246436043 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 7.5, 4, -1.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_8_6" parent="Roofs" unique_id=1039246711 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 7.5, 4, 1.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_8_7" parent="Roofs" unique_id=1190572226 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 7.5, 4, 4.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_8_8" parent="Roofs" unique_id=304861489 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 7.5, 4, 7.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_9_0" parent="Roofs" unique_id=1106981603 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 10.5, 4, -16.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_9_1" parent="Roofs" unique_id=564823038 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 10.5, 4, -13.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_9_2" parent="Roofs" unique_id=1365975520 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 10.5, 4, -10.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_9_3" parent="Roofs" unique_id=1108391588 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 10.5, 4, -7.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_9_4" parent="Roofs" unique_id=1557259377 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 10.5, 4, -4.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_9_5" parent="Roofs" unique_id=1469173556 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 10.5, 4, -1.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_9_6" parent="Roofs" unique_id=1361156254 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 10.5, 4, 1.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_9_7" parent="Roofs" unique_id=1293058678 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 10.5, 4, 4.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_9_8" parent="Roofs" unique_id=804192452 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 10.5, 4, 7.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_10_0" parent="Roofs" unique_id=993504737 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 13.5, 4, -16.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_10_1" parent="Roofs" unique_id=1850965672 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 13.5, 4, -13.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_10_2" parent="Roofs" unique_id=1065305158 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 13.5, 4, -10.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_10_3" parent="Roofs" unique_id=1519773871 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 13.5, 4, -7.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_10_4" parent="Roofs" unique_id=1596358208 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 13.5, 4, -4.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_10_5" parent="Roofs" unique_id=959533055 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 13.5, 4, -1.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_10_6" parent="Roofs" unique_id=1168457013 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 13.5, 4, 1.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_10_7" parent="Roofs" unique_id=1996688884 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 13.5, 4, 4.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_10_8" parent="Roofs" unique_id=241163532 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 13.5, 4, 7.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_11_0" parent="Roofs" unique_id=1335910307 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 16.5, 4, -16.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_11_1" parent="Roofs" unique_id=862407878 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 16.5, 4, -13.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_11_2" parent="Roofs" unique_id=1048496762 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 16.5, 4, -10.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_11_3" parent="Roofs" unique_id=649486430 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 16.5, 4, -7.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_11_4" parent="Roofs" unique_id=1350879863 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 16.5, 4, -4.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_11_5" parent="Roofs" unique_id=243204067 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 16.5, 4, -1.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_11_6" parent="Roofs" unique_id=1318417625 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 16.5, 4, 1.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_11_7" parent="Roofs" unique_id=1495797363 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 16.5, 4, 4.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="Ceiling_11_8" parent="Roofs" unique_id=1682943315 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 16.5, 4, 7.5)
-surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
-surface_material_override/1 = SubResource("ShaderMaterial_ni5j5")
+surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
+surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
 [node name="RoofSeal" type="Node3D" parent="Roofs" unique_id=1166865420]
 metadata/purpose = "Solid shadow cap and perimeter overlap seal the modular ceiling edges"
@@ -1981,396 +2071,396 @@ mesh = SubResource("RoofSealEastWest")
 
 [node name="Vertical_0_0_0" parent="Walls" unique_id=445706904 instance=ExtResource("wall")]
 transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, -18, 0, -16.5)
-surface_material_override/0 = SubResource("ShaderMaterial_5f0ec")
+surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
 
 [node name="Vertical_0_0_1" parent="Walls" unique_id=905229452 instance=ExtResource("window")]
 transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, -18, 0, -13.5)
-surface_material_override/0 = SubResource("ShaderMaterial_5f0ec")
+surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
 surface_material_override/2 = ExtResource("3_whg7k")
 
 [node name="Vertical_0_0_2" parent="Walls" unique_id=1418405484 instance=ExtResource("wall")]
 transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, -18, 0, -10.5)
-surface_material_override/0 = SubResource("ShaderMaterial_5f0ec")
+surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
 
 [node name="Vertical_0_1_0" parent="Walls" unique_id=405419751 instance=ExtResource("wall")]
 transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, -18, 0, -7.5)
-surface_material_override/0 = SubResource("ShaderMaterial_5f0ec")
+surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
 
 [node name="Vertical_0_1_1" parent="Walls" unique_id=445890450 instance=ExtResource("window")]
 transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, -18, 0, -4.5)
-surface_material_override/0 = SubResource("ShaderMaterial_5f0ec")
+surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
 surface_material_override/2 = ExtResource("3_whg7k")
 
 [node name="Vertical_0_1_2" parent="Walls" unique_id=1679653225 instance=ExtResource("wall")]
 transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, -18, 0, -1.5)
-surface_material_override/0 = SubResource("ShaderMaterial_5f0ec")
+surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
 
 [node name="Vertical_0_2_0" parent="Walls" unique_id=4559345 instance=ExtResource("wall")]
 transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, -18, 0, 1.5)
-surface_material_override/0 = SubResource("ShaderMaterial_5f0ec")
+surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
 
 [node name="Vertical_0_2_1" parent="Walls" unique_id=86817428 instance=ExtResource("window")]
 transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, -18, 0, 4.5)
-surface_material_override/0 = SubResource("ShaderMaterial_5f0ec")
+surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
 surface_material_override/2 = ExtResource("3_whg7k")
 
 [node name="Vertical_0_2_2" parent="Walls" unique_id=1702718126 instance=ExtResource("wall")]
 transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, -18, 0, 7.5)
-surface_material_override/0 = SubResource("ShaderMaterial_5f0ec")
+surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
 
 [node name="Vertical_1_0_0" parent="Walls" unique_id=245553797 instance=ExtResource("wall")]
 transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, -9, 0, -16.5)
-surface_material_override/0 = SubResource("ShaderMaterial_5f0ec")
+surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
 
 [node name="Vertical_1_0_1" parent="Walls" unique_id=749346520 instance=ExtResource("wall")]
 transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, -9, 0, -13.5)
-surface_material_override/0 = SubResource("ShaderMaterial_5f0ec")
+surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
 
 [node name="Vertical_1_0_2" parent="Walls" unique_id=1414063448 instance=ExtResource("wall")]
 transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, -9, 0, -10.5)
-surface_material_override/0 = SubResource("ShaderMaterial_5f0ec")
+surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
 
 [node name="Vertical_1_1_0" parent="Walls" unique_id=483441476 instance=ExtResource("wall")]
 transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, -9, 0, -7.5)
-surface_material_override/0 = SubResource("ShaderMaterial_5f0ec")
+surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
 
 [node name="Vertical_1_1_1" parent="Walls" unique_id=266305415 instance=ExtResource("wall")]
 transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, -9, 0, -4.5)
-surface_material_override/0 = SubResource("ShaderMaterial_5f0ec")
+surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
 
 [node name="Vertical_1_1_2" parent="Walls" unique_id=1512934995 instance=ExtResource("wall")]
 transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, -9, 0, -1.5)
-surface_material_override/0 = SubResource("ShaderMaterial_5f0ec")
+surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
 
 [node name="Vertical_1_2_0" parent="Walls" unique_id=518817024 instance=ExtResource("wall")]
 transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, -9, 0, 1.5)
-surface_material_override/0 = SubResource("ShaderMaterial_5f0ec")
+surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
 
 [node name="Vertical_1_2_1" parent="Walls" unique_id=77041130 instance=ExtResource("wall")]
 transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, -9, 0, 4.5)
-surface_material_override/0 = SubResource("ShaderMaterial_5f0ec")
+surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
 
 [node name="Vertical_1_2_2" parent="Walls" unique_id=1603775016 instance=ExtResource("wall")]
 transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, -9, 0, 7.5)
-surface_material_override/0 = SubResource("ShaderMaterial_5f0ec")
+surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
 
 [node name="Vertical_2_0_0" parent="Walls" unique_id=947146836 instance=ExtResource("wall")]
 transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 0, 0, -16.5)
-surface_material_override/0 = SubResource("ShaderMaterial_5f0ec")
+surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
 
 [node name="Vertical_2_0_1" parent="Walls" unique_id=778407187 instance=ExtResource("wall")]
 transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 0, 0, -13.5)
-surface_material_override/0 = SubResource("ShaderMaterial_5f0ec")
+surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
 
 [node name="Vertical_2_0_2" parent="Walls" unique_id=1014678988 instance=ExtResource("wall")]
 transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 0, 0, -10.5)
-surface_material_override/0 = SubResource("ShaderMaterial_5f0ec")
+surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
 
 [node name="Vertical_2_1_0" parent="Walls" unique_id=1315779764 instance=ExtResource("wall")]
 transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 0, 0, -7.5)
-surface_material_override/0 = SubResource("ShaderMaterial_5f0ec")
+surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
 
 [node name="Vertical_2_1_1" parent="Walls" unique_id=803958505 instance=ExtResource("wall")]
 transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 0, 0, -4.5)
-surface_material_override/0 = SubResource("ShaderMaterial_5f0ec")
+surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
 
 [node name="Vertical_2_1_2" parent="Walls" unique_id=1933497808 instance=ExtResource("wall")]
 transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 0, 0, -1.5)
-surface_material_override/0 = SubResource("ShaderMaterial_5f0ec")
+surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
 
 [node name="Vertical_2_2_0" parent="Walls" unique_id=1007558813 instance=ExtResource("wall")]
 transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 0, 0, 1.5)
-surface_material_override/0 = SubResource("ShaderMaterial_5f0ec")
+surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
 
 [node name="Vertical_2_2_1" parent="Walls" unique_id=131461339 instance=ExtResource("wall")]
 transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 0, 0, 4.5)
-surface_material_override/0 = SubResource("ShaderMaterial_5f0ec")
+surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
 
 [node name="Vertical_2_2_2" parent="Walls" unique_id=2138155946 instance=ExtResource("wall")]
 transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 0, 0, 7.5)
-surface_material_override/0 = SubResource("ShaderMaterial_5f0ec")
+surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
 
 [node name="Vertical_3_0_0" parent="Walls" unique_id=1844962134 instance=ExtResource("wall")]
 transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 9, 0, -16.5)
-surface_material_override/0 = SubResource("ShaderMaterial_5f0ec")
+surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
 
 [node name="Vertical_3_0_1" parent="Walls" unique_id=2072799801 instance=ExtResource("wall")]
 transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 9, 0, -13.5)
-surface_material_override/0 = SubResource("ShaderMaterial_5f0ec")
+surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
 
 [node name="Vertical_3_0_2" parent="Walls" unique_id=370533916 instance=ExtResource("wall")]
 transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 9, 0, -10.5)
-surface_material_override/0 = SubResource("ShaderMaterial_5f0ec")
+surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
 
 [node name="Vertical_3_1_0" parent="Walls" unique_id=1066681459 instance=ExtResource("wall")]
 transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 9, 0, -7.5)
-surface_material_override/0 = SubResource("ShaderMaterial_5f0ec")
+surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
 
 [node name="Vertical_3_1_1" parent="Walls" unique_id=159439317 instance=ExtResource("wall")]
 transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 9, 0, -4.5)
-surface_material_override/0 = SubResource("ShaderMaterial_5f0ec")
+surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
 
 [node name="Vertical_3_1_2" parent="Walls" unique_id=1550598265 instance=ExtResource("wall")]
 transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 9, 0, -1.5)
-surface_material_override/0 = SubResource("ShaderMaterial_5f0ec")
+surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
 
 [node name="Vertical_3_2_0" parent="Walls" unique_id=1360643864 instance=ExtResource("wall")]
 transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 9, 0, 1.5)
-surface_material_override/0 = SubResource("ShaderMaterial_5f0ec")
+surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
 
 [node name="Vertical_3_2_1" parent="Walls" unique_id=972285052 instance=ExtResource("wall")]
 transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 9, 0, 4.5)
-surface_material_override/0 = SubResource("ShaderMaterial_5f0ec")
+surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
 
 [node name="Vertical_3_2_2" parent="Walls" unique_id=539566293 instance=ExtResource("wall")]
 transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 9, 0, 7.5)
-surface_material_override/0 = SubResource("ShaderMaterial_5f0ec")
+surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
 
 [node name="Vertical_4_0_0" parent="Walls" unique_id=917779948 instance=ExtResource("wall")]
 transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 18, 0, -16.5)
-surface_material_override/0 = SubResource("ShaderMaterial_5f0ec")
+surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
 
 [node name="Vertical_4_0_1" parent="Walls" unique_id=1063052907 instance=ExtResource("window")]
 transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 18, 0, -13.5)
-surface_material_override/0 = SubResource("ShaderMaterial_5f0ec")
+surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
 surface_material_override/2 = ExtResource("3_whg7k")
 
 [node name="Vertical_4_0_2" parent="Walls" unique_id=970325969 instance=ExtResource("wall")]
 transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 18, 0, -10.5)
-surface_material_override/0 = SubResource("ShaderMaterial_5f0ec")
+surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
 
 [node name="Vertical_4_1_0" parent="Walls" unique_id=166279637 instance=ExtResource("wall")]
 transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 18, 0, -7.5)
-surface_material_override/0 = SubResource("ShaderMaterial_5f0ec")
+surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
 
 [node name="Vertical_4_1_1" parent="Walls" unique_id=1681843277 instance=ExtResource("window")]
 transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 18, 0, -4.5)
-surface_material_override/0 = SubResource("ShaderMaterial_5f0ec")
+surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
 surface_material_override/2 = ExtResource("3_whg7k")
 
 [node name="Vertical_4_1_2" parent="Walls" unique_id=1485202464 instance=ExtResource("wall")]
 transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 18, 0, -1.5)
-surface_material_override/0 = SubResource("ShaderMaterial_5f0ec")
+surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
 
 [node name="Vertical_4_2_0" parent="Walls" unique_id=1386952968 instance=ExtResource("wall")]
 transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 18, 0, 1.5)
-surface_material_override/0 = SubResource("ShaderMaterial_5f0ec")
+surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
 
 [node name="Vertical_4_2_1" parent="Walls" unique_id=1946658194 instance=ExtResource("window")]
 transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 18, 0, 4.5)
-surface_material_override/0 = SubResource("ShaderMaterial_5f0ec")
+surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
 surface_material_override/2 = ExtResource("3_whg7k")
 
 [node name="Vertical_4_2_2" parent="Walls" unique_id=1880307569 instance=ExtResource("wall")]
 transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 18, 0, 7.5)
-surface_material_override/0 = SubResource("ShaderMaterial_5f0ec")
+surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
 
 [node name="Horizontal_0_0_0" parent="Walls" unique_id=1476685668 instance=ExtResource("window")]
 transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -16.5, 0, -18)
-surface_material_override/0 = SubResource("ShaderMaterial_5f0ec")
+surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
 surface_material_override/2 = ExtResource("3_whg7k")
 
 [node name="Horizontal_0_0_1" parent="Walls" unique_id=1299526412 instance=ExtResource("wall")]
 transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -13.5, 0, -18)
-surface_material_override/0 = SubResource("ShaderMaterial_5f0ec")
+surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
 
 [node name="Horizontal_0_0_2" parent="Walls" unique_id=352193348 instance=ExtResource("window")]
 transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -10.5, 0, -18)
-surface_material_override/0 = SubResource("ShaderMaterial_5f0ec")
+surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
 surface_material_override/2 = ExtResource("3_whg7k")
 
 [node name="Horizontal_0_1_0" parent="Walls" unique_id=193717723 instance=ExtResource("window")]
 transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -7.5, 0, -18)
-surface_material_override/0 = SubResource("ShaderMaterial_5f0ec")
+surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
 surface_material_override/2 = ExtResource("3_whg7k")
 
 [node name="Horizontal_0_1_1" parent="Walls" unique_id=356983968 instance=ExtResource("wall")]
 transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -4.5, 0, -18)
-surface_material_override/0 = SubResource("ShaderMaterial_5f0ec")
+surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
 
 [node name="Horizontal_0_1_2" parent="Walls" unique_id=1080500763 instance=ExtResource("window")]
 transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -1.5, 0, -18)
-surface_material_override/0 = SubResource("ShaderMaterial_5f0ec")
+surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
 surface_material_override/2 = ExtResource("3_whg7k")
 
 [node name="Horizontal_0_2_0" parent="Walls" unique_id=2121695683 instance=ExtResource("window")]
 transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 1.5, 0, -18)
-surface_material_override/0 = SubResource("ShaderMaterial_5f0ec")
+surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
 surface_material_override/2 = ExtResource("3_whg7k")
 
 [node name="Horizontal_0_2_1" parent="Walls" unique_id=48263331 instance=ExtResource("wall")]
 transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 4.5, 0, -18)
-surface_material_override/0 = SubResource("ShaderMaterial_5f0ec")
+surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
 
 [node name="Horizontal_0_2_2" parent="Walls" unique_id=809853902 instance=ExtResource("window")]
 transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 7.5, 0, -18)
-surface_material_override/0 = SubResource("ShaderMaterial_5f0ec")
+surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
 surface_material_override/2 = ExtResource("3_whg7k")
 
 [node name="Horizontal_0_3_0" parent="Walls" unique_id=1274943600 instance=ExtResource("window")]
 transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 10.5, 0, -18)
-surface_material_override/0 = SubResource("ShaderMaterial_5f0ec")
+surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
 surface_material_override/2 = ExtResource("3_whg7k")
 
 [node name="Horizontal_0_3_1" parent="Walls" unique_id=451095966 instance=ExtResource("wall")]
 transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 13.5, 0, -18)
-surface_material_override/0 = SubResource("ShaderMaterial_5f0ec")
+surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
 
 [node name="Horizontal_0_3_2" parent="Walls" unique_id=1792610299 instance=ExtResource("window")]
 transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 16.5, 0, -18)
-surface_material_override/0 = SubResource("ShaderMaterial_5f0ec")
+surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
 surface_material_override/2 = ExtResource("3_whg7k")
 
 [node name="Horizontal_1_0_0" parent="Walls" unique_id=1744399422 instance=ExtResource("wall")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -16.5, 0, -9)
-surface_material_override/0 = SubResource("ShaderMaterial_5f0ec")
+surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
 
 [node name="Horizontal_1_0_1" parent="Walls" unique_id=1798278088 instance=ExtResource("wall")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -13.5, 0, -9)
-surface_material_override/0 = SubResource("ShaderMaterial_5f0ec")
+surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
 
 [node name="Horizontal_1_0_2" parent="Walls" unique_id=1941796487 instance=ExtResource("wall")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -10.5, 0, -9)
-surface_material_override/0 = SubResource("ShaderMaterial_5f0ec")
+surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
 
 [node name="Horizontal_1_1_0" parent="Walls" unique_id=1622741773 instance=ExtResource("wall")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7.5, 0, -9)
-surface_material_override/0 = SubResource("ShaderMaterial_5f0ec")
+surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
 
 [node name="Horizontal_1_1_1" parent="Walls" unique_id=2033044832 instance=ExtResource("wall")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.5, 0, -9)
-surface_material_override/0 = SubResource("ShaderMaterial_5f0ec")
+surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
 
 [node name="Horizontal_1_1_2" parent="Walls" unique_id=1516054941 instance=ExtResource("wall")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.5, 0, -9)
-surface_material_override/0 = SubResource("ShaderMaterial_5f0ec")
+surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
 
 [node name="Horizontal_1_2_0" parent="Walls" unique_id=934712923 instance=ExtResource("wall")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.5, 0, -9)
-surface_material_override/0 = SubResource("ShaderMaterial_5f0ec")
+surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
 
 [node name="Horizontal_1_2_1" parent="Walls" unique_id=998299093 instance=ExtResource("wall")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.5, 0, -9)
-surface_material_override/0 = SubResource("ShaderMaterial_5f0ec")
+surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
 
 [node name="Horizontal_1_2_2" parent="Walls" unique_id=1607539256 instance=ExtResource("wall")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 7.5, 0, -9)
-surface_material_override/0 = SubResource("ShaderMaterial_5f0ec")
+surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
 
 [node name="Horizontal_1_3_0" parent="Walls" unique_id=935032084 instance=ExtResource("wall")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10.5, 0, -9)
-surface_material_override/0 = SubResource("ShaderMaterial_5f0ec")
+surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
 
 [node name="Horizontal_1_3_1" parent="Walls" unique_id=1134012727 instance=ExtResource("wall")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 13.5, 0, -9)
-surface_material_override/0 = SubResource("ShaderMaterial_5f0ec")
+surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
 
 [node name="Horizontal_1_3_2" parent="Walls" unique_id=2055460668 instance=ExtResource("wall")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 16.5, 0, -9)
-surface_material_override/0 = SubResource("ShaderMaterial_5f0ec")
+surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
 
 [node name="Horizontal_2_0_0" parent="Walls" unique_id=1904551399 instance=ExtResource("wall")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -16.5, 0, 0)
-surface_material_override/0 = SubResource("ShaderMaterial_5f0ec")
+surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
 
 [node name="Horizontal_2_0_1" parent="Walls" unique_id=801809909 instance=ExtResource("wall")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -13.5, 0, 0)
-surface_material_override/0 = SubResource("ShaderMaterial_5f0ec")
+surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
 
 [node name="Horizontal_2_0_2" parent="Walls" unique_id=874756103 instance=ExtResource("wall")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -10.5, 0, 0)
-surface_material_override/0 = SubResource("ShaderMaterial_5f0ec")
+surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
 
 [node name="Horizontal_2_1_0" parent="Walls" unique_id=2077716223 instance=ExtResource("wall")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7.5, 0, 0)
-surface_material_override/0 = SubResource("ShaderMaterial_5f0ec")
+surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
 
 [node name="Horizontal_2_1_1" parent="Walls" unique_id=927136654 instance=ExtResource("wall")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.5, 0, 0)
-surface_material_override/0 = SubResource("ShaderMaterial_5f0ec")
+surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
 
 [node name="Horizontal_2_1_2" parent="Walls" unique_id=1732986911 instance=ExtResource("wall")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.5, 0, 0)
-surface_material_override/0 = SubResource("ShaderMaterial_5f0ec")
+surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
 
 [node name="Horizontal_2_2_0" parent="Walls" unique_id=459196629 instance=ExtResource("wall")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.5, 0, 0)
-surface_material_override/0 = SubResource("ShaderMaterial_5f0ec")
+surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
 
 [node name="Horizontal_2_2_1" parent="Walls" unique_id=1697926944 instance=ExtResource("wall")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.5, 0, 0)
-surface_material_override/0 = SubResource("ShaderMaterial_5f0ec")
+surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
 
 [node name="Horizontal_2_2_2" parent="Walls" unique_id=1727256363 instance=ExtResource("wall")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 7.5, 0, 0)
-surface_material_override/0 = SubResource("ShaderMaterial_5f0ec")
+surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
 
 [node name="Horizontal_2_3_0" parent="Walls" unique_id=1748870375 instance=ExtResource("wall")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10.5, 0, 0)
-surface_material_override/0 = SubResource("ShaderMaterial_5f0ec")
+surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
 
 [node name="Horizontal_2_3_1" parent="Walls" unique_id=1979921084 instance=ExtResource("wall")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 13.5, 0, 0)
-surface_material_override/0 = SubResource("ShaderMaterial_5f0ec")
+surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
 
 [node name="Horizontal_2_3_2" parent="Walls" unique_id=843016015 instance=ExtResource("wall")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 16.5, 0, 0)
-surface_material_override/0 = SubResource("ShaderMaterial_5f0ec")
+surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
 
 [node name="Horizontal_3_0_0" parent="Walls" unique_id=80887467 instance=ExtResource("window")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -16.5, 0, 9)
-surface_material_override/0 = SubResource("ShaderMaterial_5f0ec")
+surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
 surface_material_override/2 = ExtResource("3_whg7k")
 
 [node name="Horizontal_3_0_1" parent="Walls" unique_id=916245912 instance=ExtResource("wall")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -13.5, 0, 9)
-surface_material_override/0 = SubResource("ShaderMaterial_5f0ec")
+surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
 
 [node name="Horizontal_3_0_2" parent="Walls" unique_id=999490776 instance=ExtResource("window")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -10.5, 0, 9)
-surface_material_override/0 = SubResource("ShaderMaterial_5f0ec")
+surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
 surface_material_override/2 = ExtResource("3_whg7k")
 
 [node name="Horizontal_3_1_0" parent="Walls" unique_id=2051473638 instance=ExtResource("window")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7.5, 0, 9)
-surface_material_override/0 = SubResource("ShaderMaterial_5f0ec")
+surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
 surface_material_override/2 = ExtResource("3_whg7k")
 
 [node name="Horizontal_3_1_1" parent="Walls" unique_id=919822840 instance=ExtResource("wall")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.5, 0, 9)
-surface_material_override/0 = SubResource("ShaderMaterial_5f0ec")
+surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
 
 [node name="Horizontal_3_1_2" parent="Walls" unique_id=1761306869 instance=ExtResource("window")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.5, 0, 9)
-surface_material_override/0 = SubResource("ShaderMaterial_5f0ec")
+surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
 surface_material_override/2 = ExtResource("3_whg7k")
 
 [node name="Horizontal_3_2_0" parent="Walls" unique_id=374714361 instance=ExtResource("window")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.5, 0, 9)
-surface_material_override/0 = SubResource("ShaderMaterial_5f0ec")
+surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
 surface_material_override/2 = ExtResource("3_whg7k")
 
 [node name="Horizontal_3_2_1" parent="Walls" unique_id=178562220 instance=ExtResource("wall")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.5, 0, 9)
-surface_material_override/0 = SubResource("ShaderMaterial_5f0ec")
+surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
 
 [node name="Horizontal_3_2_2" parent="Walls" unique_id=690758129 instance=ExtResource("window")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 7.5, 0, 9)
-surface_material_override/0 = SubResource("ShaderMaterial_5f0ec")
+surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
 surface_material_override/2 = ExtResource("3_whg7k")
 
 [node name="Horizontal_3_3_0" parent="Walls" unique_id=388177031 instance=ExtResource("window")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10.5, 0, 9)
-surface_material_override/0 = SubResource("ShaderMaterial_5f0ec")
+surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
 surface_material_override/2 = ExtResource("3_whg7k")
 
 [node name="Horizontal_3_3_1" parent="Walls" unique_id=775229649 instance=ExtResource("wall")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 13.5, 0, 9)
-surface_material_override/0 = SubResource("ShaderMaterial_5f0ec")
+surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
 
 [node name="Horizontal_3_3_2" parent="Walls" unique_id=1112269983 instance=ExtResource("window")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 16.5, 0, 9)
-surface_material_override/0 = SubResource("ShaderMaterial_5f0ec")
+surface_material_override/0 = SubResource("ShaderMaterial_ni5j5")
 surface_material_override/2 = ExtResource("3_whg7k")
 
 [node name="Doors" type="Node3D" parent="." unique_id=547816052]

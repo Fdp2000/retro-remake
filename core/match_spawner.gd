@@ -215,6 +215,7 @@ func populate_level(
 			"big_drawers_spawned": 0,
 			"small_drawers_spawned": 0,
 			"floor_buckets_spawned": 0,
+			"buckets_per_room": {},
 			"starting_prearmed_traps": 0,
 			"drawers_per_room": {},
 			"containers_per_room": {},
@@ -473,22 +474,49 @@ func populate_level(
 		else:
 			f_spawner.set("layout_seed", int(manifest["seed"]))
 
-	var bucket_rooms: Array[Node3D] = _collect_sorted_rooms(level_root, skip_rooms, false)
+	var bucket_rooms: Array[Node3D] = _collect_sorted_rooms(level_root, skip_rooms, true)
 	var buckets_spawned: int = 0
+	var buckets_per_room: Dictionary = {}
 	if not bucket_rooms.is_empty():
 		var bucket_target: int = int(manifest["floor_buckets_count"])
 		var shuffled_rooms: Array[Node3D] = bucket_rooms.duplicate()
 		_shuffle_array(shuffled_rooms, rng)
+		var room_bucket_pools: Dictionary = {} # room_key -> Array[Marker3D]
+		for r_node in shuffled_rooms:
+			var r_k: String = _room_key(r_node)
+			var b_markers: Array[Marker3D] = _get_bucket_markers(r_node)
+			_shuffle_array(b_markers, rng)
+			room_bucket_pools[r_k] = b_markers
+
+		var room_cursor: int = 0
 		for b_idx in range(bucket_target):
-			var target_room: Node3D = shuffled_rooms[b_idx % shuffled_rooms.size()]
+			var target_room: Node3D = shuffled_rooms[room_cursor % shuffled_rooms.size()]
+			room_cursor += 1
+			var r_k: String = _room_key(target_room)
+			var b_pool: Array = room_bucket_pools.get(r_k, [])
+			var chosen_marker: Marker3D = null
+			if not b_pool.is_empty():
+				chosen_marker = b_pool.pop_front() as Marker3D
+
 			var bucket_pickup: Node = resolved_pickup_scene.instantiate()
 			bucket_pickup.name = "MatchFloorBucket_%d" % b_idx
 			bucket_pickup.set("item_id", "BUCKET")
 			spawn_root.add_child(bucket_pickup)
 			if bucket_pickup is Node3D:
-				var jitter := Vector3(rng.randf_range(-1.2, 1.2), 0.0, rng.randf_range(-1.2, 1.2))
-				var base_pos: Vector3 = target_room.global_position if target_room.is_inside_tree() else target_room.position
-				(bucket_pickup as Node3D).global_position = Vector3(base_pos.x + jitter.x, maxf(base_pos.y, 0.0), base_pos.z + jitter.z)
+				if chosen_marker != null:
+					if chosen_marker.is_inside_tree():
+						(bucket_pickup as Node3D).global_transform = chosen_marker.global_transform
+					else:
+						var floor_offset: Vector3 = Vector3.ZERO
+						var f_node: Node = target_room.get_parent().get_parent()
+						if f_node is Node3D and f_node.name == &"SecondFloor":
+							floor_offset = (f_node as Node3D).position
+						(bucket_pickup as Node3D).position = floor_offset + target_room.position + chosen_marker.position
+				else:
+					var jitter := Vector3(rng.randf_range(-1.2, 1.2), 0.0, rng.randf_range(-1.2, 1.2))
+					var base_pos: Vector3 = target_room.global_position if target_room.is_inside_tree() else target_room.position
+					(bucket_pickup as Node3D).global_position = Vector3(base_pos.x + jitter.x, maxf(base_pos.y, 0.0), base_pos.z + jitter.z)
+			buckets_per_room[r_k] = int(buckets_per_room.get(r_k, 0)) + 1
 			buckets_spawned += 1
 
 	return {
@@ -498,6 +526,7 @@ func populate_level(
 		"big_drawers_spawned": big_drawers_spawned,
 		"small_drawers_spawned": small_drawers_spawned,
 		"floor_buckets_spawned": buckets_spawned,
+		"buckets_per_room": buckets_per_room,
 		"starting_prearmed_traps": 0,
 		"drawers_per_room": drawers_per_room,
 		"containers_per_room": containers_per_room,
@@ -575,6 +604,18 @@ func _get_building(level_root: Node) -> Node:
 func _get_drawer_markers(room: Node3D) -> Node:
 	var dedicated := room.get_node_or_null("MatchDrawerSpawnPoints")
 	return dedicated if dedicated != null else room.get_node_or_null("FurnitureSpawnPoints")
+
+
+func _get_bucket_markers(room: Node3D) -> Array[Marker3D]:
+	var result: Array[Marker3D] = []
+	var dedicated := room.get_node_or_null("MatchBucketSpawnPoints")
+	if dedicated == null:
+		return result
+	for child in dedicated.get_children():
+		if child is Marker3D:
+			result.append(child as Marker3D)
+	result.sort_custom(func(a: Marker3D, b: Marker3D) -> bool: return String(a.name) < String(b.name))
+	return result
 
 
 func _room_key(room: Node3D) -> String:
