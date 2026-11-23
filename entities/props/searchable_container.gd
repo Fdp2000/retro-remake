@@ -59,6 +59,7 @@ const CLUTTER_PROP_SPECS: Array[Dictionary] = [
 @export var tray_local_half_extents: Vector2 = Vector2(0.33, 0.17)
 @export var min_pick_local_z: float = 0.34
 @export var lip_spring_local_pos: Vector3 = Vector3(0.0, 0.055, 0.19)
+@export_range(10.0, 118.0, 0.1) var briefcase_spring_trigger_angle_deg: float = 37.76
 @export var clutter_count: int = 6
 @export var max_clutter_layers_override: int = 0
 @export var clutter_scale_multiplier: float = 1.0
@@ -692,6 +693,10 @@ func start_slow_open(peer_id: int, player_override: Node = null) -> bool:
 	return true
 
 
+func _get_briefcase_spring_trigger_ratio() -> float:
+	return clampf(briefcase_spring_trigger_angle_deg / absf(BRIEFCASE_BUILDER.OPEN_LID_ANGLE_DEG), 0.05, 1.0)
+
+
 func _step_committed_slow_open(delta: float) -> void:
 	var slow_dur: float = GameConfig.drawer_slow_peek_hold_time if GameConfig != null else 2.50
 	drawer_open_progress = clampf(drawer_open_progress + delta / maxf(slow_dur, 0.25), 0.0, 1.0)
@@ -705,7 +710,8 @@ func _step_committed_slow_open(delta: float) -> void:
 	var target_peer: int = _slow_open_peer_id if _slow_open_peer_id != 0 else occupied_by_peer_id
 	var player: Node = _occupant_player_override if _occupant_player_override != null else _find_player_node(target_peer)
 
-	if armed_spring and drawer_visual_ratio >= SPRING_TRIGGER_VISUAL_RATIO:
+	var spring_trigger_ratio: float = _get_briefcase_spring_trigger_ratio() if is_briefcase_container else SPRING_TRIGGER_VISUAL_RATIO
+	if armed_spring and drawer_visual_ratio >= spring_trigger_ratio:
 		_trigger_spring_trap_ko(target_peer, player)
 		return
 	if (
@@ -713,7 +719,7 @@ func _step_committed_slow_open(delta: float) -> void:
 		and player != null
 		and player.has_method("has_held_briefcase_armed_spring")
 		and bool(player.has_held_briefcase_armed_spring())
-		and drawer_visual_ratio >= SPRING_TRIGGER_VISUAL_RATIO
+		and drawer_visual_ratio >= _get_briefcase_spring_trigger_ratio()
 	):
 		_trigger_held_briefcase_spring_from_drawer(target_peer, player)
 		return
@@ -2287,20 +2293,29 @@ func _rebuild_3d_interior() -> void:
 		var lip_size := Vector3(0.14, 0.10, 0.14) if is_briefcase_container else Vector3(0.16, 0.16, 0.20)
 		var spring_visual: Node3D = PICKUP_SCRIPT.build_item_visual("SPRING")
 		var lip_scale: float = 0.52 if is_briefcase_container else 0.85
-		spring_visual.scale = Vector3(lip_scale, lip_scale, lip_scale) if is_briefcase_container else Vector3(lip_scale, lip_scale, lip_scale * 0.40)
+		var spring_length_mult: float = 1.75 if (armed_spring or staged_spring_on_lip) else 1.0
+		spring_visual.scale = Vector3(lip_scale, lip_scale * spring_length_mult, lip_scale) if is_briefcase_container else Vector3(lip_scale, lip_scale * spring_length_mult, lip_scale * 0.40)
 		spring_visual.rotation.x = PI * 0.5
+		var spring_aabb: AABB = _compute_visual_aabb_recursive(spring_visual, spring_visual.transform)
 		if is_briefcase_container:
-			lip_area.position = Vector3(0.0, 0.010, 0.145)
+			var briefcase_lip_z: float = 0.165
+			if spring_aabb.size != Vector3.ZERO:
+				briefcase_lip_z -= spring_aabb.end.z
+				lip_size.z = maxf(lip_size.z, spring_aabb.size.z)
+			lip_area.position = Vector3(0.0, 0.010, briefcase_lip_z)
 		else:
-			var spring_aabb: AABB = _compute_visual_aabb_recursive(spring_visual, spring_visual.transform)
 			if spring_aabb.size != Vector3.ZERO:
 				spring_visual.position.y -= spring_aabb.get_center().y
 				lip_size.y = maxf(lip_size.y, spring_aabb.size.y)
+				lip_size.z = maxf(lip_size.z, spring_aabb.size.z)
 			var spring_half_h: float = maxf(spring_aabb.size.y * 0.5, 0.020)
+			var drawer_lip_z: float = maxf(lip_spring_local_pos.z, tray_local_center_xz.y + tray_local_half_extents.y) + 0.05
+			if spring_aabb.size != Vector3.ZERO:
+				drawer_lip_z -= spring_aabb.end.z
 			lip_area.position = Vector3(
 				lip_spring_local_pos.x,
 				maxf(lip_spring_local_pos.y, maxf(cursor_y + 0.004, DRAWER_LIP_SPRING_BOTTOM_Y) + spring_half_h),
-				lip_spring_local_pos.z
+				drawer_lip_z
 			)
 		lip_area.set_meta("container_role", "lip_spring")
 		lip_area.set_meta("exact_aabb", AABB(-lip_size * 0.5, lip_size))
@@ -2311,22 +2326,6 @@ func _rebuild_3d_interior() -> void:
 		lip_col.shape = lip_shape
 		lip_area.add_child(lip_col)
 
-		var state_color := Color(0.95, 0.65, 0.18)
-		if armed_spring:
-			state_color = Color(0.95, 0.18, 0.18)
-		elif spring_unlatched:
-			state_color = Color(0.22, 0.82, 0.72)
-		for child_mi in spring_visual.find_children("*", "MeshInstance3D", true, false):
-			var mesh_node := child_mi as MeshInstance3D
-			var src_mat: Material = mesh_node.material_override
-			if src_mat == null and mesh_node.mesh != null and mesh_node.mesh.get_surface_count() > 0:
-				src_mat = mesh_node.mesh.surface_get_material(0)
-			var tint_mat: StandardMaterial3D = (src_mat.duplicate() as StandardMaterial3D) if src_mat is StandardMaterial3D else StandardMaterial3D.new()
-			tint_mat.albedo_color = state_color.lerp(Color.WHITE, 0.25)
-			tint_mat.emission_enabled = true
-			tint_mat.emission = state_color
-			tint_mat.emission_energy_multiplier = 0.55
-			mesh_node.material_override = tint_mat
 		lip_area.add_child(spring_visual)
 		_contents_root.add_child(lip_area)
 
