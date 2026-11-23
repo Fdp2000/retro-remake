@@ -290,19 +290,19 @@ collision_mask = 0
 script = ExtResource("1_container")
 container_id = "Left Drawer"
 use_custom_tray_mesh = true
-drawer_closed_z = -0.19363
-drawer_open_z = 0.32637
+drawer_closed_z = 0.05637
+drawer_open_z = 0.57637
 tray_local_center_xz = Vector2(0, 0.05)
 tray_local_half_extents = Vector2(0.42, 0.17)
-min_pick_local_z = 0.16
+min_pick_local_z = 0.41
 lip_spring_local_pos = Vector3(0, 0.055, 0.20)
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.585, 0.57, -0.22)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.585, 0.57, 0.03)
 shape = SubResource("BoxShape3D_left")
 
 [node name="StaticFrame" type="Node3D" parent="."]
-transform = Transform3D(0.3, 0, 0, 0, 0.3, 0, 0, 0, 0.3, 0, 0, 0)
+transform = Transform3D(0.3, 0, 0, 0, 0.3, 0, 0, 0, 0.3, 0, 0, 0.25)
 
 [node name="Drawer A" type="MeshInstance3D" parent="StaticFrame"]
 mesh = SubResource("ArrayMesh_gljif")
@@ -328,14 +328,14 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.4888186, 3.0821557, 0.0976
 mesh = SubResource("ArrayMesh_dnbgd")
 
 [node name="TrayPivot" type="Node3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.55557, 0.56827, -0.19363)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.55557, 0.56827, 0.05637)
 
 [node name="DrawerMesh" type="MeshInstance3D" parent="TrayPivot"]
 transform = Transform3D(0.3, 0, 0, 0, 0.3, 0, 0, 0, 0.3, -0.00765, 0.04825, 0.22293)
 mesh = SubResource("ArrayMesh_n5g8h")
 
 [node name="TopDownVantage" type="Marker3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, -4.37114e-08, 1, 0, -1, -4.37114e-08, -0.55557, 1.36, 0.38)
+transform = Transform3D(1, 0, 0, 0, -4.37114e-08, 1, 0, -1, -4.37114e-08, -0.55557, 1.36, 0.63)
 
 [node name="RightUpperDrawer" type="StaticBody3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.10524, 0, 0)
@@ -344,23 +344,23 @@ collision_mask = 0
 script = ExtResource("1_container")
 container_id = "Right Drawer"
 use_custom_tray_mesh = true
-drawer_closed_z = -0.19363
-drawer_open_z = 0.32637
+drawer_closed_z = 0.05637
+drawer_open_z = 0.57637
 tray_local_center_xz = Vector2(0, 0.05)
 tray_local_half_extents = Vector2(0.42, 0.17)
-min_pick_local_z = 0.16
+min_pick_local_z = 0.41
 lip_spring_local_pos = Vector3(0, 0.055, 0.20)
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="RightUpperDrawer"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.53024, 0.57, -0.22)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.53024, 0.57, 0.03)
 shape = SubResource("BoxShape3D_right")
 
 [node name="TrayPivot" type="Node3D" parent="RightUpperDrawer"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.55557, 0.56827, -0.19363)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.55557, 0.56827, 0.05637)
 
 [node name="DrawerMesh" type="MeshInstance3D" parent="RightUpperDrawer/TrayPivot"]
 transform = Transform3D(0.3, 0, 0, 0, 0.3, 0, 0, 0, 0.3, 0.035415, 0.04825, 0.22293)
 mesh = SubResource("ArrayMesh_61daj")
 
 [node name="TopDownVantage" type="Marker3D" parent="RightUpperDrawer"]
-transform = Transform3D(1, 0, 0, 0, -4.37114e-08, 1, 0, -1, -4.37114e-08, -0.55557, 1.36, 0.38)
+transform = Transform3D(1, 0, 0, 0, -4.37114e-08, 1, 0, -1, -4.37114e-08, -0.55557, 1.36, 0.63)

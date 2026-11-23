@@ -115,10 +115,10 @@ metadata/office_use = "Director’s office"
 [node name="MatchDrawerSpawnPoints" type="Node3D" parent="Rooms/Room_1_1" unique_id=212634400]
 
 [node name="DrawerSpawn_1" type="Marker3D" parent="Rooms/Room_1_1/MatchDrawerSpawnPoints" unique_id=2001293821]
-transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -3.71, 0, -0.65)
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -3.95, 0, 0)
 
 [node name="DrawerSpawn_2" type="Marker3D" parent="Rooms/Room_1_1/MatchDrawerSpawnPoints" unique_id=866876432]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.05, 0, -3.71)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -3.95)
 
 [node name="Floor_0_0" parent="Rooms/Room_1_1" unique_id=903647033 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0, -3)
@@ -229,7 +229,7 @@ metadata/office_use = "Open-plan workroom"
 [node name="MatchDrawerSpawnPoints" type="Node3D" parent="Rooms/Room_1_2" unique_id=2100200229]
 
 [node name="DrawerSpawn_1" type="Marker3D" parent="Rooms/Room_1_2/MatchDrawerSpawnPoints" unique_id=103466024]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.3, 0, -3.71)
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -3.95, 0, 2.25)
 
 [node name="Floor_0_0" parent="Rooms/Room_1_2" unique_id=135979510 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0, -3)
@@ -340,7 +340,7 @@ metadata/office_use = "Training room"
 [node name="MatchDrawerSpawnPoints" type="Node3D" parent="Rooms/Room_1_3" unique_id=91046624]
 
 [node name="DrawerSpawn_1" type="Marker3D" parent="Rooms/Room_1_3/MatchDrawerSpawnPoints" unique_id=896540831]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.3, 0, -3.71)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.15, 0, -3.95)
 
 [node name="Floor_0_0" parent="Rooms/Room_1_3" unique_id=205291101 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0, -3)
@@ -448,10 +448,10 @@ metadata/office_use = "Accounts office"
 [node name="MatchDrawerSpawnPoints" type="Node3D" parent="Rooms/Room_1_4" unique_id=729127395]
 
 [node name="DrawerSpawn_1" type="Marker3D" parent="Rooms/Room_1_4/MatchDrawerSpawnPoints" unique_id=929807573]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.2, 0, -3.71)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -3.95)
 
 [node name="DrawerSpawn_2" type="Marker3D" parent="Rooms/Room_1_4/MatchDrawerSpawnPoints" unique_id=517431144]
-transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -2.3, 0, 3.71)
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 3.95, 0, -0.2)
 
 [node name="Floor_0_0" parent="Rooms/Room_1_4" unique_id=1133867954 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0, -3)
@@ -877,7 +877,7 @@ metadata/office_use = "Personnel office"
 [node name="MatchDrawerSpawnPoints" type="Node3D" parent="Rooms/Room_2_4" unique_id=828832266]
 
 [node name="DrawerSpawn_1" type="Marker3D" parent="Rooms/Room_2_4/MatchDrawerSpawnPoints" unique_id=875141944]
-transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 3.71, 0, -1)
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 3.95, 0, -0.35)
 
 [node name="Floor_0_0" parent="Rooms/Room_2_4" unique_id=1925227782 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0, -3)
@@ -985,10 +985,10 @@ metadata/office_use = "Reference library"
 [node name="MatchDrawerSpawnPoints" type="Node3D" parent="Rooms/Room_3_1" unique_id=556492811]
 
 [node name="DrawerSpawn_1" type="Marker3D" parent="Rooms/Room_3_1/MatchDrawerSpawnPoints" unique_id=1840794047]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.6, 0, -3.71)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.25, 0, -3.95)
 
 [node name="DrawerSpawn_2" type="Marker3D" parent="Rooms/Room_3_1/MatchDrawerSpawnPoints" unique_id=1485387063]
-transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -3.71, 0, 0.35)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.15, 0, -3.95)
 
 [node name="Floor_0_0" parent="Rooms/Room_3_1" unique_id=1961645462 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0, -3)
@@ -1078,10 +1078,10 @@ metadata/office_use = "Team lead office"
 [node name="MatchDrawerSpawnPoints" type="Node3D" parent="Rooms/Room_3_2" unique_id=829025060]
 
 [node name="DrawerSpawn_1" type="Marker3D" parent="Rooms/Room_3_2/MatchDrawerSpawnPoints" unique_id=602363225]
-transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -0.9, 0, 3.71)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.25, 0, -3.95)
 
 [node name="DrawerSpawn_2" type="Marker3D" parent="Rooms/Room_3_2/MatchDrawerSpawnPoints" unique_id=455789393]
-transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 3.15, 0, 3.71)
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -0.45, 0, 3.95)
 
 [node name="Floor_0_0" parent="Rooms/Room_3_2" unique_id=762250910 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0, -3)
@@ -1186,10 +1186,10 @@ metadata/office_use = "Project materials room"
 [node name="MatchDrawerSpawnPoints" type="Node3D" parent="Rooms/Room_3_3" unique_id=1686371399]
 
 [node name="DrawerSpawn_1" type="Marker3D" parent="Rooms/Room_3_3/MatchDrawerSpawnPoints" unique_id=1880507222]
-transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 3.1, 0, 3.71)
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0.35, 0, 3.95)
 
 [node name="DrawerSpawn_2" type="Marker3D" parent="Rooms/Room_3_3/MatchDrawerSpawnPoints" unique_id=1384798044]
-transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -0.45, 0, 3.71)
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -3.95, 0, -2.15)
 
 [node name="Floor_0_0" parent="Rooms/Room_3_3" unique_id=1937123683 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0, -3)
@@ -1285,7 +1285,7 @@ metadata/office_use = "Executive conference room"
 [node name="MatchDrawerSpawnPoints" type="Node3D" parent="Rooms/Room_3_4" unique_id=2127126973]
 
 [node name="DrawerSpawn_1" type="Marker3D" parent="Rooms/Room_3_4/MatchDrawerSpawnPoints" unique_id=611725542]
-transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 3.71, 0, 0.6)
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -3.95, 0, 2.25)
 
 [node name="Floor_0_0" parent="Rooms/Room_3_4" unique_id=1361461536 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0, -3)

@@ -289,7 +289,7 @@ func populate_level(
 				var m_cand := candidate as Marker3D
 				var too_close: bool = false
 				for prev_pos in already_picked:
-					if m_cand.position.distance_to(prev_pos as Vector3) < 2.65:
+					if m_cand.position.distance_to(prev_pos as Vector3) < 2.85:
 						too_close = true
 						break
 				if not too_close:
