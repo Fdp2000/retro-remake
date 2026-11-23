@@ -50,6 +50,7 @@ var _last_populate_summary: Dictionary = {}
 var _esc_cheatsheet_button: Button = null
 var _esc_rematch_button: Button = null
 var _esc_switch_mode_button: Button = null
+var _esc_debug_bomb_fuse_button: Button = null
 
 
 func _ready() -> void:
@@ -100,6 +101,14 @@ func _ready() -> void:
 			_esc_switch_mode_button.pressed.connect(_on_switch_mode_rematch_pressed)
 			esc_vbox.add_child(_esc_switch_mode_button)
 		_refresh_esc_mode_button_text()
+
+		if _esc_debug_bomb_fuse_button == null and esc_vbox.get_node_or_null("DebugBombFuseButton") == null:
+			_esc_debug_bomb_fuse_button = Button.new()
+			_esc_debug_bomb_fuse_button.name = "DebugBombFuseButton"
+			_esc_debug_bomb_fuse_button.visible = is_host_or_offline
+			_esc_debug_bomb_fuse_button.pressed.connect(_on_debug_bomb_fuse_toggled)
+			esc_vbox.add_child(_esc_debug_bomb_fuse_button)
+		_refresh_debug_bomb_fuse_button_text()
 
 	resume_button.pressed.connect(_on_resume_pressed)
 	leave_button.pressed.connect(_on_leave_button_pressed)
@@ -242,6 +251,21 @@ func _refresh_esc_mode_button_text() -> void:
 			if is_sandbox_mode
 			else "Switch to Dev Sandbox Gym"
 		)
+
+
+func _on_debug_bomb_fuse_toggled() -> void:
+	if GameConfig == null:
+		return
+	GameConfig.debug_long_bomb_fuse = not GameConfig.debug_long_bomb_fuse
+	_refresh_debug_bomb_fuse_button_text()
+
+
+func _refresh_debug_bomb_fuse_button_text() -> void:
+	if _esc_debug_bomb_fuse_button == null:
+		return
+	var enabled: bool = GameConfig != null and GameConfig.debug_long_bomb_fuse
+	var secs: float = GameConfig.debug_long_bomb_fuse_seconds if GameConfig != null else 8.0
+	_esc_debug_bomb_fuse_button.text = "Debug Bomb Fuse (%.1fs): %s" % [secs, "ON" if enabled else "OFF"]
 
 
 func _ensure_shared_airport_exit() -> void:

@@ -181,6 +181,8 @@ static func get_spy_role_badge_color(role: int) -> Color:
 @export var tripwire_ladder_safe_radius: float = 1.90
 @export var time_bomb_fuse_min: float = 3.3
 @export var time_bomb_fuse_max: float = 4.0
+@export var debug_long_bomb_fuse: bool = false
+@export var debug_long_bomb_fuse_seconds: float = 8.0
 @export var time_bomb_throw_distance: float = 9.0
 @export var time_bomb_throw_speed: float = 9.5
 @export var time_bomb_blast_radius: float = 5.0
@@ -267,13 +269,95 @@ static func get_spy_role_badge_color(role: int) -> Color:
 @export var spawner_tripwire_max: int = 6
 @export var spawner_dart_gun_min: int = 0
 @export var spawner_dart_gun_max: int = 4
-@export var spawner_floor_buckets_count: int = 4
-@export var spawner_floor_buckets_min: int = 3
-@export var spawner_floor_buckets_max: int = 5
+@export var spawner_floor_buckets_count: int = 6
+@export var spawner_floor_buckets_min: int = 4
+@export var spawner_floor_buckets_max: int = 6
 @export var spawner_cover_props_count: int = 6
+@export var spawner_active_preset_players: int = 2
+@export var spawner_auto_preset_by_player_count: bool = true
 ## When false (default), launches a real seeded round (corner room spawns, no free pickup table in Room_2_2).
 ## When true, spawns the Room_2_2 dev test bench with all pickups/traps/drawers laid out for quick testing.
 @export var sandbox_gym_mode: bool = false
+
+const PLAYER_COUNT_SPAWNER_PRESETS: Dictionary = {
+	2: {
+		"starting_clock_seconds": 180.0,
+		"drawer_first_search_bonus_seconds": 10.0,
+		"min_containers": 24,
+		"max_containers": 32,
+		"max_drawers_per_room": 2,
+		"allow_drawers_in_spawn_rooms": true,
+		"max_drawers_in_spawn_room": 1,
+		"isolate_briefcase_from_objectives": true,
+		"min_total_gadgets": 11,
+		"max_total_gadgets": 14,
+		"spring_min": 1,
+		"spring_max": 6,
+		"bomb_min": 1,
+		"bomb_max": 6,
+		"tripwire_min": 1,
+		"tripwire_max": 6,
+		"dart_gun_min": 0,
+		"dart_gun_max": 4,
+		"floor_buckets_min": 4,
+		"floor_buckets_max": 6,
+		"cover_props_count": 6
+	},
+	3: {
+		"starting_clock_seconds": 210.0,
+		"drawer_first_search_bonus_seconds": 10.0,
+		"min_containers": 30,
+		"max_containers": 38,
+		"max_drawers_per_room": 2,
+		"allow_drawers_in_spawn_rooms": true,
+		"max_drawers_in_spawn_room": 1,
+		"isolate_briefcase_from_objectives": true,
+		"min_total_gadgets": 14,
+		"max_total_gadgets": 18,
+		"spring_min": 2,
+		"spring_max": 7,
+		"bomb_min": 2,
+		"bomb_max": 7,
+		"tripwire_min": 2,
+		"tripwire_max": 7,
+		"dart_gun_min": 1,
+		"dart_gun_max": 5,
+		"floor_buckets_min": 6,
+		"floor_buckets_max": 8,
+		"cover_props_count": 6
+	},
+	4: {
+		"starting_clock_seconds": 240.0,
+		"drawer_first_search_bonus_seconds": 12.0,
+		"min_containers": 36,
+		"max_containers": 44,
+		"max_drawers_per_room": 3,
+		"allow_drawers_in_spawn_rooms": true,
+		"max_drawers_in_spawn_room": 1,
+		"isolate_briefcase_from_objectives": true,
+		"min_total_gadgets": 18,
+		"max_total_gadgets": 22,
+		"spring_min": 3,
+		"spring_max": 8,
+		"bomb_min": 3,
+		"bomb_max": 8,
+		"tripwire_min": 3,
+		"tripwire_max": 8,
+		"dart_gun_min": 1,
+		"dart_gun_max": 6,
+		"floor_buckets_min": 8,
+		"floor_buckets_max": 10,
+		"cover_props_count": 6
+	}
+}
+
+var _player_count_presets: Dictionary = {}
+
+
+func _ensure_presets_initialized() -> void:
+	if _player_count_presets.is_empty():
+		for p_count in PLAYER_COUNT_SPAWNER_PRESETS.keys():
+			_player_count_presets[p_count] = (PLAYER_COUNT_SPAWNER_PRESETS[p_count] as Dictionary).duplicate(true)
 
 
 func _ready() -> void:
@@ -315,6 +399,10 @@ func load_user_settings(path: String = USER_SETTINGS_PATH) -> bool:
 
 func get_spawner_config_dict() -> Dictionary:
 	return {
+		"active_preset_players": spawner_active_preset_players,
+		"auto_preset_by_player_count": spawner_auto_preset_by_player_count,
+		"starting_clock_seconds": starting_clock_seconds,
+		"drawer_first_search_bonus_seconds": drawer_first_search_bonus_seconds,
 		"min_containers": spawner_min_containers,
 		"max_containers": spawner_max_containers,
 		"min_drawers": spawner_min_containers,
@@ -339,7 +427,30 @@ func get_spawner_config_dict() -> Dictionary:
 	}
 
 
+func get_preset_config_dict(player_count: int) -> Dictionary:
+	_ensure_presets_initialized()
+	var key: int = clampi(player_count, 2, 4)
+	return (_player_count_presets[key] as Dictionary).duplicate(true)
+
+
+func apply_player_count_preset(player_count: int) -> void:
+	_ensure_presets_initialized()
+	var key: int = clampi(player_count, 2, 4)
+	spawner_active_preset_players = key
+	apply_spawner_config_dict(get_preset_config_dict(key))
+
+
 func apply_spawner_config_dict(cfg_dict: Dictionary) -> void:
+	_ensure_presets_initialized()
+	if cfg_dict.has("active_preset_players"):
+		spawner_active_preset_players = clampi(int(cfg_dict["active_preset_players"]), 2, 4)
+	if cfg_dict.has("auto_preset_by_player_count"):
+		spawner_auto_preset_by_player_count = bool(cfg_dict["auto_preset_by_player_count"])
+	if cfg_dict.has("starting_clock_seconds"):
+		starting_clock_seconds = clampf(float(cfg_dict["starting_clock_seconds"]), 30.0, 900.0)
+	if cfg_dict.has("drawer_first_search_bonus_seconds"):
+		drawer_first_search_bonus_seconds = clampf(float(cfg_dict["drawer_first_search_bonus_seconds"]), 0.0, 120.0)
+
 	if cfg_dict.has("min_containers"):
 		spawner_min_containers = maxi(int(cfg_dict["min_containers"]), 5)
 	elif cfg_dict.has("min_drawers"):
@@ -409,31 +520,46 @@ func apply_spawner_config_dict(cfg_dict: Dictionary) -> void:
 	if cfg_dict.has("cover_props_count"):
 		spawner_cover_props_count = maxi(int(cfg_dict["cover_props_count"]), 0)
 
+	var preset_key: int = clampi(spawner_active_preset_players, 2, 4)
+	_player_count_presets[preset_key] = {
+		"starting_clock_seconds": starting_clock_seconds,
+		"drawer_first_search_bonus_seconds": drawer_first_search_bonus_seconds,
+		"min_containers": spawner_min_containers,
+		"max_containers": spawner_max_containers,
+		"max_drawers_per_room": spawner_max_drawers_per_room,
+		"allow_drawers_in_spawn_rooms": spawner_allow_drawers_in_spawn_rooms,
+		"max_drawers_in_spawn_room": spawner_max_drawers_in_spawn_room,
+		"isolate_briefcase_from_objectives": spawner_isolate_briefcase_from_objectives,
+		"min_total_gadgets": spawner_min_total_gadgets,
+		"max_total_gadgets": spawner_max_total_gadgets,
+		"spring_min": spawner_spring_min,
+		"spring_max": spawner_spring_max,
+		"bomb_min": spawner_bomb_min,
+		"bomb_max": spawner_bomb_max,
+		"tripwire_min": spawner_tripwire_min,
+		"tripwire_max": spawner_tripwire_max,
+		"dart_gun_min": spawner_dart_gun_min,
+		"dart_gun_max": spawner_dart_gun_max,
+		"floor_buckets_min": spawner_floor_buckets_min,
+		"floor_buckets_max": spawner_floor_buckets_max,
+		"cover_props_count": spawner_cover_props_count
+	}
+
 	spawner_settings_changed.emit()
 
 
-func reset_spawner_defaults() -> void:
-	apply_spawner_config_dict({
-		"min_containers": 24,
-		"max_containers": 32,
-		"max_drawers_per_room": 2,
-		"allow_drawers_in_spawn_rooms": true,
-		"max_drawers_in_spawn_room": 1,
-		"isolate_briefcase_from_objectives": true,
-		"min_total_gadgets": 11,
-		"max_total_gadgets": 14,
-		"spring_min": 1,
-		"spring_max": 6,
-		"bomb_min": 1,
-		"bomb_max": 6,
-		"tripwire_min": 1,
-		"tripwire_max": 6,
-		"dart_gun_min": 0,
-		"dart_gun_max": 4,
-		"floor_buckets_min": 3,
-		"floor_buckets_max": 5,
-		"cover_props_count": 6
-	})
+func reset_spawner_defaults(player_count: int = 0) -> void:
+	_ensure_presets_initialized()
+	if player_count == -1:
+		for p_key in PLAYER_COUNT_SPAWNER_PRESETS.keys():
+			_player_count_presets[p_key] = (PLAYER_COUNT_SPAWNER_PRESETS[p_key] as Dictionary).duplicate(true)
+		apply_spawner_config_dict(get_preset_config_dict(spawner_active_preset_players))
+		return
+	var target_preset: int = clampi(player_count if player_count > 0 else spawner_active_preset_players, 2, 4)
+	var default_dict: Dictionary = (PLAYER_COUNT_SPAWNER_PRESETS[target_preset] as Dictionary).duplicate(true)
+	_player_count_presets[target_preset] = default_dict
+	spawner_active_preset_players = target_preset
+	apply_spawner_config_dict(default_dict)
 
 
 func compute_final_move_speed(stance: int, has_briefcase: bool, is_charging_club: bool, club_charge_progress: float = 1.0) -> float:
@@ -456,3 +582,9 @@ func compute_final_move_speed(stance: int, has_briefcase: bool, is_charging_club
 	if is_charging_club:
 		final_speed = maxf(final_speed, walk_speed * speed_mult_club_charge * hand_mult)
 	return final_speed
+
+
+func get_effective_bomb_fuse_range() -> Vector2:
+	if debug_long_bomb_fuse:
+		return Vector2(debug_long_bomb_fuse_seconds, debug_long_bomb_fuse_seconds)
+	return Vector2(time_bomb_fuse_min, time_bomb_fuse_max)

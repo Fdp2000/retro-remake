@@ -184,53 +184,112 @@ static func build_item_mesh(id: String) -> Node3D:
 	return build_item_visual(id)
 
 
-static func _attach_live_bomb_fuse_fx(wrapper: Node3D, model: Node3D) -> void:
-	for mi in model.find_children("*", "MeshInstance3D", true, false):
-		var mesh_node: MeshInstance3D = mi as MeshInstance3D
-		var src_mat: Material = mesh_node.material_override
-		if src_mat == null and mesh_node.mesh != null and mesh_node.mesh.get_surface_count() > 0:
-			src_mat = mesh_node.mesh.surface_get_material(0)
-		if src_mat is StandardMaterial3D:
-			var lit_mat: StandardMaterial3D = (src_mat as StandardMaterial3D).duplicate() as StandardMaterial3D
-			lit_mat.emission_enabled = true
-			lit_mat.emission = Color(0.95, 0.30, 0.06)
-			lit_mat.emission_energy_multiplier = 0.35
-			mesh_node.material_override = lit_mat
+const BOMB_FUSE_TIP_LOCAL_POS: Vector3 = Vector3(0.047, 0.341, -0.001)
+
+static var _smoke_puff_texture: GradientTexture2D = null
+
+
+static func _get_smoke_puff_texture() -> GradientTexture2D:
+	if _smoke_puff_texture == null:
+		var grad := Gradient.new()
+		grad.set_offset(0, 0.0)
+		grad.set_color(0, Color(1.0, 1.0, 1.0, 1.0))
+		grad.set_offset(1, 1.0)
+		grad.set_color(1, Color(1.0, 1.0, 1.0, 0.0))
+		grad.add_point(0.35, Color(1.0, 1.0, 1.0, 0.55))
+		grad.add_point(0.72, Color(1.0, 1.0, 1.0, 0.12))
+		_smoke_puff_texture = GradientTexture2D.new()
+		_smoke_puff_texture.width = 64
+		_smoke_puff_texture.height = 64
+		_smoke_puff_texture.fill = GradientTexture2D.FILL_RADIAL
+		_smoke_puff_texture.fill_from = Vector2(0.5, 0.5)
+		_smoke_puff_texture.fill_to = Vector2(0.5, 0.0)
+		_smoke_puff_texture.gradient = grad
+	return _smoke_puff_texture
+
+
+static func _attach_live_bomb_fuse_fx(_wrapper: Node3D, model: Node3D) -> void:
+	var fuse_tip := Node3D.new()
+	fuse_tip.name = "FuseTip"
+	fuse_tip.position = BOMB_FUSE_TIP_LOCAL_POS
+	model.add_child(fuse_tip)
 
 	var ember := MeshInstance3D.new()
 	ember.name = "FuseEmber"
+	ember.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	var sph := SphereMesh.new()
-	sph.radius = 0.022
-	sph.height = 0.044
+	sph.radius = 0.018
+	sph.height = 0.036
 	var ember_mat := StandardMaterial3D.new()
 	ember_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	ember_mat.albedo_color = Color(1.0, 0.55, 0.15)
+	ember_mat.albedo_color = Color(1.0, 0.58, 0.14)
 	ember.mesh = sph
 	ember.material_override = ember_mat
-	ember.position = Vector3(0.0, 0.145, 0.0)
-	wrapper.add_child(ember)
+	fuse_tip.add_child(ember)
 
 	var sparks := CPUParticles3D.new()
 	sparks.name = "FuseSparks"
+	sparks.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	sparks.amount = 10
-	sparks.lifetime = 0.35
+	sparks.lifetime = 0.32
 	sparks.local_coords = true
 	sparks.emitting = true
-	sparks.position = Vector3(0.0, 0.145, 0.0)
-	sparks.direction = Vector3(0.0, 1.0, 0.0)
+	sparks.direction = Vector3(0.25, 1.0, 0.0).normalized()
 	sparks.spread = 55.0
 	sparks.gravity = Vector3(0.0, -3.5, 0.0)
-	sparks.initial_velocity_min = 0.35
-	sparks.initial_velocity_max = 0.75
+	sparks.initial_velocity_min = 0.30
+	sparks.initial_velocity_max = 0.70
 	var spark_mesh := QuadMesh.new()
-	spark_mesh.size = Vector2(0.022, 0.022)
+	spark_mesh.size = Vector2(0.018, 0.018)
 	var spark_mat := StandardMaterial3D.new()
 	spark_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	spark_mat.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
-	spark_mat.albedo_color = Color(1.0, 0.72, 0.20)
+	spark_mat.albedo_color = Color(1.0, 0.75, 0.22)
 	spark_mesh.material = spark_mat
 	sparks.mesh = spark_mesh
-	wrapper.add_child(sparks)
+	fuse_tip.add_child(sparks)
+
+	var smoke := CPUParticles3D.new()
+	smoke.name = "FuseSmoke"
+	smoke.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	smoke.amount = 16
+	smoke.lifetime = 0.85
+	smoke.preprocess = 0.10
+	smoke.local_coords = false
+	smoke.emitting = true
+	smoke.direction = Vector3(0.0, 1.0, 0.0)
+	smoke.spread = 26.0
+	smoke.gravity = Vector3(0.0, 0.55, 0.0)
+	smoke.initial_velocity_min = 0.08
+	smoke.initial_velocity_max = 0.18
+	smoke.damping_min = 0.15
+	smoke.damping_max = 0.30
+	smoke.scale_amount_min = 0.75
+	smoke.scale_amount_max = 1.25
+	var scale_curve := Curve.new()
+	scale_curve.add_point(Vector2(0.0, 0.45))
+	scale_curve.add_point(Vector2(0.5, 1.0))
+	scale_curve.add_point(Vector2(1.0, 1.45))
+	smoke.scale_amount_curve = scale_curve
+	var smoke_grad := Gradient.new()
+	smoke_grad.set_offset(0, 0.0)
+	smoke_grad.set_color(0, Color(0.58, 0.54, 0.50, 0.62))
+	smoke_grad.set_offset(1, 1.0)
+	smoke_grad.set_color(1, Color(0.28, 0.28, 0.30, 0.0))
+	smoke_grad.add_point(0.35, Color(0.40, 0.40, 0.42, 0.38))
+	smoke.color_ramp = smoke_grad
+	var smoke_mesh := QuadMesh.new()
+	smoke_mesh.size = Vector2(0.044, 0.044)
+	var smoke_mat := StandardMaterial3D.new()
+	smoke_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	smoke_mat.disable_receive_shadows = true
+	smoke_mat.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+	smoke_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	smoke_mat.vertex_color_use_as_albedo = true
+	smoke_mat.albedo_texture = _get_smoke_puff_texture()
+	smoke_mesh.material = smoke_mat
+	smoke.mesh = smoke_mesh
+	fuse_tip.add_child(smoke)
 
 
 static func create_objective_glint_particles(in_drawer: bool = false) -> CPUParticles3D:
