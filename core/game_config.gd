@@ -152,7 +152,7 @@ static func get_spy_role_badge_color(role: int) -> Color:
 @export var bucket_fall_impact_delay: float = 0.10
 
 @export var drawer_fast_slam_duration: float = 0.22
-@export var drawer_slow_peek_hold_time: float = 2.50
+@export var drawer_slow_peek_hold_time: float = 2.20
 @export var drawer_slow_open_exp_steepness: float = 4.5
 @export var drawer_close_duration: float = 0.30
 @export var top_down_cam_lerp_duration: float = 0.65
@@ -179,13 +179,13 @@ static func get_spy_role_badge_color(role: int) -> Color:
 @export var tripwire_max_span: float = 2.50
 @export var tripwire_height: float = 0.35
 @export var tripwire_ladder_safe_radius: float = 1.90
-@export var time_bomb_fuse_min: float = 3.3
-@export var time_bomb_fuse_max: float = 4.0
+@export var time_bomb_fuse_min: float = 3.0
+@export var time_bomb_fuse_max: float = 3.6
 @export var debug_long_bomb_fuse: bool = false
 @export var debug_long_bomb_fuse_seconds: float = 8.0
 @export var time_bomb_throw_distance: float = 9.0
 @export var time_bomb_throw_speed: float = 9.5
-@export var time_bomb_blast_radius: float = 5.0
+@export var time_bomb_blast_radius: float = 5.7
 @export var time_bomb_self_catch_ignore_time: float = 0.25
 @export var dvd_reticle_speed_px: float = 320.0
 

@@ -919,8 +919,7 @@ func close_container(peer_id: int, player_override: Node = null, force: bool = f
 	if not is_briefcase_container and player != null and player.has_method("commit_held_briefcase_traps"):
 		player.commit_held_briefcase_traps()
 
-	if not live_bomb_lit:
-		_animate_tray_open(false, false)
+	_animate_tray_open(false, false)
 
 	_sync_back_to_briefcase_pickup()
 	_sync_state_to_peers()
@@ -1420,27 +1419,53 @@ func grab_lit_bomb(peer_id: int, player_override: Node = null) -> bool:
 	return true
 
 
+func _get_container_bomb_world_pos() -> Vector3:
+	if is_inside_tree() and _contents_root != null and is_instance_valid(_contents_root):
+		var bomb_area: Node3D = _contents_root.get_node_or_null("TrayTimeBomb") as Node3D
+		if bomb_area != null and is_instance_valid(bomb_area):
+			return bomb_area.global_position
+	if is_inside_tree() and _tray_drawer_node != null and is_instance_valid(_tray_drawer_node):
+		return _tray_drawer_node.global_position
+	return _safe_global_pos()
+
+
 func _detonate_container_bomb() -> void:
 	live_bomb_lit = false
 	live_bomb_fuse_remaining = 0.0
 	var owner_id: int = bomb_owner_peer_id
 	bomb_owner_peer_id = 0
+	var blast_pos: Vector3 = _get_container_bomb_world_pos()
 
 	if AudioBridge != null and GameConfig != null:
-		AudioBridge.request_world_cue("bomb_explode", _safe_global_pos(), GameConfig.audio_radius_bomb_explosion, owner_id)
+		AudioBridge.request_world_cue("bomb_explode", blast_pos, GameConfig.audio_radius_bomb_explosion, owner_id)
 
 	var occ: int = occupied_by_peer_id
 	if occ != 0:
 		var occ_player: Node = _occupant_player_override if _occupant_player_override != null else _find_player_node(occ)
 		close_container(occ, occ_player, true)
+	else:
+		drawer_open_progress = 0.0
+		drawer_visual_ratio = 0.0
+		is_slow_opening = false
+		_animate_tray_open(false, false)
 
 	var blast_radius: float = GameConfig.time_bomb_blast_radius if GameConfig != null else 5.0
 	if is_inside_tree() and get_tree() != null:
 		for p in get_tree().get_nodes_in_group("spy_players"):
-			if p is Node3D and (p as Node3D).global_position.distance_to(global_position) <= blast_radius:
-				if not _is_blast_occluded((p as Node3D).global_position):
+			if p is Node3D and (p as Node3D).global_position.distance_to(blast_pos) <= blast_radius:
+				if not _is_blast_occluded((p as Node3D).global_position, blast_pos):
 					if p.has_method("apply_trap_ko"):
-						p.apply_trap_ko("BOMB", owner_id)
+						var p3d: Node3D = p as Node3D
+						var away_horiz: Vector3 = p3d.global_position - blast_pos
+						away_horiz.y = 0.0
+						if away_horiz.length_squared() < 0.02:
+							away_horiz = p3d.global_transform.basis.z
+							away_horiz.y = 0.0
+						if away_horiz.length_squared() < 0.0001:
+							away_horiz = Vector3(0.0, 0.0, 1.0)
+						away_horiz = away_horiz.normalized()
+						var blast_kick: Vector3 = away_horiz * 12.0 + Vector3(0.0, 4.5, 0.0)
+						p.apply_trap_ko("BOMB", owner_id, blast_kick)
 					elif p.has_method("force_drop_all_hands"):
 						p.force_drop_all_hands()
 
@@ -1448,14 +1473,15 @@ func _detonate_container_bomb() -> void:
 	_sync_state_to_peers()
 
 
-func _is_blast_occluded(target_pos: Vector3) -> bool:
+func _is_blast_occluded(target_pos: Vector3, origin_pos: Vector3 = Vector3.INF) -> bool:
 	if not is_inside_tree() or get_world_3d() == null:
 		return false
 	var space: PhysicsDirectSpaceState3D = get_world_3d().direct_space_state
 	if space == null:
 		return false
+	var ray_origin: Vector3 = (origin_pos + Vector3(0.0, 0.25, 0.0)) if origin_pos.is_finite() else (global_position + Vector3(0.0, 0.8, 0.0))
 	var query := PhysicsRayQueryParameters3D.create(
-		global_position + Vector3(0.0, 0.8, 0.0),
+		ray_origin,
 		target_pos + Vector3(0.0, 0.8, 0.0),
 		GameConfig.LAYER_ENVIRONMENT if GameConfig != null else 1,
 		[get_rid()]
