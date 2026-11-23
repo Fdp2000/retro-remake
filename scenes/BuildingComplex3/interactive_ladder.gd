@@ -15,6 +15,7 @@ var shaft_guard: StaticBody3D
 
 
 func _ready() -> void:
+	add_to_group("interactive_ladders")
 	# The door interaction ray sees layer 2 without adding a player obstacle.
 	var target := StaticBody3D.new()
 	target.name = "InteractTarget"

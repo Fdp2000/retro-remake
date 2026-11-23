@@ -4,7 +4,7 @@ extends StaticBody3D
 
 ## Floor & Doorway Tripwire Trap (Doc 4 §3.2).
 ## Triggers 15s KO on walking/sprinting spies (owner-triggerable).
-## Can be jumped over (Space) or disarmed/stolen while crouching (Ctrl + Hold E).
+## Can be jumped over (Space), crouched under (Ctrl), or disarmed/stolen (Hold E).
 
 @export var owner_peer_id: int = 0
 @export var span_width: float = 1.10
@@ -13,6 +13,12 @@ extends StaticBody3D
 @export var use_endpoints: bool = false
 
 const TRIPWIRE_PREFAB: PackedScene = preload("res://Assets/Prefab_Traps/tripwire.tscn")
+const PEG_MODEL_HEIGHT: float = 0.1504
+const PEG_RING_CENTER_RATIO: float = 0.1118 / PEG_MODEL_HEIGHT
+const PEG_RING_SIDE_RADIUS_UNSCALED: float = 0.0235
+const PEG_RING_TUBE_RADIUS_UNSCALED: float = 0.0056
+const PEG_XZ_SCALE: float = 2.2
+const PEG_SIDE_TIE_SIGN: float = 1.0
 
 var wire_height: float = 0.35
 var _triggered_or_consumed: bool = false
@@ -126,7 +132,10 @@ func _rebuild_geometry() -> void:
 			child.queue_free()
 
 		var peg_h: float = wire_height + 0.05
-		var peg_scale := Vector3(2.2, peg_h / 0.1504, 2.2)
+		var peg_scale := Vector3(PEG_XZ_SCALE, peg_h / PEG_MODEL_HEIGHT, PEG_XZ_SCALE)
+		var ring_center_y: float = peg_h * PEG_RING_CENTER_RATIO
+		var ring_side_offset_z: float = PEG_RING_SIDE_RADIUS_UNSCALED * PEG_XZ_SCALE * PEG_SIDE_TIE_SIGN
+		var ring_tube_r: float = PEG_RING_TUBE_RADIUS_UNSCALED * PEG_XZ_SCALE
 
 		for i in range(2):
 			var peg: Node3D = TRIPWIRE_PREFAB.instantiate() as Node3D
@@ -137,22 +146,44 @@ func _rebuild_geometry() -> void:
 			peg.rotation.y = PI * 0.5
 			vis.add_child(peg)
 
-		var wire_mi := MeshInstance3D.new()
-		wire_mi.name = "WireMesh"
-		var wire_cyl := CylinderMesh.new()
-		wire_cyl.top_radius = 0.008
-		wire_cyl.bottom_radius = 0.008
-		wire_cyl.height = full_span
-		wire_mi.mesh = wire_cyl
-		wire_mi.rotation = Vector3(0.0, 0.0, -PI * 0.5 + tilt)
-		wire_mi.position = Vector3(0.0, wire_height, 0.0)
 		var wire_mat := StandardMaterial3D.new()
 		wire_mat.albedo_color = Color(0.95, 0.32, 0.12)
 		wire_mat.emission_enabled = true
 		wire_mat.emission = Color(0.85, 0.25, 0.10)
 		wire_mat.emission_energy_multiplier = 0.45
+
+		var p1_tie: Vector3 = local_p1 + Vector3(0.0, ring_center_y, ring_side_offset_z)
+		var p2_tie: Vector3 = local_p2 + Vector3(0.0, ring_center_y, ring_side_offset_z)
+		var span_vec: Vector3 = p2_tie - p1_tie
+		var span_len: float = maxf(span_vec.length(), 0.01)
+
+		var wire_mi := MeshInstance3D.new()
+		wire_mi.name = "WireMesh"
+		var wire_cyl := CylinderMesh.new()
+		wire_cyl.top_radius = 0.008
+		wire_cyl.bottom_radius = 0.008
+		wire_cyl.height = span_len
+		wire_mi.mesh = wire_cyl
+		wire_mi.rotation = Vector3(0.0, 0.0, -PI * 0.5 + tilt)
+		wire_mi.position = Vector3(0.0, ring_center_y, ring_side_offset_z)
 		wire_mi.material_override = wire_mat
 		vis.add_child(wire_mi)
+
+		var knot_mesh := TorusMesh.new()
+		knot_mesh.inner_radius = maxf(ring_tube_r - 0.001, 0.003)
+		knot_mesh.outer_radius = knot_mesh.inner_radius + 0.014
+		knot_mesh.rings = 16
+		knot_mesh.ring_segments = 12
+
+		for i in range(2):
+			var base_tie: Vector3 = p1_tie if i == 0 else p2_tie
+			var knot_mi := MeshInstance3D.new()
+			knot_mi.name = "WireTie_%d" % i
+			knot_mi.mesh = knot_mesh
+			knot_mi.position = base_tie
+			knot_mi.rotation = Vector3(0.0, 0.0, 0.0)
+			knot_mi.material_override = wire_mat
+			vis.add_child(knot_mi)
 
 	var area: Area3D = _trigger_area if _trigger_area != null else get_node_or_null("TriggerArea") as Area3D
 	if area != null:
@@ -217,7 +248,7 @@ func try_trip_spy(body: Node) -> bool:
 
 
 func get_interaction_prompt() -> String:
-	return "[Crouch + Hold E] Steal Tripwire Coil"
+	return "[Hold E] Steal Tripwire Coil"
 
 
 func supports_hold_interaction() -> bool:
@@ -257,8 +288,10 @@ func try_steal_tripwire(caller_peer_id: int, player_override: Node = null) -> bo
 	var player: Node = player_override if player_override != null else _find_player_node(caller_peer_id)
 	if player == null:
 		return false
-	var crouch_val: int = GameConfig.Stance.CROUCH if GameConfig != null else 2
-	if int(player.get("stance_state")) != crouch_val:
+	var ko_val: int = GameConfig.Stance.KO if GameConfig != null else 4
+	var lock_val: int = GameConfig.Stance.DRAWER_LOCK if GameConfig != null else 3
+	var stance: int = int(player.get("stance_state"))
+	if stance == ko_val or stance == lock_val or bool(player.get("is_clock_eliminated")):
 		return false
 	if player.has_method("server_pickup_world_item"):
 		if not player.server_pickup_world_item("TRIPWIRE", [], _safe_global_pos()):

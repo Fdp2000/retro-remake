@@ -123,14 +123,14 @@ func _add_edge(tile: Node3D, suffix: String, strip: Rect2) -> void:
 
 func _add_shaft_liner(ladder: INTERACTIVE_LADDER, ceiling: MeshInstance3D) -> void:
 	var ceiling_y := ceiling.global_position.y
-	var height := ladder.upper_landing_y - ceiling_y
+	var height := maxf(ladder.upper_landing_y - ceiling_y - 0.002, 0.0)
 	if height <= 0.0:
 		return
 
 	# The modular slabs have horizontal faces only. Seal the exposed gap between them.
 	var liner := Node3D.new()
 	liner.name = "ShaftLiner"
-	liner.position = Vector3(0.0, ceiling_y - ladder.global_position.y + height * 0.5, ladder.shaft_center_offset())
+	liner.position = Vector3(0.0, ceiling_y - ladder.global_position.y + height * 0.5 + 0.001, ladder.shaft_center_offset())
 	ladder.add_child(liner)
 
 	var depth := ladder.shaft_depth()

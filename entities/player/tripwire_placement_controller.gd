@@ -19,13 +19,22 @@ enum InvalidReason {
 	INVALID_SURFACE = 3,
 	TOO_CLOSE = 4,
 	TOO_FAR = 5,
-	OBSTRUCTED = 6
+	OBSTRUCTED = 6,
+	TOO_CLOSE_TO_LADDER = 7
 }
 
 const PREVIEW_RAY_LENGTH: float = 8.0
 const TRIPWIRE_PREFAB: PackedScene = preload("res://Assets/Prefab_Traps/tripwire.tscn")
 const MAX_POLE_HEIGHT_DELTA: float = 0.65
 const MIN_HORIZ_SPAN: float = 0.20
+const DEFAULT_LADDER_SAFE_RADIUS: float = 1.90
+const LADDER_FLOOR_HEIGHT_TOLERANCE: float = 1.20
+const PEG_MODEL_HEIGHT: float = 0.1504
+const PEG_RING_CENTER_RATIO: float = 0.1118 / PEG_MODEL_HEIGHT
+const PEG_RING_SIDE_RADIUS_UNSCALED: float = 0.0235
+const PEG_RING_TUBE_RADIUS_UNSCALED: float = 0.0056
+const PEG_XZ_SCALE: float = 2.2
+const PEG_SIDE_TIE_SIGN: float = 1.0
 
 var _owner_player: Node3D = null
 
@@ -48,7 +57,6 @@ var _ghost_pole_node: Node3D = null
 var _ghost_wire_node: MeshInstance3D = null
 var _mat_valid: StandardMaterial3D = null
 var _mat_invalid: StandardMaterial3D = null
-var _mat_placed_pole: StandardMaterial3D = null
 
 
 func setup(owner_player: Node3D) -> void:
@@ -162,6 +170,8 @@ func get_prompt_text() -> String:
 				return "[Hold LMB] Place First Pole"
 			if invalid_reason == InvalidReason.OUT_OF_REACH:
 				return "Out of Reach"
+			if invalid_reason == InvalidReason.TOO_CLOSE_TO_LADDER:
+				return "Too Close to Ladder"
 			return "Invalid Surface (Aim at Floor)"
 		Step.PLACING_SECOND_POLE:
 			if aim_valid:
@@ -173,6 +183,8 @@ func get_prompt_text() -> String:
 					return "Too Far (%.2fm)  |  [RMB] Cancel" % span_distance
 				InvalidReason.OBSTRUCTED:
 					return "Wire Obstructed  |  [RMB] Cancel"
+				InvalidReason.TOO_CLOSE_TO_LADDER:
+					return "Too Close to Ladder  |  [RMB] Cancel"
 				InvalidReason.OUT_OF_REACH:
 					return "Out of Reach  |  [RMB] Cancel"
 				InvalidReason.INVALID_SURFACE:
@@ -204,6 +216,10 @@ func evaluate_aim_from_hit(
 	var surf: Dictionary = validate_floor_surface(hit_col, hit_normal, hit_distance)
 	var surf_valid: bool = bool(surf["valid"])
 	var surf_reason: int = int(surf["reason"])
+	var context_node: Node = hit_col as Node if hit_col is Node else self
+	if surf_valid and is_point_in_ladder_safezone(hit_pos, context_node):
+		surf_valid = false
+		surf_reason = InvalidReason.TOO_CLOSE_TO_LADDER
 
 	if current_step != Step.PLACING_SECOND_POLE or not has_first_pole:
 		span_distance = 0.0
@@ -217,7 +233,7 @@ func evaluate_aim_from_hit(
 		invalid_reason = surf_reason
 		return false
 
-	var span_check: Dictionary = validate_second_pole(first_pole_pos, hit_pos, world_3d, exclude_rids)
+	var span_check: Dictionary = validate_second_pole(first_pole_pos, hit_pos, world_3d, exclude_rids, context_node)
 	aim_valid = bool(span_check["valid"])
 	invalid_reason = int(span_check["reason"])
 	return aim_valid
@@ -250,7 +266,8 @@ static func validate_second_pole(
 	p1: Vector3,
 	p2: Vector3,
 	world_3d: World3D = null,
-	exclude_rids: Array[RID] = []
+	exclude_rids: Array[RID] = [],
+	context_node: Node = null
 ) -> Dictionary:
 	var span: float = p1.distance_to(p2)
 	var min_span: float = GameConfig.tripwire_min_span if GameConfig != null else 0.40
@@ -265,10 +282,83 @@ static func validate_second_pole(
 	if absf(p2.y - p1.y) > MAX_POLE_HEIGHT_DELTA or horiz_span < MIN_HORIZ_SPAN:
 		return {"valid": false, "reason": InvalidReason.INVALID_SURFACE}
 
+	if is_span_in_ladder_safezone(p1, p2, context_node):
+		return {"valid": false, "reason": InvalidReason.TOO_CLOSE_TO_LADDER}
+
 	if is_wire_obstructed(p1, p2, world_3d, exclude_rids):
 		return {"valid": false, "reason": InvalidReason.OBSTRUCTED}
 
 	return {"valid": true, "reason": InvalidReason.NONE}
+
+
+static func get_ladder_safe_radius() -> float:
+	return GameConfig.tripwire_ladder_safe_radius if GameConfig != null else DEFAULT_LADDER_SAFE_RADIUS
+
+
+static func is_point_in_ladder_safezone(pt: Vector3, context_node: Node) -> bool:
+	var radius: float = get_ladder_safe_radius()
+	if radius <= 0.0:
+		return false
+	var r_sq: float = radius * radius
+	for ladder in _get_active_ladders(context_node):
+		if not _is_height_on_ladder_landing(pt.y, ladder):
+			continue
+		var center_xz: Vector2 = _get_ladder_safe_center_xz(ladder)
+		if Vector2(pt.x, pt.z).distance_squared_to(center_xz) < r_sq:
+			return true
+	return false
+
+
+static func is_span_in_ladder_safezone(p1: Vector3, p2: Vector3, context_node: Node) -> bool:
+	var radius: float = get_ladder_safe_radius()
+	if radius <= 0.0:
+		return false
+	var r_sq: float = radius * radius
+	var a_xz := Vector2(p1.x, p1.z)
+	var b_xz := Vector2(p2.x, p2.z)
+	var mid_y: float = (p1.y + p2.y) * 0.5
+	for ladder in _get_active_ladders(context_node):
+		if (
+			not _is_height_on_ladder_landing(mid_y, ladder)
+			and not _is_height_on_ladder_landing(p1.y, ladder)
+			and not _is_height_on_ladder_landing(p2.y, ladder)
+		):
+			continue
+		var center_xz: Vector2 = _get_ladder_safe_center_xz(ladder)
+		var closest: Vector2 = Geometry2D.get_closest_point_to_segment(center_xz, a_xz, b_xz)
+		if center_xz.distance_squared_to(closest) < r_sq:
+			return true
+	return false
+
+
+static func _get_active_ladders(context_node: Node) -> Array[Node3D]:
+	var result: Array[Node3D] = []
+	if context_node == null or not is_instance_valid(context_node) or not context_node.is_inside_tree():
+		return result
+	var tree: SceneTree = context_node.get_tree()
+	if tree == null:
+		return result
+	for node in tree.get_nodes_in_group("interactive_ladders"):
+		if node is Node3D and (node as Node3D).is_inside_tree():
+			result.append(node as Node3D)
+	return result
+
+
+static func _get_ladder_safe_center_xz(ladder: Node3D) -> Vector2:
+	var offset_z: float = float(ladder.call("shaft_center_offset")) if ladder.has_method("shaft_center_offset") else 0.0
+	var world_center: Vector3 = ladder.to_global(Vector3(0.0, 0.0, offset_z))
+	return Vector2(world_center.x, world_center.z)
+
+
+static func _is_height_on_ladder_landing(y_pos: float, ladder: Node3D) -> bool:
+	var lower_v: Variant = ladder.get("lower_landing_y")
+	var upper_v: Variant = ladder.get("upper_landing_y")
+	var lower_y: float = float(lower_v) if lower_v != null else ladder.global_position.y
+	var upper_y: float = float(upper_v) if upper_v != null else (lower_y + 3.22)
+	return (
+		absf(y_pos - lower_y) <= LADDER_FLOOR_HEIGHT_TOLERANCE
+		or absf(y_pos - upper_y) <= LADDER_FLOOR_HEIGHT_TOLERANCE
+	)
 
 
 static func is_wire_obstructed(
@@ -412,18 +502,10 @@ func _ensure_visuals() -> void:
 		_mat_invalid.emission = Color(0.95, 0.15, 0.12)
 		_mat_invalid.emission_energy_multiplier = 0.60
 
-	if _mat_placed_pole == null:
-		_mat_placed_pole = StandardMaterial3D.new()
-		_mat_placed_pole.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		_mat_placed_pole.albedo_color = Color(0.92, 0.50, 0.16, 0.92)
-		_mat_placed_pole.emission_enabled = true
-		_mat_placed_pole.emission = Color(0.85, 0.42, 0.12)
-		_mat_placed_pole.emission_energy_multiplier = 0.45
-
 	var world_layer: int = GameConfig.VISUAL_LAYER_WORLD if GameConfig != null else 1
 
 	if _placed_pole_node == null:
-		_placed_pole_node = _create_pole_mesh_node("PlacedFirstPole", pole_h, _mat_placed_pole, world_layer)
+		_placed_pole_node = _create_pole_mesh_node("PlacedFirstPole", pole_h, null, world_layer)
 		add_child(_placed_pole_node)
 
 	if _ghost_pole_node == null:
@@ -454,17 +536,18 @@ func _create_pole_mesh_node(node_name: String, pole_h: float, mat: Material, wor
 	model.name = "PoleModel"
 	model.scale = Vector3(2.2, pole_h / 0.1504, 2.2)
 	pole.add_child(model)
-	_apply_pole_appearance(pole, mat, world_layer)
+	_apply_pole_appearance(pole, mat, world_layer, mat != null)
 	pole.visible = false
 	return pole
 
 
-func _apply_pole_appearance(pole: Node3D, mat: Material, world_layer: int) -> void:
+func _apply_pole_appearance(pole: Node3D, mat: Material, world_layer: int, override_material: bool = true) -> void:
 	for child in pole.find_children("*", "MeshInstance3D", true, false):
 		var mi := child as MeshInstance3D
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		mi.layers = world_layer
-		mi.material_override = mat
+		if override_material:
+			mi.material_override = mat
 
 
 func _update_visuals(show_aim_ghosts: bool) -> void:
@@ -474,13 +557,27 @@ func _update_visuals(show_aim_ghosts: bool) -> void:
 
 	var wire_h: float = GameConfig.tripwire_height if GameConfig != null else 0.35
 	var pole_h: float = wire_h + 0.05
-	var pole_scale := Vector3(2.2, pole_h / 0.1504, 2.2)
+	var ring_center_y: float = pole_h * PEG_RING_CENTER_RATIO
+	var ring_side_offset: float = PEG_RING_SIDE_RADIUS_UNSCALED * PEG_XZ_SCALE * PEG_SIDE_TIE_SIGN
+	var pole_scale := Vector3(PEG_XZ_SCALE, pole_h / PEG_MODEL_HEIGHT, PEG_XZ_SCALE)
 	var world_layer: int = GameConfig.VISUAL_LAYER_WORLD if GameConfig != null else 1
+	var facing_yaw: float = 0.0
+	var has_facing_yaw: bool = false
+	var side_vec := Vector3.ZERO
+	if has_placed_first_pole() and has_aim_hit:
+		var horiz_delta := Vector2(aim_pos.x - first_pole_pos.x, aim_pos.z - first_pole_pos.z)
+		if horiz_delta.length_squared() > 0.0001:
+			var span_yaw: float = atan2(-horiz_delta.y, horiz_delta.x)
+			facing_yaw = span_yaw + PI * 0.5
+			has_facing_yaw = true
+			side_vec = Vector3(-sin(span_yaw), 0.0, cos(span_yaw)) * ring_side_offset
 
 	if _placed_pole_node != null:
 		if has_placed_first_pole():
 			_placed_pole_node.visible = true
 			_placed_pole_node.global_position = first_pole_pos
+			if has_facing_yaw:
+				_placed_pole_node.rotation.y = facing_yaw
 			var placed_model := _placed_pole_node.get_node_or_null("PoleModel") as Node3D
 			if placed_model != null:
 				placed_model.scale = pole_scale
@@ -493,6 +590,8 @@ func _update_visuals(show_aim_ghosts: bool) -> void:
 		if show_aim_ghosts and has_aim_hit and current_step != Step.INACTIVE:
 			_ghost_pole_node.visible = true
 			_ghost_pole_node.global_position = aim_pos
+			if has_facing_yaw:
+				_ghost_pole_node.rotation.y = facing_yaw
 			var ghost_model := _ghost_pole_node.get_node_or_null("PoleModel") as Node3D
 			if ghost_model != null:
 				ghost_model.scale = pole_scale
@@ -502,8 +601,8 @@ func _update_visuals(show_aim_ghosts: bool) -> void:
 
 	if _ghost_wire_node != null:
 		if show_aim_ghosts and has_placed_first_pole() and has_aim_hit:
-			var w1: Vector3 = first_pole_pos + Vector3(0.0, wire_h, 0.0)
-			var w2: Vector3 = aim_pos + Vector3(0.0, wire_h, 0.0)
+			var w1: Vector3 = first_pole_pos + Vector3(0.0, ring_center_y, 0.0) + side_vec
+			var w2: Vector3 = aim_pos + Vector3(0.0, ring_center_y, 0.0) + side_vec
 			var delta: Vector3 = w2 - w1
 			var full_len: float = delta.length()
 			if full_len > 0.02:

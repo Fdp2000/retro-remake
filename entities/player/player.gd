@@ -1815,6 +1815,9 @@ func _rpc_server_deploy_tripwire(pole1_pos: Vector3, pole2_pos: Vector3) -> void
 	var horiz_span: float = Vector2(pole2_pos.x - pole1_pos.x, pole2_pos.z - pole1_pos.z).length()
 	if absf(pole2_pos.y - pole1_pos.y) > TripwirePlacementController.MAX_POLE_HEIGHT_DELTA or horiz_span < TripwirePlacementController.MIN_HORIZ_SPAN:
 		return
+	if is_inside_tree():
+		if TripwirePlacementController.is_point_in_ladder_safezone(pole1_pos, self) or TripwirePlacementController.is_span_in_ladder_safezone(pole1_pos, pole2_pos, self):
+			return
 	if is_inside_tree() and get_world_3d() != null:
 		var exclude: Array[RID] = [get_rid()]
 		if TripwirePlacementController.is_wire_obstructed(pole1_pos, pole2_pos, get_world_3d(), exclude):
