@@ -147,24 +147,24 @@ func _build_layout() -> void:
 	controls_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	left_scroll.add_child(controls_vbox)
 
-	# Section 1: Drawers & Room Rules
-	_add_section_header(controls_vbox, "1. Searchable Drawers (5 Mandatory: 4 Objectives + 1 Briefcase)")
-	var drawers_row := _create_min_max_row(controls_vbox, "Total Drawers (Min / Max):", 5, 64, 16, 20)
+	# Section 1: Containers & Room Rules
+	_add_section_header(controls_vbox, "1. Searchable Containers (Big Drawer = 2, Small Drawer = 1)")
+	var drawers_row := _create_min_max_row(controls_vbox, "Total Containers (Min / Max):", 5, 64, 24, 32)
 	_min_drawers_spin = drawers_row["min"]
 	_max_drawers_spin = drawers_row["max"]
 
-	_max_per_room_spin = _create_single_spin_row(controls_vbox, "Max Drawers Per Contested Room (Min 1):", 1, 8, 2)
+	_max_per_room_spin = _create_single_spin_row(controls_vbox, "Max Drawer Props Per Contested Room (Min 1):", 1, 8, 2)
 
 	var spawn_room_row := HBoxContainer.new()
 	spawn_room_row.add_theme_constant_override("separation", 8)
 	controls_vbox.add_child(spawn_room_row)
 	_allow_spawn_rooms_check = CheckBox.new()
-	_allow_spawn_rooms_check.text = "Allow Drawers in Spawn Rooms (Room_1_1 & Room_4_4)"
+	_allow_spawn_rooms_check.text = "Allow Drawers in Spawn Rooms"
 	_allow_spawn_rooms_check.button_pressed = true
 	_allow_spawn_rooms_check.toggled.connect(func(_v: bool) -> void: _on_any_control_changed())
 	spawn_room_row.add_child(_allow_spawn_rooms_check)
 
-	_max_in_spawn_room_spin = _create_single_spin_row(controls_vbox, "Max Drawers Per Spawn Room:", 0, 4, 1)
+	_max_in_spawn_room_spin = _create_single_spin_row(controls_vbox, "Max Drawer Props Per Spawn Room:", 0, 4, 1)
 
 	var isolate_row := HBoxContainer.new()
 	isolate_row.add_theme_constant_override("separation", 8)
@@ -347,8 +347,8 @@ func refresh_from_config() -> void:
 	if _min_drawers_spin == null or GameConfig == null:
 		return
 	_updating_ui = true
-	_min_drawers_spin.value = GameConfig.spawner_min_drawers
-	_max_drawers_spin.value = GameConfig.spawner_max_drawers
+	_min_drawers_spin.value = GameConfig.spawner_min_containers
+	_max_drawers_spin.value = GameConfig.spawner_max_containers
 	_max_per_room_spin.value = GameConfig.spawner_max_drawers_per_room
 	_allow_spawn_rooms_check.button_pressed = GameConfig.spawner_allow_drawers_in_spawn_rooms
 	if _max_in_spawn_room_spin != null:
@@ -377,9 +377,13 @@ func refresh_from_config() -> void:
 func collect_ui_config_dict() -> Dictionary:
 	if _min_drawers_spin == null:
 		return GameConfig.get_spawner_config_dict() if GameConfig != null else {}
+	var min_c: int = int(_min_drawers_spin.value)
+	var max_c: int = int(_max_drawers_spin.value)
 	return {
-		"min_drawers": int(_min_drawers_spin.value),
-		"max_drawers": int(_max_drawers_spin.value),
+		"min_containers": min_c,
+		"max_containers": max_c,
+		"min_drawers": min_c,
+		"max_drawers": max_c,
 		"max_drawers_per_room": int(_max_per_room_spin.value),
 		"allow_drawers_in_spawn_rooms": _allow_spawn_rooms_check.button_pressed,
 		"max_drawers_in_spawn_room": int(_max_in_spawn_room_spin.value) if _max_in_spawn_room_spin != null else 1,
@@ -440,8 +444,8 @@ func _refresh_live_summary() -> void:
 	lines.append("[b][color=#8cf2a8]Current Rules Summary[/color][/b]")
 	lines.append("• Contested Rooms: [b]13[/b] (Min 1, Max %d/room)" % int(cfg.get("max_drawers_per_room", 2)))
 	lines.append("• Spawn Rooms (1_1 & 4_4): [b]%s[/b]" % ("Max %d/room" % spawn_cap if spawn_cap > 0 else "0 drawers"))
-	lines.append("• Total Room Capacity: [b]%d drawers[/b]" % max_room_cap)
-	lines.append("• Target Drawers: [b]%d – %d[/b] (5 core + gadgets + empty)" % [int(cfg.get("min_drawers", 16)), int(cfg.get("max_drawers", 20))])
+	lines.append("• Total Room Prop Capacity: [b]%d drawer props[/b]" % max_room_cap)
+	lines.append("• Target Searchable Containers: [b]%d – %d[/b] (5 core + gadgets + empty)" % [int(cfg.get("min_containers", 24)), int(cfg.get("max_containers", 32))])
 	lines.append("• Briefcase Isolation: [b]%s[/b]" % ("Never with Objective" if bool(cfg.get("isolate_briefcase_from_objectives", true)) else "Unrestricted"))
 	lines.append("• Target Drawer Gadgets: [b]%d – %d[/b]" % [int(cfg.get("min_total_gadgets", 11)), int(cfg.get("max_total_gadgets", 14))])
 	lines.append("• Target Floor Water Buckets: [b]%d – %d[/b]" % [int(cfg.get("floor_buckets_min", 3)), int(cfg.get("floor_buckets_max", 5))])
@@ -449,7 +453,12 @@ func _refresh_live_summary() -> void:
 	if not _last_populate_summary.is_empty():
 		lines.append("")
 		lines.append("[b][color=#ffd875]Active Arena Spawn Audit (Seed #%d)[/color][/b]" % int(_last_populate_summary.get("seed", active_seed)))
-		lines.append("• Drawers Spawned: [b]%d[/b]" % int(_last_populate_summary.get("drawers_spawned", 0)))
+		lines.append("• Containers Spawned: [b]%d[/b] (Big=%d [2 ea], Small=%d [1 ea])" % [
+			int(_last_populate_summary.get("containers_spawned", 0)),
+			int(_last_populate_summary.get("big_drawers_spawned", 0)),
+			int(_last_populate_summary.get("small_drawers_spawned", 0))
+		])
+		lines.append("• Drawer Props Placed: [b]%d[/b]" % int(_last_populate_summary.get("drawers_spawned", 0)))
 		lines.append("• Floor Buckets Spawned: [b]%d[/b]" % int(_last_populate_summary.get("floor_buckets_spawned", 0)))
 		var manifest: Dictionary = _last_populate_summary.get("manifest", {})
 		var g_counts: Dictionary = manifest.get("gadget_counts", {})
@@ -460,13 +469,15 @@ func _refresh_live_summary() -> void:
 				int(g_counts.get("TRIPWIRE", 0)),
 				int(g_counts.get("DART_GUN", 0))
 			])
+		var per_room_containers: Dictionary = _last_populate_summary.get("containers_per_room", {})
 		var per_room: Dictionary = _last_populate_summary.get("drawers_per_room", {})
 		if not per_room.is_empty():
 			lines.append("")
-			lines.append("[b]Drawers Per Room:[/b]")
+			lines.append("[b]Containers & Drawers Per Room:[/b]")
 			var r_keys: Array = per_room.keys()
 			r_keys.sort()
 			for r_name in r_keys:
-				lines.append("  - %s: [b]%d[/b] drawer(s)" % [str(r_name), int(per_room[r_name])])
+				var c_cnt: int = int(per_room_containers.get(r_name, per_room[r_name]))
+				lines.append("  - %s: [b]%d[/b] container(s) (%d prop(s))" % [str(r_name), c_cnt, int(per_room[r_name])])
 
 	_summary_box.text = "\n".join(lines)

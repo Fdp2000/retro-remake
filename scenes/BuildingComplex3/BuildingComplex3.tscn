@@ -23,7 +23,6 @@
 [ext_resource type="PackedScene" uid="uid://jyr46vlru8u5" path="res://Assets/Models/Prefabs/ChamillionFrame.tscn" id="furn_ChamillionFrame"]
 [ext_resource type="PackedScene" uid="uid://bepvfl8ha6civ" path="res://Assets/Models/Prefabs/coathanger.tscn" id="furn_coathanger"]
 [ext_resource type="PackedScene" uid="uid://byqrvadykht4y" path="res://Assets/Models/Prefabs/desk_2.tscn" id="furn_desk_2"]
-[ext_resource type="PackedScene" uid="uid://c86verayk2y0i" path="res://Assets/Models/Prefabs/drawer_b.tscn" id="furn_drawer_b"]
 [ext_resource type="PackedScene" uid="uid://dj8s455xvjldk" path="res://Assets/Models/Prefabs/FredeBook.tscn" id="furn_FredeBook"]
 [ext_resource type="PackedScene" uid="uid://dcfyhwrdvetbl" path="res://Assets/Models/Prefabs/large_safe.tscn" id="furn_large_safe"]
 [ext_resource type="PackedScene" uid="uid://catbxuwd60vv3" path="res://Assets/Models/Prefabs/mug_2.tscn" id="furn_mug_2"]
@@ -118,6 +117,10 @@ transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -3.95, 0, 0.35)
 [node name="DrawerSpawn_2" type="Marker3D" parent="Rooms/Room_1_1/MatchDrawerSpawnPoints" unique_id=1291324796]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.1, 0, -3.95)
 
+[node name="SmallDrawerSpawn_1" type="Marker3D" parent="Rooms/Room_1_1/MatchDrawerSpawnPoints" unique_id=1855597643]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.1000004, 0, -4.0329094)
+metadata/drawer_size = "small"
+
 [node name="LadderSpawn" type="Marker3D" parent="Rooms/Room_1_1" unique_id=145118510]
 transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -4.15, 0, 3.82)
 metadata/upper_floor_tile = "Floor_0_2"
@@ -194,9 +197,6 @@ transform = Transform3D(0.5, 0, 0, 0, 0.5, 0, 0, 0, 0.5, -2.925415, 0.015, -3.62
 [node name="NE_Bookcase" parent="Rooms/Room_1_1" unique_id=1654141316 instance=ExtResource("furn_shelf_c")]
 transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 4.1683273, 0, -2.6000004)
 
-[node name="NE_FileCabinet" parent="Rooms/Room_1_1" unique_id=1855597643 instance=ExtResource("furn_drawer_b")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.1000004, 0, -4.0329094)
-
 [node name="NE_RecyclingBin" parent="Rooms/Room_1_1" unique_id=822532349 instance=ExtResource("furn_bin_2")]
 transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 3.75, 0, -1.44)
 
@@ -215,6 +215,10 @@ metadata/office_use = "Operations office"
 
 [node name="DrawerSpawn_1" type="Marker3D" parent="Rooms/Room_1_2/MatchDrawerSpawnPoints" unique_id=73869981]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.4, 0, -3.95)
+
+[node name="SmallDrawerSpawn_1" type="Marker3D" parent="Rooms/Room_1_2/MatchDrawerSpawnPoints" unique_id=1793402522]
+transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 4.0156665, 0, -2.619999)
+metadata/drawer_size = "small"
 
 [node name="LadderSpawn" type="Marker3D" parent="Rooms/Room_1_2" unique_id=252745776]
 transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -4.15, 0, 3.82)
@@ -298,9 +302,6 @@ transform = Transform3D(-0.9848077, 0, 0.17364818, 0, 1, 0, -0.17364818, 0, -0.9
 [node name="SE_Mug" parent="Rooms/Room_1_2" unique_id=1753171336 instance=ExtResource("furn_mug_2")]
 transform = Transform3D(-0.81915206, 0, -0.5735764, 0, 1, 0, 0.5735764, 0, -0.81915206, 1.95, 1, 2.61)
 
-[node name="NE_MailCabinet" parent="Rooms/Room_1_2" unique_id=1793402522 instance=ExtResource("furn_drawer_b")]
-transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 4.0156665, 0, -2.619999)
-
 [node name="Room_1_3" type="Node3D" parent="Rooms" unique_id=18041924]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.5, 0, -13.5)
 script = ExtResource("room_palette")
@@ -316,6 +317,10 @@ metadata/office_use = "Records intake"
 
 [node name="DrawerSpawn_1" type="Marker3D" parent="Rooms/Room_1_3/MatchDrawerSpawnPoints" unique_id=2078393596]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.35, 0, -3.95)
+
+[node name="SmallDrawerSpawn_1" type="Marker3D" parent="Rooms/Room_1_3/MatchDrawerSpawnPoints" unique_id=1813919225]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.7053418, 0, -4.0329)
+metadata/drawer_size = "small"
 
 [node name="LadderSpawn" type="Marker3D" parent="Rooms/Room_1_3" unique_id=1276876516]
 transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -4.15, 0, -3.82)
@@ -366,9 +371,6 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 0, 3)
 surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
 surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 
-[node name="NW_MailCabinet" parent="Rooms/Room_1_3" unique_id=1813919225 instance=ExtResource("furn_drawer_b")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.7053418, 0, -4.0329)
-
 [node name="NW_SortingTable" parent="Rooms/Room_1_3" unique_id=1661219085 instance=ExtResource("furn_table_a")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.3327866, 0, -1.75)
 
@@ -411,6 +413,10 @@ metadata/office_use = "Finance office"
 
 [node name="DrawerSpawn_1" type="Marker3D" parent="Rooms/Room_1_4/MatchDrawerSpawnPoints" unique_id=808475292]
 transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 3.95, 0, 0.5)
+
+[node name="SmallDrawerSpawn_1" type="Marker3D" parent="Rooms/Room_1_4/MatchDrawerSpawnPoints" unique_id=1023511076]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.1, 0, -3.81)
+metadata/drawer_size = "small"
 
 [node name="LadderSpawn" type="Marker3D" parent="Rooms/Room_1_4" unique_id=724970783]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.82, 0, -4.15)
@@ -508,9 +514,6 @@ transform = Transform3D(-0.98162717, 0, -0.19080901, 0, 1, 0, 0.19080901, 0, -0.
 
 [node name="NE_Bookcase" parent="Rooms/Room_1_4" unique_id=844386252 instance=ExtResource("furn_shelf_c")]
 transform = Transform3D(-4.4e-08, 0, -1, 0, 1, 0, 1, 0, -4.4e-08, 4.07, 0, -2.6)
-
-[node name="NE_FileCabinet" parent="Rooms/Room_1_4" unique_id=1023511076 instance=ExtResource("furn_drawer_b")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.1, 0, -3.81)
 
 [node name="NE_RecyclingBin" parent="Rooms/Room_1_4" unique_id=472132392 instance=ExtResource("furn_bin_2")]
 transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 4.05, 0, -1.44)
@@ -641,6 +644,10 @@ metadata/office_use = "Administrative office"
 [node name="DrawerSpawn_1" type="Marker3D" parent="Rooms/Room_2_2/MatchDrawerSpawnPoints" unique_id=965391970]
 transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 3.95, 0, 2.2)
 
+[node name="SmallDrawerSpawn_1" type="Marker3D" parent="Rooms/Room_2_2/MatchDrawerSpawnPoints" unique_id=1706524070]
+transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, -4.0585003, 0, -2.1)
+metadata/drawer_size = "small"
+
 [node name="LadderSpawn" type="Marker3D" parent="Rooms/Room_2_2" unique_id=57984117]
 transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -4.15, 0, -3.52)
 metadata/upper_floor_tile = "Floor_0_0"
@@ -689,9 +696,6 @@ surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 0, 3)
 surface_material_override/0 = SubResource("ShaderMaterial_3kvc2")
 surface_material_override/1 = SubResource("ShaderMaterial_3kvc2")
-
-[node name="NW_FileCabinet" parent="Rooms/Room_2_2" unique_id=1706524070 instance=ExtResource("furn_drawer_b")]
-transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, -4.0585003, 0, -2.1)
 
 [node name="NW_RecyclingBin" parent="Rooms/Room_2_2" unique_id=1220438522 instance=ExtResource("furn_bin_2")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.44, 0, -3.75)
@@ -1090,6 +1094,14 @@ metadata/office_use = "Facilities office"
 [node name="DrawerSpawn_1" type="Marker3D" parent="Rooms/Room_3_2/MatchDrawerSpawnPoints" unique_id=1582133385]
 transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -3.95, 0, -2.15)
 
+[node name="SmallDrawerSpawn_1" type="Marker3D" parent="Rooms/Room_3_2/MatchDrawerSpawnPoints" unique_id=1044734913]
+transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, -4.0203037, 0, 2.62)
+metadata/drawer_size = "small"
+
+[node name="SmallDrawerSpawn_2" type="Marker3D" parent="Rooms/Room_3_2/MatchDrawerSpawnPoints" unique_id=1081093755]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.1, 0, -3.76)
+metadata/drawer_size = "small"
+
 [node name="LadderSpawn" type="Marker3D" parent="Rooms/Room_3_2" unique_id=2039007020]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.82, 0, -4.15)
 metadata/upper_floor_tile = "Floor_2_0"
@@ -1151,9 +1163,6 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.9347835, 0, -1.5980849)
 [node name="WallArt" parent="Rooms/Room_3_2" unique_id=2071026956 instance=ExtResource("furn_ChamillionFrame")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.7, 1.88, -4.28)
 
-[node name="SW_MailCabinet" parent="Rooms/Room_3_2" unique_id=1044734913 instance=ExtResource("furn_drawer_b")]
-transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, -4.0203037, 0, 2.62)
-
 [node name="SW_SortingTable" parent="Rooms/Room_3_2" unique_id=1517112171 instance=ExtResource("furn_table_a")]
 transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, -1.8, 0, 2.48)
 
@@ -1180,9 +1189,6 @@ transform = Transform3D(-0.9848077, 0, -0.17364818, 0, 1, 0, 0.17364818, 0, -0.9
 
 [node name="SE_Wastebasket" parent="Rooms/Room_3_2" unique_id=1010099001 instance=ExtResource("furn_bin_2")]
 transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 3.9262555, 0, 3.9885988)
-
-[node name="NE_FileCabinet" parent="Rooms/Room_3_2" unique_id=1081093755 instance=ExtResource("furn_drawer_b")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.1, 0, -3.76)
 
 [node name="Room_3_3" type="Node3D" parent="Rooms" unique_id=1717325374]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.5, 0, 4.5)
@@ -1304,6 +1310,10 @@ transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0, 3.95)
 [node name="DrawerSpawn_2" type="Marker3D" parent="Rooms/Room_3_4/MatchDrawerSpawnPoints" unique_id=133172265]
 transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 3.95, 0, -0.25)
 
+[node name="SmallDrawerSpawn_1" type="Marker3D" parent="Rooms/Room_3_4/MatchDrawerSpawnPoints" unique_id=1199731923]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 2.619999, 0, 4.0312653)
+metadata/drawer_size = "small"
+
 [node name="LadderSpawn" type="Marker3D" parent="Rooms/Room_3_4" unique_id=1665834566]
 transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -4.15, 0, 3.82)
 metadata/upper_floor_tile = "Floor_0_2"
@@ -1373,9 +1383,6 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.6029625, 1.88, -4.28)
 
 [node name="SW_Safe" parent="Rooms/Room_3_4" unique_id=960734968 instance=ExtResource("furn_large_safe")]
 transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, -4.0781174, 0, 2.6099997)
-
-[node name="SE_MailCabinet" parent="Rooms/Room_3_4" unique_id=1199731923 instance=ExtResource("furn_drawer_b")]
-transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 2.619999, 0, 4.0312653)
 
 [node name="SE_SortingTable" parent="Rooms/Room_3_4" unique_id=1704577887 instance=ExtResource("furn_table_a")]
 transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 2.48, 0, 1.75)

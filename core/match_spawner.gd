@@ -12,6 +12,7 @@ const DEFAULT_OBJECTIVES: Array[String] = ["KEY", "MONEY", "PASSPORT", "PLANS"]
 const DEFAULT_GADGETS: Array[String] = ["SPRING", "BOMB", "TRIPWIRE", "DART_GUN"]
 const SPAWN_ROOM_NAMES: Array[String] = ["Room_1_1", "Room_4_4", "Room_1_4", "Room_4_1"]
 const DEFAULT_DRAWER_SCENE: PackedScene = preload("res://entities/props/searchable_drawer.tscn")
+const DEFAULT_SMALL_DRAWER_SCENE: PackedScene = preload("res://entities/props/searchable_drawer_small.tscn")
 const DEFAULT_PICKUP_SCENE: PackedScene = preload("res://entities/props/world_item_pickup.tscn")
 
 
@@ -21,8 +22,10 @@ func _resolve_config(custom_config: Dictionary = {}) -> Dictionary:
 		cfg = GameConfig.get_spawner_config_dict()
 	else:
 		cfg = {
-			"min_drawers": 16,
-			"max_drawers": 20,
+			"min_containers": 24,
+			"max_containers": 32,
+			"min_drawers": 24,
+			"max_drawers": 32,
 			"max_drawers_per_room": 2,
 			"allow_drawers_in_spawn_rooms": true,
 			"max_drawers_in_spawn_room": 1,
@@ -43,6 +46,14 @@ func _resolve_config(custom_config: Dictionary = {}) -> Dictionary:
 		}
 	for k in custom_config.keys():
 		cfg[k] = custom_config[k]
+	if custom_config.has("min_drawers") and not custom_config.has("min_containers"):
+		cfg["min_containers"] = custom_config["min_drawers"]
+	if custom_config.has("max_drawers") and not custom_config.has("max_containers"):
+		cfg["max_containers"] = custom_config["max_drawers"]
+	if custom_config.has("min_containers") and not custom_config.has("min_drawers"):
+		cfg["min_drawers"] = custom_config["min_containers"]
+	if custom_config.has("max_containers") and not custom_config.has("max_drawers"):
+		cfg["max_drawers"] = custom_config["max_containers"]
 	return cfg
 
 
@@ -53,9 +64,9 @@ func generate_spawn_manifest(match_seed: int, custom_config: Dictionary = {}) ->
 
 	var cfg: Dictionary = _resolve_config(custom_config)
 
-	var min_drawers: int = maxi(int(cfg.get("min_drawers", 16)), DEFAULT_OBJECTIVES.size() + 1)
-	var max_drawers: int = maxi(int(cfg.get("max_drawers", min_drawers)), min_drawers)
-	var drawer_count: int = rng.randi_range(min_drawers, max_drawers)
+	var min_containers: int = maxi(int(cfg.get("min_containers", cfg.get("min_drawers", 24))), DEFAULT_OBJECTIVES.size() + 1)
+	var max_containers: int = maxi(int(cfg.get("max_containers", cfg.get("max_drawers", min_containers))), min_containers)
+	var target_containers: int = rng.randi_range(min_containers, max_containers)
 	var max_per_room: int = clampi(int(cfg.get("max_drawers_per_room", 2)), 1, 8)
 	var allow_spawn_rooms: bool = bool(cfg.get("allow_drawers_in_spawn_rooms", true))
 	var max_in_spawn_room: int = clampi(int(cfg.get("max_drawers_in_spawn_room", 1)), 0, max_per_room)
@@ -66,13 +77,13 @@ func generate_spawn_manifest(match_seed: int, custom_config: Dictionary = {}) ->
 	var b_max: int = maxi(int(cfg.get("floor_buckets_max", b_min)), b_min)
 	var bucket_count: int = rng.randi_range(b_min, b_max)
 
-	# 1. Core mandatory drawer items (4 Objectives + 1 Briefcase = 5 items)
-	var drawer_loot: Array[Array] = []
+	# 1. Core mandatory container items (4 Objectives + 1 Briefcase = 5 items)
+	var container_loot: Array[Array] = []
 	for obj_id in DEFAULT_OBJECTIVES:
-		drawer_loot.append([obj_id])
-	drawer_loot.append(["BRIEFCASE"])
+		container_loot.append([obj_id])
+	container_loot.append(["BRIEFCASE"])
 
-	var remaining_drawer_capacity: int = maxi(drawer_count - drawer_loot.size(), 0)
+	var remaining_container_capacity: int = maxi(target_containers - container_loot.size(), 0)
 
 	# 2. Build gadget pool using per-gadget [min..max] and total gadget [min..max]
 	var gadget_specs: Array[Dictionary] = [
@@ -82,8 +93,8 @@ func generate_spawn_manifest(match_seed: int, custom_config: Dictionary = {}) ->
 		{"id": "DART_GUN", "min": maxi(int(cfg.get("dart_gun_min", 1)), 0), "max": maxi(int(cfg.get("dart_gun_max", 2)), 0)}
 	]
 
-	var min_total_gadgets: int = clampi(int(cfg.get("min_total_gadgets", 4)), 0, remaining_drawer_capacity)
-	var max_total_gadgets: int = clampi(maxi(int(cfg.get("max_total_gadgets", 6)), min_total_gadgets), min_total_gadgets, remaining_drawer_capacity)
+	var min_total_gadgets: int = clampi(int(cfg.get("min_total_gadgets", 4)), 0, remaining_container_capacity)
+	var max_total_gadgets: int = clampi(maxi(int(cfg.get("max_total_gadgets", 6)), min_total_gadgets), min_total_gadgets, remaining_container_capacity)
 	var target_total_gadgets: int = rng.randi_range(min_total_gadgets, max_total_gadgets)
 
 	var gadget_counts: Dictionary = {
@@ -105,7 +116,7 @@ func generate_spawn_manifest(match_seed: int, custom_config: Dictionary = {}) ->
 			min_candidates.append(g_id)
 	_shuffle_array(min_candidates, rng)
 	for g_id in min_candidates:
-		if selected_gadgets.size() >= max_total_gadgets or selected_gadgets.size() >= remaining_drawer_capacity:
+		if selected_gadgets.size() >= max_total_gadgets or selected_gadgets.size() >= remaining_container_capacity:
 			break
 		selected_gadgets.append(g_id)
 		gadget_counts[g_id] = int(gadget_counts.get(g_id, 0)) + 1
@@ -120,21 +131,21 @@ func generate_spawn_manifest(match_seed: int, custom_config: Dictionary = {}) ->
 			extra_pool.append(g_id)
 	_shuffle_array(extra_pool, rng)
 	for g_id in extra_pool:
-		if selected_gadgets.size() >= target_total_gadgets or selected_gadgets.size() >= remaining_drawer_capacity:
+		if selected_gadgets.size() >= target_total_gadgets or selected_gadgets.size() >= remaining_container_capacity:
 			break
 		selected_gadgets.append(g_id)
 		gadget_counts[g_id] = int(gadget_counts.get(g_id, 0)) + 1
 
 	for g_id in selected_gadgets:
-		drawer_loot.append([g_id])
+		container_loot.append([g_id])
 
-	while drawer_loot.size() < drawer_count:
-		drawer_loot.append([] as Array[String])
+	while container_loot.size() < target_containers:
+		container_loot.append([] as Array[String])
 
-	_shuffle_array(drawer_loot, rng)
+	_shuffle_array(container_loot, rng)
 
 	var slot_roles: Array[String] = []
-	for i in range(drawer_count):
+	for i in range(target_containers):
 		slot_roles.append("DRAWER")
 	for i in range(cover_count):
 		slot_roles.append("COVER")
@@ -148,7 +159,8 @@ func generate_spawn_manifest(match_seed: int, custom_config: Dictionary = {}) ->
 
 	return {
 		"seed": resolved_seed,
-		"drawer_count": drawer_count,
+		"target_containers": target_containers,
+		"drawer_count": target_containers,
 		"max_drawers_per_room": max_per_room,
 		"allow_drawers_in_spawn_rooms": allow_spawn_rooms,
 		"max_drawers_in_spawn_room": max_in_spawn_room,
@@ -158,11 +170,31 @@ func generate_spawn_manifest(match_seed: int, custom_config: Dictionary = {}) ->
 		"total_gadgets_count": selected_gadgets.size(),
 		"gadget_counts": gadget_counts,
 		"starting_prearmed_traps": 0,
-		"drawer_loot_slots": drawer_loot,
+		"container_loot_slots": container_loot,
+		"drawer_loot_slots": container_loot,
 		"slot_roles": slot_roles,
 		"bucket_rolls": bucket_indices,
 		"config": cfg
 	}
+
+
+func _is_small_only_marker(marker: Marker3D) -> bool:
+	return String(marker.name).begins_with("SmallDrawerSpawn") or str(marker.get_meta("drawer_size", "")) == "small"
+
+
+func _min_marker_spacing(is_big_a: bool, is_big_b: bool) -> float:
+	if is_big_a and is_big_b:
+		return 2.85
+	if is_big_a or is_big_b:
+		return 1.85
+	return 1.15
+
+
+func _to_typed_items(entry: Array) -> Array[String]:
+	var typed: Array[String] = []
+	for item in entry:
+		typed.append(str(item))
+	return typed
 
 
 func populate_level(
@@ -171,16 +203,21 @@ func populate_level(
 	drawer_scene: PackedScene = null,
 	pickup_scene: PackedScene = null,
 	skip_rooms: Array[String] = [],
-	custom_config: Dictionary = {}
+	custom_config: Dictionary = {},
+	small_drawer_scene: PackedScene = null
 ) -> Dictionary:
 	var manifest: Dictionary = generate_spawn_manifest(match_seed, custom_config)
 	if level_root == null:
 		return {
 			"seed": int(manifest["seed"]),
 			"drawers_spawned": 0,
+			"containers_spawned": 0,
+			"big_drawers_spawned": 0,
+			"small_drawers_spawned": 0,
 			"floor_buckets_spawned": 0,
 			"starting_prearmed_traps": 0,
 			"drawers_per_room": {},
+			"containers_per_room": {},
 			"manifest": manifest
 		}
 
@@ -214,6 +251,7 @@ func populate_level(
 	level_root.add_child(spawn_root)
 
 	var resolved_drawer_scene: PackedScene = drawer_scene if drawer_scene != null else DEFAULT_DRAWER_SCENE
+	var resolved_small_drawer_scene: PackedScene = small_drawer_scene if small_drawer_scene != null else DEFAULT_SMALL_DRAWER_SCENE
 	var resolved_pickup_scene: PackedScene = pickup_scene if pickup_scene != null else DEFAULT_PICKUP_SCENE
 
 	var effective_skip_rooms: Array[String] = skip_rooms.duplicate()
@@ -230,9 +268,6 @@ func populate_level(
 	var rng := RandomNumberGenerator.new()
 	rng.seed = int(manifest["seed"]) ^ 0x5A17
 
-	# Collect per-room shuffled markers and select at most `max_per_room` markers per room
-	# (Contested non-spawn rooms are prioritized on pass 0 so every contested room gets at least 1 drawer first,
-	# while spawn rooms are capped at max_in_spawn_room).
 	var room_marker_pools: Dictionary = {} # room_name -> Array[Marker3D]
 	var contested_room_names: Array[String] = []
 	var spawn_room_names: Array[String] = []
@@ -255,17 +290,18 @@ func populate_level(
 		else:
 			contested_room_names.append(r_name)
 
-	var drawer_loot: Array = (manifest["drawer_loot_slots"] as Array).duplicate(true)
-	var target_drawer_count: int = drawer_loot.size()
-	var selected_markers: Array[Marker3D] = []
-	var selected_marker_rooms: Array[String] = []
+	var container_loot: Array = (manifest["container_loot_slots"] as Array).duplicate(true)
+	var target_containers: int = container_loot.size()
+	var selected_placements: Array[Dictionary] = []
+	var room_placements: Dictionary = {} # room_name -> Array[Dictionary]
 	var drawers_per_room: Dictionary = {}
-	var chosen_room_positions: Dictionary = {} # room_name -> Array[Vector3]
+	var containers_per_room: Dictionary = {}
+	var containers_allocated: int = 0
 
-	# Round-robin pass across shuffled rooms up to max_per_room:
-	# Pass 0 guarantees every contested room gets 1 drawer first, then spawn rooms up to max_in_spawn_room.
+	# Round-robin pass across shuffled rooms up to max_per_room props per room:
+	# Pass 0 prioritizes contested non-spawn rooms, then spawn rooms up to max_in_spawn_room.
 	for pass_idx in range(max_per_room):
-		if selected_markers.size() >= target_drawer_count:
+		if containers_allocated >= target_containers:
 			break
 		var pass_contested: Array[String] = contested_room_names.duplicate()
 		_shuffle_array(pass_contested, rng)
@@ -277,91 +313,159 @@ func populate_level(
 			pass_rooms.append_array(pass_spawns)
 
 		for r_name in pass_rooms:
-			if selected_markers.size() >= target_drawer_count:
+			if containers_allocated >= target_containers:
 				break
 			var r_cap: int = max_in_spawn_room if (r_name in spawn_room_keys) else max_per_room
 			if int(drawers_per_room.get(r_name, 0)) >= r_cap:
 				continue
+			var remaining: int = target_containers - containers_allocated
 			var r_pool: Array = room_marker_pools[r_name]
-			var already_picked: Array = chosen_room_positions.get(r_name, [])
+			var already_picked: Array = room_placements.get(r_name, [])
 			var chosen_marker: Marker3D = null
+			var chosen_is_big: bool = false
 			for candidate in r_pool:
 				var m_cand := candidate as Marker3D
-				var too_close: bool = false
-				for prev_pos in already_picked:
-					if m_cand.position.distance_to(prev_pos as Vector3) < 2.85:
-						too_close = true
+				var try_sizes: Array[bool] = []
+				if _is_small_only_marker(m_cand) or remaining < 2:
+					try_sizes = [false]
+				elif rng.randf() < 0.65:
+					try_sizes = [true, false]
+				else:
+					try_sizes = [false]
+				for cand_is_big in try_sizes:
+					var fits: bool = true
+					for prev_entry in already_picked:
+						var prev_dict: Dictionary = prev_entry as Dictionary
+						var prev_m: Marker3D = prev_dict["marker"] as Marker3D
+						var min_dist: float = _min_marker_spacing(cand_is_big, bool(prev_dict["is_big"]))
+						if m_cand.position.distance_to(prev_m.position) < min_dist:
+							fits = false
+							break
+					if fits:
+						chosen_marker = m_cand
+						chosen_is_big = cand_is_big
 						break
-				if not too_close:
-					chosen_marker = m_cand
+				if chosen_marker != null:
 					break
 			if chosen_marker != null:
 				r_pool.erase(chosen_marker)
-				already_picked.append(chosen_marker.position)
-				chosen_room_positions[r_name] = already_picked
-				selected_markers.append(chosen_marker)
-				selected_marker_rooms.append(r_name)
+				var cap: int = 2 if chosen_is_big else 1
+				var placement: Dictionary = {
+					"marker": chosen_marker,
+					"room": r_name,
+					"is_big": chosen_is_big,
+					"capacity": cap
+				}
+				already_picked.append(placement)
+				room_placements[r_name] = already_picked
+				selected_placements.append(placement)
 				drawers_per_room[r_name] = int(drawers_per_room.get(r_name, 0)) + 1
+				containers_per_room[r_name] = int(containers_per_room.get(r_name, 0)) + cap
+				containers_allocated += cap
 
-	# Shuffle markers together with their room labels
-	var paired_indices: Array[int] = []
-	for idx in range(selected_markers.size()):
-		paired_indices.append(idx)
-	_shuffle_array(paired_indices, rng)
-	var final_markers: Array[Marker3D] = []
-	var final_marker_rooms: Array[String] = []
-	for p_i in paired_indices:
-		final_markers.append(selected_markers[p_i])
-		final_marker_rooms.append(selected_marker_rooms[p_i])
-	selected_markers = final_markers
-	selected_marker_rooms = final_marker_rooms
+	# Post-pass top-up: if still short of target_containers, upgrade eligible small placements on big-capable markers
+	if containers_allocated < target_containers:
+		for placement in selected_placements:
+			if containers_allocated >= target_containers:
+				break
+			if bool(placement["is_big"]):
+				continue
+			var m_up: Marker3D = placement["marker"] as Marker3D
+			if _is_small_only_marker(m_up):
+				continue
+			var r_up: String = str(placement["room"])
+			var can_upgrade: bool = true
+			for sib_entry in (room_placements.get(r_up, []) as Array):
+				var sib: Dictionary = sib_entry as Dictionary
+				if sib["marker"] == m_up:
+					continue
+				if m_up.position.distance_to((sib["marker"] as Marker3D).position) < _min_marker_spacing(true, bool(sib["is_big"])):
+					can_upgrade = false
+					break
+			if can_upgrade:
+				placement["is_big"] = true
+				placement["capacity"] = 2
+				containers_per_room[r_up] = int(containers_per_room.get(r_up, 0)) + 1
+				containers_allocated += 1
 
-	var used_marker_count: int = mini(drawer_loot.size(), selected_markers.size())
+	_shuffle_array(selected_placements, rng)
 
-	# Enforce Briefcase isolation: if the Briefcase landed in a room that also contains an Objective item in its other drawer,
-	# swap the Briefcase with a drawer in a room that has 0 Objectives.
-	if bool(manifest.get("isolate_briefcase_from_objectives", true)) and used_marker_count > 1:
-		_enforce_briefcase_isolated_from_objectives(drawer_loot, selected_marker_rooms, used_marker_count)
+	var slot_rooms: Array[String] = []
+	for p in selected_placements:
+		var r_slot: String = str(p["room"])
+		slot_rooms.append(r_slot)
+		if bool(p["is_big"]):
+			slot_rooms.append(r_slot)
+
+	var used_container_count: int = mini(container_loot.size(), slot_rooms.size())
+
+	# Enforce Briefcase isolation across every container slot (never in the same room as an Objective).
+	if bool(manifest.get("isolate_briefcase_from_objectives", true)) and used_container_count > 1:
+		_enforce_briefcase_isolated_from_objectives(container_loot, slot_rooms, used_container_count)
 
 	var drawers_spawned: int = 0
+	var big_drawers_spawned: int = 0
+	var small_drawers_spawned: int = 0
+	var containers_spawned: int = 0
+	var slot_cursor: int = 0
 
-	for i in range(used_marker_count):
-		var marker: Marker3D = selected_markers[i]
+	for i in range(selected_placements.size()):
+		if slot_cursor >= used_container_count:
+			break
+		var placement: Dictionary = selected_placements[i]
+		var marker: Marker3D = placement["marker"] as Marker3D
+		var is_big: bool = bool(placement["is_big"])
 		marker.set_meta("occupied_by_match_drawer", true)
 		for old_child in marker.get_children():
 			marker.remove_child(old_child)
 			old_child.queue_free()
-		var drawer: Node = resolved_drawer_scene.instantiate()
-		drawer.name = "MatchDrawer_%02d" % i
-		var typed_items: Array[String] = []
-		for entry in (drawer_loot[i] as Array):
-			typed_items.append(str(entry))
-		var left_seed: int = int(manifest["seed"]) + i * 31
-		var right_drawer: Node = drawer.get_node_or_null("RightUpperDrawer")
-		if right_drawer != null:
-			var empty_items: Array[String] = []
-			var put_in_left: bool = (rng.randi() % 2) == 0
+
+		var drawer: Node
+		var prop_seed: int = int(manifest["seed"]) + i * 31
+		if is_big:
+			drawer = resolved_drawer_scene.instantiate()
+			drawer.name = "MatchDrawer_%02d" % i
+			var left_items: Array[String] = _to_typed_items(container_loot[slot_cursor] as Array)
+			slot_cursor += 1
 			drawer.set("container_id", "Left Drawer")
-			drawer.set("stored_items", typed_items if put_in_left else empty_items)
+			drawer.set("stored_items", left_items)
 			drawer.set("armed_spring", false)
 			drawer.set("armed_bomb", false)
-			drawer.set("container_seed", left_seed)
-			right_drawer.set("container_id", "Right Drawer")
-			right_drawer.set("stored_items", empty_items if put_in_left else typed_items)
-			right_drawer.set("armed_spring", false)
-			right_drawer.set("armed_bomb", false)
-			right_drawer.set("container_seed", left_seed + 17)
+			drawer.set("container_seed", prop_seed)
+			var right_drawer: Node = drawer.get_node_or_null("RightUpperDrawer")
+			if right_drawer != null:
+				var right_items: Array[String] = _to_typed_items(container_loot[slot_cursor] as Array) if slot_cursor < used_container_count else ([] as Array[String])
+				if slot_cursor < used_container_count:
+					slot_cursor += 1
+				right_drawer.set("container_id", "Right Drawer")
+				right_drawer.set("stored_items", right_items)
+				right_drawer.set("armed_spring", false)
+				right_drawer.set("armed_bomb", false)
+				right_drawer.set("container_seed", prop_seed + 17)
+				containers_spawned += 2
+			else:
+				containers_spawned += 1
+			big_drawers_spawned += 1
 		else:
-			drawer.set("stored_items", typed_items)
+			drawer = resolved_small_drawer_scene.instantiate()
+			drawer.name = "MatchDrawer_%02d" % i
+			var mid_items: Array[String] = _to_typed_items(container_loot[slot_cursor] as Array)
+			slot_cursor += 1
+			drawer.set("container_id", "Middle Drawer")
+			drawer.set("stored_items", mid_items)
 			drawer.set("armed_spring", false)
 			drawer.set("armed_bomb", false)
-			drawer.set("container_seed", left_seed)
+			drawer.set("container_seed", prop_seed)
+			small_drawers_spawned += 1
+			containers_spawned += 1
+
 		spawn_root.add_child(drawer)
 		if drawer is Node3D and marker.is_inside_tree():
 			(drawer as Node3D).global_transform = _compute_inward_facing_drawer_transform(marker)
 		drawers_spawned += 1
 
-	manifest["drawer_loot_slots"] = drawer_loot
+	manifest["container_loot_slots"] = container_loot
+	manifest["drawer_loot_slots"] = container_loot
 
 	if f_spawner != null:
 		if f_spawner.has_method("reset_and_populate") and not Engine.is_editor_hint():
@@ -390,9 +494,13 @@ func populate_level(
 	return {
 		"seed": int(manifest["seed"]),
 		"drawers_spawned": drawers_spawned,
+		"containers_spawned": containers_spawned,
+		"big_drawers_spawned": big_drawers_spawned,
+		"small_drawers_spawned": small_drawers_spawned,
 		"floor_buckets_spawned": buckets_spawned,
 		"starting_prearmed_traps": 0,
 		"drawers_per_room": drawers_per_room,
+		"containers_per_room": containers_per_room,
 		"manifest": manifest
 	}
 

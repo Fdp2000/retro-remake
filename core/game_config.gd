@@ -247,9 +247,11 @@ static func get_spy_role_badge_color(role: int) -> Color:
 @export_group("Level & Match Randomizer")
 @export var room_dimensions: Vector3 = Vector3(6.0, 3.2, 6.0)
 @export var grid_dimensions: Vector2i = Vector2i(3, 3)
-@export var spawner_searchable_drawers_count: int = 18
-@export var spawner_min_drawers: int = 16
-@export var spawner_max_drawers: int = 20
+@export var spawner_searchable_drawers_count: int = 32
+@export var spawner_min_containers: int = 24
+@export var spawner_max_containers: int = 32
+@export var spawner_min_drawers: int = 24
+@export var spawner_max_drawers: int = 32
 @export var spawner_max_drawers_per_room: int = 2
 @export var spawner_allow_drawers_in_spawn_rooms: bool = true
 @export var spawner_max_drawers_in_spawn_room: int = 1
@@ -312,8 +314,10 @@ func load_user_settings(path: String = USER_SETTINGS_PATH) -> bool:
 
 func get_spawner_config_dict() -> Dictionary:
 	return {
-		"min_drawers": spawner_min_drawers,
-		"max_drawers": spawner_max_drawers,
+		"min_containers": spawner_min_containers,
+		"max_containers": spawner_max_containers,
+		"min_drawers": spawner_min_containers,
+		"max_drawers": spawner_max_containers,
 		"max_drawers_per_room": spawner_max_drawers_per_room,
 		"allow_drawers_in_spawn_rooms": spawner_allow_drawers_in_spawn_rooms,
 		"max_drawers_in_spawn_room": spawner_max_drawers_in_spawn_room,
@@ -335,13 +339,19 @@ func get_spawner_config_dict() -> Dictionary:
 
 
 func apply_spawner_config_dict(cfg_dict: Dictionary) -> void:
-	if cfg_dict.has("min_drawers"):
-		spawner_min_drawers = maxi(int(cfg_dict["min_drawers"]), 5)
-	if cfg_dict.has("max_drawers"):
-		spawner_max_drawers = maxi(int(cfg_dict["max_drawers"]), spawner_min_drawers)
+	if cfg_dict.has("min_containers"):
+		spawner_min_containers = maxi(int(cfg_dict["min_containers"]), 5)
+	elif cfg_dict.has("min_drawers"):
+		spawner_min_containers = maxi(int(cfg_dict["min_drawers"]), 5)
+	if cfg_dict.has("max_containers"):
+		spawner_max_containers = maxi(int(cfg_dict["max_containers"]), spawner_min_containers)
+	elif cfg_dict.has("max_drawers"):
+		spawner_max_containers = maxi(int(cfg_dict["max_drawers"]), spawner_min_containers)
 	else:
-		spawner_max_drawers = maxi(spawner_max_drawers, spawner_min_drawers)
-	spawner_searchable_drawers_count = spawner_max_drawers
+		spawner_max_containers = maxi(spawner_max_containers, spawner_min_containers)
+	spawner_min_drawers = spawner_min_containers
+	spawner_max_drawers = spawner_max_containers
+	spawner_searchable_drawers_count = spawner_max_containers
 
 	if cfg_dict.has("max_drawers_per_room"):
 		spawner_max_drawers_per_room = clampi(int(cfg_dict["max_drawers_per_room"]), 1, 8)
@@ -403,8 +413,8 @@ func apply_spawner_config_dict(cfg_dict: Dictionary) -> void:
 
 func reset_spawner_defaults() -> void:
 	apply_spawner_config_dict({
-		"min_drawers": 16,
-		"max_drawers": 20,
+		"min_containers": 24,
+		"max_containers": 32,
 		"max_drawers_per_room": 2,
 		"allow_drawers_in_spawn_rooms": true,
 		"max_drawers_in_spawn_room": 1,
