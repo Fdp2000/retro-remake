@@ -13,9 +13,11 @@ func refresh_palettes() -> void:
 	var walls := PackedColorArray()
 	var floors := PackedColorArray()
 	var ceilings := PackedColorArray()
+	var grid_size: Vector2i = get_meta("grid_size", Vector2i(4, 4))
+	# Fill the shader’s fixed 4-by-4 color array by repeating the last room at each edge.
 	for row in range(1, 5):
 		for column in range(1, 5):
-			var room := get_node("Rooms/Room_%d_%d" % [row, column])
+			var room := get_node("Rooms/Room_%d_%d" % [mini(row, grid_size.y), mini(column, grid_size.x)])
 			walls.append(room.get("wall_color"))
 			floors.append(room.get("floor_color"))
 			ceilings.append(room.get("ceiling_color"))

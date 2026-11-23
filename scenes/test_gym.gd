@@ -4,6 +4,7 @@ const PLAYER_SCENE: PackedScene = preload("res://entities/player/player.tscn")
 const PICKUP_SCENE: PackedScene = preload("res://entities/props/world_item_pickup.tscn")
 const EMBASSY_DOOR_SCENE: PackedScene = preload("res://entities/props/embassy_door.tscn")
 const DRAWER_SCENE: PackedScene = preload("res://entities/props/searchable_drawer.tscn")
+const AIRPORT_EXIT_WALL_BOUNDARY := "Vertical_1_1"
 const AIRPORT_EXIT_SCENE: PackedScene = preload("res://entities/props/airport_exit_door.tscn")
 const MATCH_SPAWNER_SCRIPT = preload("res://core/match_spawner.gd")
 const MATCH_END_UI_SCRIPT = preload("res://ui/match_end_overlay_ui.gd")
@@ -16,7 +17,7 @@ const SPAWN_POINTS: Dictionary = {
 }
 const FULL_MATCH_SPAWN_POINTS: Dictionary = {
 	1: Vector3(-12.0, 1.0, -9.0), # Room_1_1 (NW Corner — Spy Green)
-	2: Vector3(15.0, 1.0, 18.0)   # Room_4_4 (SE Corner — Spy Purple)
+	2: Vector3(13.5, 1.0, 6.8)   # Room_3_4 (SE Corner — Spy Purple)
 }
 const FULL_MATCH_SPAWN_YAWS: Dictionary = {
 	1: PI,
@@ -44,8 +45,8 @@ var _esc_switch_mode_button: Button = null
 
 
 func _ready() -> void:
+	_reserve_player_spawn_rooms()
 	is_sandbox_mode = GameConfig.sandbox_gym_mode if GameConfig != null else false
-	_clear_playtest_room_furniture()
 	_setup_interactive_doors()
 	_configure_level_props_for_mode(is_sandbox_mode)
 
@@ -227,17 +228,8 @@ func _refresh_esc_mode_button_text() -> void:
 		)
 
 
-func _clear_playtest_room_furniture() -> void:
-	var room_2_2: Node = get_node_or_null("BuildingComplex2/Rooms/Room_2_2")
-	if room_2_2 == null:
-		return
-	var spawn_pts: Node = room_2_2.get_node_or_null("FurnitureSpawnPoints")
-	if spawn_pts != null:
-		room_2_2.remove_child(spawn_pts)
-		spawn_pts.queue_free()
-
-
 func _ensure_shared_airport_exit() -> void:
+	$BuildingComplex3/LadderLayout.reserved_lower_boundary = AIRPORT_EXIT_WALL_BOUNDARY
 	if get_node_or_null("SharedAirportExit") != null:
 		return
 	var exit_door := AIRPORT_EXIT_SCENE.instantiate() as StaticBody3D
@@ -333,6 +325,22 @@ func _spawn_test_props() -> void:
 	door.position = Vector3(-1.8, 0.0, -6.5)
 
 
+func _reserve_player_spawn_rooms() -> void:
+	var reserved: Array[StringName] = []
+	var rooms := $BuildingComplex3/Rooms
+	for points in [SPAWN_POINTS, FULL_MATCH_SPAWN_POINTS]:
+		for spawn_point: Vector3 in points.values():
+			var world_point := players_container.to_global(spawn_point)
+			for room: Node3D in rooms.get_children():
+				var local_point := room.to_local(world_point)
+				var room_size: Vector2 = room.get_meta("room_size")
+				if absf(local_point.x) < room_size.x * 0.5 and absf(local_point.z) < room_size.y * 0.5:
+					if room.name not in reserved:
+						reserved.append(room.name)
+					break
+	$BuildingComplex3/LadderLayout.reserved_ladder_rooms = reserved
+
+
 func _resolve_spawn_point(slot: int) -> Vector3:
 	if not is_inside_tree() or is_sandbox_mode:
 		return SPAWN_POINTS.get(slot, Vector3.ZERO)
@@ -348,7 +356,10 @@ func _resolve_spawn_yaw(slot: int) -> float:
 func _on_match_started(seed_value: int) -> void:
 	var spawner := MATCH_SPAWNER_SCRIPT.new()
 	var active_cfg: Dictionary = MatchManager.active_spawner_config if (MatchManager != null and not MatchManager.active_spawner_config.is_empty()) else {}
-	_last_populate_summary = spawner.populate_level(self, seed_value, DRAWER_SCENE, PICKUP_SCENE, ["Room_2_2"], active_cfg)
+	var skip_rooms: Array[String] = []
+	if is_sandbox_mode:
+		skip_rooms.append("Room_2_2")
+	_last_populate_summary = spawner.populate_level(self, seed_value, DRAWER_SCENE, PICKUP_SCENE, skip_rooms, active_cfg)
 	if _spawner_cheatsheet_ui != null and is_instance_valid(_spawner_cheatsheet_ui):
 		_spawner_cheatsheet_ui.call("set_latest_populate_summary", _last_populate_summary)
 

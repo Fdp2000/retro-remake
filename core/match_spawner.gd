@@ -184,17 +184,20 @@ func populate_level(
 			"manifest": manifest
 		}
 
-	var f_spawner: Node = level_root.get_node_or_null("BuildingComplex2/FurnitureSpawner")
+	var building := _get_building(level_root)
+	var f_spawner: Node = building.get_node_or_null("FurnitureSpawner") if building != null else null
+	var spawn_room_keys: Array[String] = SPAWN_ROOM_NAMES.duplicate()
+	if building != null and building.name == &"BuildingComplex3":
+		var grid_size: Vector2i = building.get_meta("grid_size")
+		spawn_room_keys[1] = "Room_%d_%d" % [grid_size.y, grid_size.x]
 
-	var rooms_root_all: Node = level_root.get_node_or_null("BuildingComplex2/Rooms")
-	if rooms_root_all != null:
-		for r_node in rooms_root_all.get_children():
-			var pts_all: Node = r_node.get_node_or_null("FurnitureSpawnPoints")
-			if pts_all == null:
-				continue
-			for m_child in pts_all.get_children():
-				if m_child is Marker3D:
-					(m_child as Marker3D).set_meta("occupied_by_match_drawer", false)
+	for room in _collect_sorted_rooms(level_root, []):
+		var markers := _get_drawer_markers(room)
+		if markers == null:
+			continue
+		for marker in markers.get_children():
+			if marker is Marker3D:
+				marker.set_meta("occupied_by_match_drawer", false)
 
 	var existing_root: Node = level_root.get_node_or_null("MatchSpawnedProps")
 	if existing_root != null:
@@ -212,7 +215,7 @@ func populate_level(
 	var allow_spawn_rooms: bool = bool(manifest.get("allow_drawers_in_spawn_rooms", true))
 	var max_in_spawn_room: int = int(manifest.get("max_drawers_in_spawn_room", 1))
 	if not allow_spawn_rooms or max_in_spawn_room <= 0:
-		for sp_room in SPAWN_ROOM_NAMES:
+		for sp_room in spawn_room_keys:
 			if not (sp_room in effective_skip_rooms):
 				effective_skip_rooms.append(sp_room)
 
@@ -224,12 +227,12 @@ func populate_level(
 
 	# Collect per-room shuffled markers and select at most `max_per_room` markers per room
 	# (Contested non-spawn rooms are prioritized on pass 0 so every contested room gets at least 1 drawer first,
-	# while spawn rooms Room_1_1 & Room_4_4 are capped at max_in_spawn_room).
+	# while spawn rooms are capped at max_in_spawn_room).
 	var room_marker_pools: Dictionary = {} # room_name -> Array[Marker3D]
 	var contested_room_names: Array[String] = []
 	var spawn_room_names: Array[String] = []
 	for room in rooms:
-		var pts: Node = room.get_node_or_null("FurnitureSpawnPoints")
+		var pts := _get_drawer_markers(room)
 		if pts == null:
 			continue
 		var room_markers: Array[Marker3D] = []
@@ -240,9 +243,9 @@ func populate_level(
 			continue
 		room_markers.sort_custom(func(a: Marker3D, b: Marker3D) -> bool: return String(a.name) < String(b.name))
 		_shuffle_array(room_markers, rng)
-		var r_name: String = String(room.name)
+		var r_name := _room_key(room)
 		room_marker_pools[r_name] = room_markers
-		if r_name in SPAWN_ROOM_NAMES:
+		if r_name in spawn_room_keys:
 			spawn_room_names.append(r_name)
 		else:
 			contested_room_names.append(r_name)
@@ -271,7 +274,7 @@ func populate_level(
 		for r_name in pass_rooms:
 			if selected_markers.size() >= target_drawer_count:
 				break
-			var r_cap: int = max_in_spawn_room if (r_name in SPAWN_ROOM_NAMES) else max_per_room
+			var r_cap: int = max_in_spawn_room if (r_name in spawn_room_keys) else max_per_room
 			if int(drawers_per_room.get(r_name, 0)) >= r_cap:
 				continue
 			var r_pool: Array = room_marker_pools[r_name]
@@ -361,7 +364,7 @@ func populate_level(
 		else:
 			f_spawner.set("layout_seed", int(manifest["seed"]))
 
-	var bucket_rooms: Array[Node3D] = _collect_sorted_rooms(level_root, skip_rooms)
+	var bucket_rooms: Array[Node3D] = _collect_sorted_rooms(level_root, skip_rooms, false)
 	var buckets_spawned: int = 0
 	if not bucket_rooms.is_empty():
 		var bucket_target: int = int(manifest["floor_buckets_count"])
@@ -426,6 +429,8 @@ func _compute_inward_facing_drawer_transform(marker: Marker3D) -> Transform3D:
 	# Ensure the drawer's local +Z axis always points toward the room interior (away from the nearest wall).
 	var xform: Transform3D = marker.global_transform
 	var pts_parent: Node = marker.get_parent()
+	if pts_parent != null and pts_parent.name == &"MatchDrawerSpawnPoints":
+		return xform
 	var room_node: Node3D = (pts_parent.get_parent() as Node3D) if pts_parent != null else null
 	if room_node == null:
 		return xform
@@ -449,15 +454,37 @@ func _compute_inward_facing_drawer_transform(marker: Marker3D) -> Transform3D:
 	return xform
 
 
-func _collect_sorted_rooms(level_root: Node, skip_rooms: Array[String]) -> Array[Node3D]:
+func _get_building(level_root: Node) -> Node:
+	var building := level_root.get_node_or_null("BuildingComplex3")
+	return building if building != null else level_root.get_node_or_null("BuildingComplex2")
+
+
+func _get_drawer_markers(room: Node3D) -> Node:
+	var dedicated := room.get_node_or_null("MatchDrawerSpawnPoints")
+	return dedicated if dedicated != null else room.get_node_or_null("FurnitureSpawnPoints")
+
+
+func _room_key(room: Node3D) -> String:
+	var floor_node := room.get_parent().get_parent()
+	if floor_node.name == &"SecondFloor":
+		return "SecondFloor/" + String(room.name)
+	return String(room.name)
+
+
+func _collect_sorted_rooms(level_root: Node, skip_rooms: Array[String], include_upper_floor: bool = true) -> Array[Node3D]:
 	var rooms: Array[Node3D] = []
-	var rooms_root: Node = level_root.get_node_or_null("BuildingComplex2/Rooms")
-	if rooms_root == null:
+	var building := _get_building(level_root)
+	if building == null:
 		return rooms
-	for c in rooms_root.get_children():
-		if c is Node3D and not (String(c.name) in skip_rooms):
-			rooms.append(c as Node3D)
-	rooms.sort_custom(func(a: Node3D, b: Node3D) -> bool: return String(a.name) < String(b.name))
+	var room_paths := ["Rooms", "SecondFloor/Rooms"] if include_upper_floor else ["Rooms"]
+	for room_path in room_paths:
+		var room_root := building.get_node_or_null(room_path)
+		if room_root == null:
+			continue
+		for child in room_root.get_children():
+			if child is Node3D and not (_room_key(child) in skip_rooms):
+				rooms.append(child)
+	rooms.sort_custom(func(a: Node3D, b: Node3D) -> bool: return _room_key(a) < _room_key(b))
 	return rooms
 
 
