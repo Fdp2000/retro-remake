@@ -18,7 +18,7 @@ var _selected_cue_idx: int = 0
 var _status_lbl: Label = null
 var _radio_lbl: Label = null
 var _map_panel: PanelContainer = null
-var _rooms_grid: GridContainer = null
+var _floor_maps: BoxContainer = null
 var is_map_open: bool = false
 
 
@@ -64,35 +64,28 @@ func _build_layout() -> void:
 	hbox.add_child(_radio_lbl)
 
 	# Hold Tab Top-Down Room Bluff Projector
+	var center := CenterContainer.new()
+	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(center)
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+
 	_map_panel = PanelContainer.new()
-	_map_panel.anchor_left = 0.5
-	_map_panel.anchor_right = 0.5
-	_map_panel.anchor_top = 0.5
-	_map_panel.anchor_bottom = 0.5
-	_map_panel.offset_left = -210.0
-	_map_panel.offset_right = 210.0
-	_map_panel.offset_top = -220.0
-	_map_panel.offset_bottom = 220.0
-	_map_panel.modulate = Color(0.85, 1.0, 0.88, 0.96)
 	_map_panel.visible = false
-	add_child(_map_panel)
+	center.add_child(_map_panel)
 
-	var vbox := VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 8)
-	_map_panel.add_child(vbox)
+	var margin := MarginContainer.new()
+	for side in ["left", "right", "top", "bottom"]:
+		margin.add_theme_constant_override("margin_" + side, 14)
+	_map_panel.add_child(margin)
 
-	var hdr := Label.new()
-	hdr.text = "SPY WATCH BLUFF PROJECTOR [Click Room]"
-	hdr.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	hdr.add_theme_font_size_override("font_size", 14)
-	vbox.add_child(hdr)
+	var content := VBoxContainer.new()
+	content.add_theme_constant_override("separation", 12)
+	margin.add_child(content)
 
-	_rooms_grid = GridContainer.new()
-	_rooms_grid.columns = 4
-	_rooms_grid.add_theme_constant_override("h_separation", 6)
-	_rooms_grid.add_theme_constant_override("v_separation", 6)
-	_rooms_grid.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	vbox.add_child(_rooms_grid)
+	_floor_maps = VBoxContainer.new()
+	_floor_maps.add_theme_constant_override("separation", 18)
+	content.add_child(_floor_maps)
+
 
 	_refresh_labels()
 
@@ -131,43 +124,96 @@ func _refresh_labels() -> void:
 
 
 func _rebuild_room_buttons() -> void:
-	if _rooms_grid == null:
-		return
-	for child in _rooms_grid.get_children():
-		_rooms_grid.remove_child(child)
+	for child in _floor_maps.get_children():
+		_floor_maps.remove_child(child)
 		child.queue_free()
 
-	var rooms: Array[Dictionary] = _collect_scene_rooms()
-	_rooms_grid.columns = 4 if rooms.size() >= 12 else 3
-	for room_info in rooms:
-		var r_name: String = str(room_info["name"])
-		var r_pos: Vector3 = room_info["pos"] as Vector3
-		var btn := Button.new()
-		btn.focus_mode = Control.FOCUS_NONE
-		btn.custom_minimum_size = Vector2(90.0, 74.0)
-		btn.text = r_name
-		btn.pressed.connect(func():
-			if _player != null and _player.has_method("emit_watch_bluff"):
-				_player.emit_watch_bluff(get_selected_cue_id(), r_pos)
-			set_map_open(false)
-			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
-		)
-		_rooms_grid.add_child(btn)
+	var scene := get_tree().current_scene
+	var building: Node = scene if scene != null and scene.has_node("Rooms") else null
+	if building == null and scene != null:
+		building = scene.get_node_or_null("BuildingComplex3")
+		if building == null:
+			building = scene.get_node_or_null("BuildingComplex2")
+	if building == null:
+		_build_floor_map("Ground Floor", null, null, Vector2i(3, 3))
+	else:
+		var size_in_rooms: Vector2i = building.get_meta("grid_size", Vector2i(4, 4))
+		var upstairs := building.get_node_or_null("SecondFloor")
+		if upstairs != null:
+			_build_floor_map("Upper Floor", upstairs, building, size_in_rooms)
+		_build_floor_map("Ground Floor", building, building, size_in_rooms)
 
 
-func _collect_scene_rooms() -> Array[Dictionary]:
-	var out: Array[Dictionary] = []
-	var scene: Node = get_tree().current_scene if (is_inside_tree() and get_tree() != null) else null
-	var rooms_root: Node = scene.get_node_or_null("BuildingComplex2/Rooms") if scene != null else null
-	if rooms_root != null:
-		for c in rooms_root.get_children():
-			if c is Node3D:
-				out.append({"name": c.name, "pos": (c as Node3D).global_position})
-	if out.is_empty():
-		for rz in range(3):
-			for rx in range(3):
-				out.append({
-					"name": "Room_%d_%d" % [rx + 1, rz + 1],
-					"pos": Vector3(-9.0 + float(rx) * 9.0, 0.0, -9.0 + float(rz) * 9.0)
-				})
-	return out
+func _build_floor_map(title: String, level: Node, ground: Node, size_in_rooms: Vector2i) -> void:
+	var floor_panel := VBoxContainer.new()
+	floor_panel.add_theme_constant_override("separation", 7)
+	_floor_maps.add_child(floor_panel)
+
+	var label := Label.new()
+	label.text = title
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.add_theme_font_size_override("font_size", 16)
+	floor_panel.add_child(label)
+
+	var grid := GridContainer.new()
+	grid.columns = size_in_rooms.x * 2 - 1
+	grid.add_theme_constant_override("h_separation", 1)
+	grid.add_theme_constant_override("v_separation", 1)
+	floor_panel.add_child(grid)
+
+	for row in range(size_in_rooms.y * 2 - 1):
+		for column in range(size_in_rooms.x * 2 - 1):
+			@warning_ignore("integer_division")
+			var room_x := column / 2
+			@warning_ignore("integer_division")
+			var room_z := row / 2
+			if row % 2 == 0 and column % 2 == 0:
+				var room_name := "Room_%d_%d" % [room_z + 1, room_x + 1]
+				var room := level.get_node_or_null("Rooms/" + room_name) as Node3D if level != null else null
+				var has_ladder := ground != null and ground.has_node("Rooms/" + room_name + "/LadderSpawn/AccessLadder")
+				var fallback_pos := Vector3((room_x - 1) * 9.0, 0.0, (room_z - 1) * 9.0)
+				grid.add_child(_make_room_button(room, has_ladder, fallback_pos))
+				continue
+
+			var doorway := ""
+			if row % 2 == 0:
+				doorway = "Vertical_%d_%d_1" % [room_x + 1, room_z]
+			elif column % 2 == 0:
+				doorway = "Horizontal_%d_%d_1" % [room_z + 1, room_x]
+			var active := level != null and not doorway.is_empty() and level.has_node("Doors/" + doorway)
+			var passage := ColorRect.new()
+			passage.custom_minimum_size = Vector2(12, 4) if row % 2 == 0 else Vector2(4, 10)
+			passage.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+			passage.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+			passage.color = Color(0.69, 0.82, 0.78) if active else Color.TRANSPARENT
+			passage.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			grid.add_child(passage)
+
+
+func _make_room_button(room: Node3D, has_ladder: bool, fallback_pos: Vector3) -> Button:
+	var btn := Button.new()
+	btn.focus_mode = Control.FOCUS_NONE
+	btn.custom_minimum_size = Vector2(69, 44)
+	if has_ladder:
+		btn.text = "↕"
+		btn.add_theme_font_size_override("font_size", 17)
+
+	if room != null:
+		var tint: Color = room.get("wall_color")
+		var card := StyleBoxFlat.new()
+		card.bg_color = Color(0.14, 0.17, 0.18).lerp(tint, 0.38)
+		card.set_corner_radius_all(5)
+		btn.add_theme_stylebox_override("normal", card)
+		var hover := card.duplicate() as StyleBoxFlat
+		hover.bg_color = card.bg_color.lightened(0.18)
+		btn.add_theme_stylebox_override("hover", hover)
+		btn.add_theme_stylebox_override("pressed", hover)
+
+	var target := room.global_position if room != null else fallback_pos
+	btn.pressed.connect(func():
+		if is_instance_valid(_player) and _player.has_method("emit_watch_bluff"):
+			_player.emit_watch_bluff(get_selected_cue_id(), target)
+		set_map_open(false)
+		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	)
+	return btn

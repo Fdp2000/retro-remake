@@ -8,6 +8,10 @@ enum SpyRole {
 	SPY_BLACK = 2
 }
 
+const INTERACTIVE_LADDER := preload("res://scenes/BuildingComplex3/interactive_ladder.gd")
+const LADDER_CLIMB_SPEED := 2.4
+const LADDER_LANDING_CLEARANCE := 0.06
+
 const COLOR_SPY_WHITE: Color = Color(0.92, 0.92, 0.92)
 const COLOR_SPY_BLACK: Color = Color(0.12, 0.12, 0.12)
 const PICKUP_SCENE: PackedScene = preload("res://entities/props/world_item_pickup.tscn")
@@ -149,6 +153,10 @@ var is_charging_club: bool:
 var gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity", 9.8)
 
 # Puppet smoothing variables
+var _requested_ladder: INTERACTIVE_LADDER
+var _active_ladder: INTERACTIVE_LADDER
+var _ladder_side := 1.0
+
 var _target_position: Vector3 = Vector3.ZERO
 var _target_yaw: float = 0.0
 var _initial_pos_set: bool = false
@@ -1295,6 +1303,8 @@ func apply_clock_elimination() -> Array[Dictionary]:
 
 
 func reset_for_rematch(spawn_local_pos: Vector3, spawn_yaw: float = 0.0) -> void:
+	_requested_ladder = null
+	_release_ladder()
 	is_clock_eliminated = false
 	ko_remaining_seconds = 0.0
 	wakeup_immunity_remaining = 0.0
@@ -2756,6 +2766,11 @@ func _tick_active_interact_hold(delta: float) -> void:
 
 
 func _process_interaction_raycast() -> void:
+	if is_instance_valid(_active_ladder):
+		prompt_label.text = "[W] Climb Up   [S] Climb Down"
+		prompt_label.visible = true
+		return
+
 	var is_interactable: bool = false
 	var target_collider: Object = null
 	var hit_point: Vector3 = Vector3.ZERO
@@ -3457,6 +3472,74 @@ func _nudge_sensitivity(delta_mult: float) -> void:
 		_sens_toast_timer = 1.5
 
 
+func request_ladder_mount(ladder: INTERACTIVE_LADDER) -> void:
+	if is_multiplayer_authority() and not is_instance_valid(_active_ladder):
+		_requested_ladder = ladder
+
+
+func _try_mount_ladder(ladder: INTERACTIVE_LADDER) -> void:
+	var lock_stance: int = GameConfig.Stance.DRAWER_LOCK if GameConfig != null else 3
+	if stance_state == lock_stance or Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
+		return
+	var lower := ladder.lower_landing_y
+	var upper := ladder.upper_landing_y
+	var landing := upper if absf(global_position.y - upper) < absf(global_position.y - lower) else lower
+	var side := ladder.approach_side(global_position)
+	var mount := ladder.climb_point(landing + LADDER_LANDING_CLEARANCE, side)
+	if absf(global_position.y - landing) > 0.55 or global_position.distance_squared_to(mount) > 2.2 * 2.2:
+		return
+	_set_ladder_collision_exceptions(ladder, true)
+	if test_move(global_transform, mount - global_position):
+		_set_ladder_collision_exceptions(ladder, false)
+		return
+	_active_ladder = ladder
+	_ladder_side = side
+	global_position = mount
+	velocity = Vector3.ZERO
+	_footstep_timer = 0.0
+	reset_anti_camp()
+
+
+func _set_ladder_collision_exceptions(ladder: INTERACTIVE_LADDER, ignore: bool) -> void:
+	for body in [ladder.climb_body, ladder.shaft_guard]:
+		if not is_instance_valid(body):
+			continue
+		if ignore:
+			add_collision_exception_with(body)
+		else:
+			remove_collision_exception_with(body)
+
+
+func _release_ladder() -> void:
+	if is_instance_valid(_active_ladder):
+		_set_ladder_collision_exceptions(_active_ladder, false)
+	_active_ladder = null
+
+
+func _move_on_ladder(delta: float) -> void:
+	if Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
+		return
+	var up := Input.is_action_pressed("move_forward") or Input.is_physical_key_pressed(KEY_W)
+	var down := Input.is_action_pressed("move_back") or Input.is_physical_key_pressed(KEY_S)
+	var direction := int(up) - int(down)
+	if direction == 0:
+		return
+
+	var ladder := _active_ladder
+	var landing := ladder.upper_landing_y if direction > 0 else ladder.lower_landing_y
+	var end_height := landing + LADDER_LANDING_CLEARANCE
+	var next_height := move_toward(global_position.y, end_height, LADDER_CLIMB_SPEED * delta)
+	move_and_collide(Vector3.UP * (next_height - global_position.y))
+	if absf(global_position.y - end_height) <= 0.005:
+		var exit := ladder.exit_point(end_height, _ladder_side)
+		if not test_move(global_transform, exit - global_position):
+			global_position = exit
+			_release_ladder()
+			_was_on_floor = false
+	if not _is_peer_connected():
+		_target_position = position
+
+
 func _physics_process(delta: float) -> void:
 	if Engine.is_editor_hint():
 		return
@@ -3467,12 +3550,25 @@ func _physics_process(delta: float) -> void:
 	var ko_val: int = GameConfig.Stance.KO if GameConfig != null else 4
 	var crouch_val: int = GameConfig.Stance.CROUCH if GameConfig != null else 2
 	if stance_state == ko_val:
+		_requested_ladder = null
+		_release_ladder()
 		if not is_multiplayer_authority() and _ragdoll_ctrl != null:
 			_ragdoll_ctrl.step_remote_pelvis_pull(delta)
 		elif is_multiplayer_authority():
 			_sync_camera_to_ragdoll_head()
 		_sync_visual_rig_sockets_to_skeleton()
 		return
+
+	if is_multiplayer_authority():
+		if is_clock_eliminated or (MatchManager != null and MatchManager.match_state == MatchManager.MatchState.ENDED):
+			_requested_ladder = null
+			_release_ladder()
+		if is_instance_valid(_requested_ladder):
+			_try_mount_ladder(_requested_ladder)
+			_requested_ladder = null
+		if is_instance_valid(_active_ladder):
+			_move_on_ladder(delta)
+			return
 
 	if not _is_peer_connected() or not is_multiplayer_authority():
 		var prev_pos: Vector3 = position
