@@ -3480,6 +3480,8 @@ func request_ladder_mount(ladder: INTERACTIVE_LADDER) -> void:
 
 
 func _try_mount_ladder(ladder: INTERACTIVE_LADDER) -> void:
+	if not ladder.can_mount_from(global_position):
+		return
 	var lock_stance: int = GameConfig.Stance.DRAWER_LOCK if GameConfig != null else 3
 	if stance_state == lock_stance or Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
 		return

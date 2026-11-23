@@ -19,11 +19,14 @@ func refresh_palettes() -> void:
 		for column in range(1, 5):
 			var room := get_node("Rooms/Room_%d_%d" % [mini(row, grid_size.y), mini(column, grid_size.x)])
 			walls.append(room.get("wall_color"))
-			floors.append(room.get("floor_color"))
-			ceilings.append(room.get("ceiling_color"))
+			floors.append(_surface_tint(room, "floor"))
+			ceilings.append(_surface_tint(room, "ceiling"))
 	_apply_palette(get_node("Rooms"), floors, "floor")
 	_apply_palette(get_node("Roofs"), ceilings, "ceiling")
 	_apply_palette(get_node("Walls"), walls, "wall")
+
+func _surface_tint(room: Node, category: String) -> Color:
+	return room.get(category + "_color")
 
 func _apply_palette(branch: Node, colors: PackedColorArray, category: String) -> void:
 	for child in branch.find_children("*", "MeshInstance3D", true, false):

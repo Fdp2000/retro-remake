@@ -96,3 +96,4 @@ layout_mode = 2
 text = "Leave to Lobby"
 
 [node name="BuildingComplex3" parent="." unique_id=2088144634 instance=ExtResource("3_cppg0")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.00020456314, 0.011564493, -5.2928925e-05)

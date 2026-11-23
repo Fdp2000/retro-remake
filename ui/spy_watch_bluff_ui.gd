@@ -13,6 +13,46 @@ const BLUFF_CUES: Array[Dictionary] = [
 	{"id": "door_bash", "label": "Door Bash", "radius": 12.0}
 ]
 
+class PlayerMapMarker extends Control:
+	const RADIUS := 5.0
+
+	var level: Node3D
+	var first_button: Button
+	var last_button: Button
+	var first_room_center: Vector2
+	var room_size: Vector2
+	var room_count: Vector2i
+
+	func _draw() -> void:
+		draw_circle(Vector2.ZERO, RADIUS + 1.5, Color(0.12, 0.03, 0.04), true, -1.0, true)
+		draw_circle(Vector2.ZERO, RADIUS, Color(1.0, 0.19, 0.23), true, -1.0, true)
+
+	func update_position(world_position: Vector3, on_floor: bool) -> void:
+		if not on_floor or first_button.size.x <= 0.0:
+			hide()
+			return
+
+		var local := level.to_local(world_position) if level != null else world_position
+		var room_coords := (Vector2(local.x, local.z) - first_room_center) / room_size
+		var map_bounds := Rect2(-Vector2.ONE * 0.5, Vector2(room_count))
+		if not map_bounds.has_point(room_coords):
+			hide()
+			return
+
+		var first_center := first_button.position + first_button.size * 0.5
+		var last_center := last_button.position + last_button.size * 0.5
+		var steps := room_count - Vector2i.ONE
+		var pitch := Vector2(
+			(last_center.x - first_center.x) / steps.x if steps.x > 0 else first_button.size.x,
+			(last_center.y - first_center.y) / steps.y if steps.y > 0 else first_button.size.y
+		)
+		position = (first_center + room_coords * pitch).clamp(
+			first_button.position + Vector2.ONE * RADIUS,
+			last_button.position + last_button.size - Vector2.ONE * RADIUS
+		)
+		show()
+
+
 var _player: Node = null
 var _selected_cue_idx: int = 0
 var _status_lbl: Label = null
@@ -20,12 +60,28 @@ var _radio_lbl: Label = null
 var _map_panel: PanelContainer = null
 var _floor_maps: BoxContainer = null
 var is_map_open: bool = false
+var _player_markers: Array[PlayerMapMarker] = []
+var _upper_floor: Node3D
 
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_build_layout()
+	set_process(is_map_open)
+
+
+func _process(_delta: float) -> void:
+	if not is_instance_valid(_player) or not _player is Node3D:
+		for marker in _player_markers:
+			marker.hide()
+		return
+
+	var world_position := (_player as Node3D).global_position
+	# Use the player’s feet to switch floors near the top of a ladder.
+	var is_upstairs := is_instance_valid(_upper_floor) and _upper_floor.to_local(world_position).y >= -0.15
+	for marker in _player_markers:
+		marker.update_position(world_position, not is_instance_valid(_upper_floor) or (marker.level == _upper_floor) == is_upstairs)
 
 
 func setup_for_player(player_node: Node) -> void:
@@ -114,6 +170,7 @@ func set_map_open(opened: bool) -> void:
 	if _map_panel == null:
 		_build_layout()
 	_map_panel.visible = opened
+	set_process(opened)
 	if opened:
 		_rebuild_room_buttons()
 
@@ -124,6 +181,8 @@ func _refresh_labels() -> void:
 
 
 func _rebuild_room_buttons() -> void:
+	_player_markers.clear()
+	_upper_floor = null
 	for child in _floor_maps.get_children():
 		_floor_maps.remove_child(child)
 		child.queue_free()
@@ -138,9 +197,9 @@ func _rebuild_room_buttons() -> void:
 		_build_floor_map("Ground Floor", null, null, Vector2i(3, 3))
 	else:
 		var size_in_rooms: Vector2i = building.get_meta("grid_size", Vector2i(4, 4))
-		var upstairs := building.get_node_or_null("SecondFloor")
-		if upstairs != null:
-			_build_floor_map("Upper Floor", upstairs, building, size_in_rooms)
+		_upper_floor = building.get_node_or_null("SecondFloor") as Node3D
+		if _upper_floor != null:
+			_build_floor_map("Upper Floor", _upper_floor, building, size_in_rooms)
 		_build_floor_map("Ground Floor", building, building, size_in_rooms)
 
 
@@ -155,11 +214,29 @@ func _build_floor_map(title: String, level: Node, ground: Node, size_in_rooms: V
 	label.add_theme_font_size_override("font_size", 16)
 	floor_panel.add_child(label)
 
+	var map_area := Control.new()
+	map_area.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	floor_panel.add_child(map_area)
+
 	var grid := GridContainer.new()
 	grid.columns = size_in_rooms.x * 2 - 1
 	grid.add_theme_constant_override("h_separation", 1)
 	grid.add_theme_constant_override("v_separation", 1)
-	floor_panel.add_child(grid)
+	map_area.add_child(grid)
+	grid.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	grid.minimum_size_changed.connect(func():
+		map_area.custom_minimum_size = grid.get_combined_minimum_size()
+	)
+
+	var marker := PlayerMapMarker.new()
+	marker.name = "PlayerLocation"
+	marker.level = level as Node3D
+	marker.room_size = level.get_meta("room_size", Vector2(9.0, 9.0)) if level != null else Vector2(9.0, 9.0)
+	marker.room_count = size_in_rooms
+	marker.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	marker.hide()
+	map_area.add_child(marker)
+	_player_markers.append(marker)
 
 	for row in range(size_in_rooms.y * 2 - 1):
 		for column in range(size_in_rooms.x * 2 - 1):
@@ -172,7 +249,13 @@ func _build_floor_map(title: String, level: Node, ground: Node, size_in_rooms: V
 				var room := level.get_node_or_null("Rooms/" + room_name) as Node3D if level != null else null
 				var has_ladder := ground != null and ground.has_node("Rooms/" + room_name + "/LadderSpawn/AccessLadder")
 				var fallback_pos := Vector3((room_x - 1) * 9.0, 0.0, (room_z - 1) * 9.0)
-				grid.add_child(_make_room_button(room, has_ladder, fallback_pos))
+				var button := _make_room_button(room, has_ladder, fallback_pos)
+				grid.add_child(button)
+				if marker.first_button == null:
+					marker.first_button = button
+					var anchor := marker.level.to_local(room.global_position) if room != null else fallback_pos
+					marker.first_room_center = Vector2(anchor.x, anchor.z)
+				marker.last_button = button
 				continue
 
 			var doorway := ""
@@ -188,6 +271,8 @@ func _build_floor_map(title: String, level: Node, ground: Node, size_in_rooms: V
 			passage.color = Color(0.69, 0.82, 0.78) if active else Color.TRANSPARENT
 			passage.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			grid.add_child(passage)
+
+	map_area.custom_minimum_size = grid.get_combined_minimum_size()
 
 
 func _make_room_button(room: Node3D, has_ladder: bool, fallback_pos: Vector3) -> Button:

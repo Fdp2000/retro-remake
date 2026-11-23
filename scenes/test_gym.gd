@@ -45,7 +45,6 @@ var _esc_switch_mode_button: Button = null
 
 
 func _ready() -> void:
-	_reserve_player_spawn_rooms()
 	is_sandbox_mode = GameConfig.sandbox_gym_mode if GameConfig != null else false
 	_setup_interactive_doors()
 	_configure_level_props_for_mode(is_sandbox_mode)
@@ -323,22 +322,6 @@ func _spawn_test_props() -> void:
 	door.name = "TestEmbassyDoor"
 	props_root.add_child(door)
 	door.position = Vector3(-1.8, 0.0, -6.5)
-
-
-func _reserve_player_spawn_rooms() -> void:
-	var reserved: Array[StringName] = []
-	var rooms := $BuildingComplex3/Rooms
-	for points in [SPAWN_POINTS, FULL_MATCH_SPAWN_POINTS]:
-		for spawn_point: Vector3 in points.values():
-			var world_point := players_container.to_global(spawn_point)
-			for room: Node3D in rooms.get_children():
-				var local_point := room.to_local(world_point)
-				var room_size: Vector2 = room.get_meta("room_size")
-				if absf(local_point.x) < room_size.x * 0.5 and absf(local_point.z) < room_size.y * 0.5:
-					if room.name not in reserved:
-						reserved.append(room.name)
-					break
-	$BuildingComplex3/LadderLayout.reserved_ladder_rooms = reserved
 
 
 func _resolve_spawn_point(slot: int) -> Vector3:
