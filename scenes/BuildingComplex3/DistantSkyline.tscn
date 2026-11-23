@@ -1,0 +1,6 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scenes/BuildingComplex3/distant_skyline.gd" id="1_skyline"]
+
+[node name="DistantSkyline" type="Node3D"]
+script = ExtResource("1_skyline")
