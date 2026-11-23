@@ -181,6 +181,8 @@ static func get_spy_role_badge_color(role: int) -> Color:
 @export var tripwire_ladder_safe_radius: float = 1.90
 @export var time_bomb_fuse_min: float = 3.3
 @export var time_bomb_fuse_max: float = 4.0
+@export var debug_long_bomb_fuse: bool = false
+@export var debug_long_bomb_fuse_seconds: float = 8.0
 @export var time_bomb_throw_distance: float = 9.0
 @export var time_bomb_throw_speed: float = 9.5
 @export var time_bomb_blast_radius: float = 5.0
@@ -580,3 +582,9 @@ func compute_final_move_speed(stance: int, has_briefcase: bool, is_charging_club
 	if is_charging_club:
 		final_speed = maxf(final_speed, walk_speed * speed_mult_club_charge * hand_mult)
 	return final_speed
+
+
+func get_effective_bomb_fuse_range() -> Vector2:
+	if debug_long_bomb_fuse:
+		return Vector2(debug_long_bomb_fuse_seconds, debug_long_bomb_fuse_seconds)
+	return Vector2(time_bomb_fuse_min, time_bomb_fuse_max)

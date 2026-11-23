@@ -2,7 +2,16 @@
 
 [ext_resource type="PackedScene" uid="uid://dhviixpso1b6c" path="res://Assets/Models/Adjusted/Batch 1/Carpet_B.glb" id="1_i3qxv"]
 
+[sub_resource type="BoxShape3D" id="BoxShape3D_carpet_b"]
+size = Vector3(5.84931, 0.13047, 2.44114)
+
 [node name="Carpet_B" unique_id=151793716 instance=ExtResource("1_i3qxv")]
 
 [node name="Carpet B " parent="." index="0" unique_id=122163824]
 transform = Transform3D(0.5, 0, 0, 0, 0.5, 0, 0, 0, 0.5, 0, 0, 0)
+
+[node name="StaticBody3D" type="StaticBody3D" parent="." index="1"]
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="StaticBody3D"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.011198, 0)
+shape = SubResource("BoxShape3D_carpet_b")

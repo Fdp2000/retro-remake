@@ -747,9 +747,8 @@ func _ignite_armed_bombs_on_open(peer_id: int, player: Node = null) -> bool:
 	if armed_bomb:
 		armed_bomb = false
 		live_bomb_lit = true
-		var min_f: float = GameConfig.time_bomb_fuse_min if GameConfig != null else 2.5
-		var max_f: float = GameConfig.time_bomb_fuse_max if GameConfig != null else 4.0
-		live_bomb_fuse_remaining = randf_range(min_f, max_f)
+		var fuse_range: Vector2 = GameConfig.get_effective_bomb_fuse_range() if GameConfig != null else Vector2(2.5, 4.0)
+		live_bomb_fuse_remaining = randf_range(fuse_range.x, fuse_range.y)
 		if AudioBridge != null:
 			var fuse_rad: float = GameConfig.audio_radius_bomb_fuse if GameConfig != null else 10.0
 			AudioBridge.request_world_cue("bomb_hiss", _safe_global_pos(), fuse_rad, bomb_owner_peer_id)
