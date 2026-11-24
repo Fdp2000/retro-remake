@@ -1,10 +1,26 @@
 extends Control
 
+const PROFILE_PATH := "user://lobby_profile.cfg"
+const MAX_NAME_LENGTH := 24
+
 const TEST_GYM_SCENE_PATH: String = "res://scenes/test_gym.tscn"
 const SPAWNER_CHEATSHEET_UI_SCRIPT = preload("res://ui/spawner_cheatsheet_ui.gd")
 
 # State Dictionary: slot (1..4) -> {"slot": int, "role": int, "peer_id": int, "ready": bool, "name": String}
 var lobby_state: Dictionary = {}
+
+const FAN_AUDIO := "res://Assets/SFX/Audio Candidates/Building and City Ambience/Ambience Ceiling Fan 01.wav"
+const RELAY_AUDIO := "res://Assets/SFX/Audio Candidates/Trap and Item Cues/Cartoon Metal Clinks 01.wav"
+const READY_AUDIO := "res://Assets/SFX/Audio Candidates/Trap and Item Cues/Cartoon Bell Hit 01.wav"
+
+var _profile := ConfigFile.new()
+var _relay_audio: AudioStreamPlayer
+var _ready_audio: AudioStreamPlayer
+var _room_was_ready := false
+var _creating_private_room := false
+var _free_for_all := false
+var _room_free_for_all := false
+var _developer_from_play_options := false
 
 var _local_ready: bool = false
 var _auto_launch_scheduled: bool = false
@@ -16,6 +32,12 @@ var _slot_cards: Dictionary = {} # slot (1..4) -> {"card": PanelContainer, "titl
 
 # UI References
 @onready var matchmaking_container: PanelContainer = $MarginContainer/MatchmakingContainer
+@onready var play_options_container: PanelContainer = $MarginContainer/PlayOptionsContainer
+@onready var play_options_title: Label = $MarginContainer/PlayOptionsContainer/PlayOptionsPanel/ModeLabel
+@onready var play_options_back: Button = $MarginContainer/PlayOptionsContainer/PlayOptionsPanel/BackButton
+@onready var developer_container: PanelContainer = $MarginContainer/DeveloperContainer
+@onready var developer_panel: VBoxContainer = $MarginContainer/DeveloperContainer/DeveloperPanel
+@onready var developer_status: Label = $MarginContainer/DeveloperContainer/DeveloperPanel/StatusLabel
 @onready var searching_container: PanelContainer = $MarginContainer/SearchingContainer
 @onready var staging_container: VBoxContainer = $MarginContainer/StagingContainer
 
@@ -25,24 +47,23 @@ var _slot_cards: Dictionary = {} # slot (1..4) -> {"card": PanelContainer, "titl
 @onready var cancel_search_button: Button = $MarginContainer/SearchingContainer/SearchingPanel/CancelSearchButton
 
 # Matchmaking Controls
-@onready var mode_option_button: OptionButton = $MarginContainer/MatchmakingContainer/MatchmakingPanel/ModeOptionButton
-@onready var enet_controls: VBoxContainer = $MarginContainer/MatchmakingContainer/MatchmakingPanel/ENetControls
-@onready var enet_address_input: LineEdit = $MarginContainer/MatchmakingContainer/MatchmakingPanel/ENetControls/ENetAddressInput
-@onready var enet_host_button: Button = $MarginContainer/MatchmakingContainer/MatchmakingPanel/ENetControls/ENetHostButton
-@onready var enet_join_button: Button = $MarginContainer/MatchmakingContainer/MatchmakingPanel/ENetControls/ENetJoinButton
+@onready var player_name_input: LineEdit = %PlayerNameInput
+@onready var enet_address_input: LineEdit = $MarginContainer/DeveloperContainer/DeveloperPanel/ENetControls/ENetAddressInput
+@onready var enet_host_button: Button = $MarginContainer/DeveloperContainer/DeveloperPanel/ENetControls/ENetHostButton
+@onready var enet_join_button: Button = $MarginContainer/DeveloperContainer/DeveloperPanel/ENetControls/ENetJoinButton
 
-@onready var eos_controls: VBoxContainer = $MarginContainer/MatchmakingContainer/MatchmakingPanel/EOSControls
-@onready var local_puid_label: RichTextLabel = $MarginContainer/MatchmakingContainer/MatchmakingPanel/EOSControls/LocalPUIDLabel
-@onready var quick_match_button: Button = $MarginContainer/MatchmakingContainer/MatchmakingPanel/EOSControls/QuickMatchButton
-@onready var host_private_button: Button = $MarginContainer/MatchmakingContainer/MatchmakingPanel/EOSControls/HostPrivateButton
-@onready var room_code_input: LineEdit = $MarginContainer/MatchmakingContainer/MatchmakingPanel/EOSControls/PrivateJoinContainer/RoomCodeInput
-@onready var join_private_button: Button = $MarginContainer/MatchmakingContainer/MatchmakingPanel/EOSControls/PrivateJoinContainer/JoinPrivateButton
-@onready var room_code_display: Label = $MarginContainer/MatchmakingContainer/MatchmakingPanel/EOSControls/RoomCodeDisplay
-@onready var cancel_match_button: Button = $MarginContainer/MatchmakingContainer/MatchmakingPanel/EOSControls/CancelMatchButton
-@onready var status_label: Label = $MarginContainer/MatchmakingContainer/MatchmakingPanel/StatusLabel
+@onready var quick_match_button: Button = $MarginContainer/PlayOptionsContainer/PlayOptionsPanel/EOSControls/QuickMatchButton
+@onready var host_private_button: Button = $MarginContainer/PlayOptionsContainer/PlayOptionsPanel/EOSControls/HostPrivateButton
+@onready var room_code_input: LineEdit = $MarginContainer/PlayOptionsContainer/PlayOptionsPanel/EOSControls/PrivateJoinContainer/RoomCodeInput
+@onready var join_private_button: Button = $MarginContainer/PlayOptionsContainer/PlayOptionsPanel/EOSControls/PrivateJoinContainer/JoinPrivateButton
+@onready var cancel_match_button: Button = $MarginContainer/PlayOptionsContainer/PlayOptionsPanel/EOSControls/CancelMatchButton
+@onready var status_label: Label = $MarginContainer/PlayOptionsContainer/PlayOptionsPanel/StatusLabel
 
 # Staging Controls
 @onready var header_label: Label = $MarginContainer/StagingContainer/HeaderLabel
+@onready var room_code_strip: PanelContainer = $MarginContainer/StagingContainer/RoomCodeStrip
+@onready var staging_room_code: Label = $MarginContainer/StagingContainer/RoomCodeStrip/RoomCodeRow/RoomCodeLabel
+@onready var copy_room_code_button: Button = $MarginContainer/StagingContainer/RoomCodeStrip/RoomCodeRow/CopyButton
 @onready var cards_container: HBoxContainer = $MarginContainer/StagingContainer/CardsContainer
 
 @onready var ready_button: Button = $MarginContainer/StagingContainer/ActionsContainer/ReadyButton
@@ -56,56 +77,21 @@ func _ready() -> void:
 
 	# Bind and style all 4 FFA spy staging cards (Green, Purple, Blue, Red)
 	_init_slot_cards()
+	_setup_console_audio()
+	copy_room_code_button.pressed.connect(_copy_staging_room_code)
 
-	# Attach per-user Mouse DPI & Sensitivity settings widget + Solo Full Match / Sandbox Gym buttons
-	var matchmaking_panel: VBoxContainer = get_node_or_null("MarginContainer/MatchmakingContainer/MatchmakingPanel")
-	if matchmaking_panel != null and matchmaking_panel.get_node_or_null("MouseSettingsWidget") == null:
-		var solo_match_btn := Button.new()
-		solo_match_btn.name = "SoloFullMatchButton"
-		solo_match_btn.text = "Solo Full Match (1P Seeded Embassy Round)"
-		solo_match_btn.pressed.connect(func():
-			if GameConfig != null:
-				GameConfig.sandbox_gym_mode = false
-			NetworkManager.current_mode = NetworkManager.NetworkMode.ENET_LOCAL
-			if NetworkManager.start_host() == OK:
-				get_tree().change_scene_to_file(TEST_GYM_SCENE_PATH)
-		)
-		matchmaking_panel.add_child(solo_match_btn)
+	_setup_developer_tools()
 
-		var solo_btn := Button.new()
-		solo_btn.name = "SoloTestGymButton"
-		solo_btn.text = "Solo Test Gym (1P Sandbox Bench — All Items)"
-		solo_btn.pressed.connect(func():
-			if GameConfig != null:
-				GameConfig.sandbox_gym_mode = true
-			NetworkManager.current_mode = NetworkManager.NetworkMode.ENET_LOCAL
-			if NetworkManager.start_host() == OK:
-				get_tree().change_scene_to_file(TEST_GYM_SCENE_PATH)
-		)
-		matchmaking_panel.add_child(solo_btn)
-
-		var cheatsheet_btn := Button.new()
-		cheatsheet_btn.name = "SpawnerCheatsheetButton"
-		cheatsheet_btn.text = "Spawner Cheatsheet & Tuner [F2]"
-		cheatsheet_btn.pressed.connect(open_spawner_cheatsheet)
-		matchmaking_panel.add_child(cheatsheet_btn)
-
-		var sep := HSeparator.new()
-		matchmaking_panel.add_child(sep)
-		var mouse_widget: VBoxContainer = preload("res://ui/mouse_settings_widget.gd").new()
-		mouse_widget.name = "MouseSettingsWidget"
-		matchmaking_panel.add_child(mouse_widget)
-
-	# Setup Mode OptionButton
-	mode_option_button.clear()
-	mode_option_button.add_item("Local (ENet)", NetworkManager.NetworkMode.ENET_LOCAL)
-	mode_option_button.add_item("Online (EOS P2P)", NetworkManager.NetworkMode.EOS_P2P)
-
-	var default_idx: int = mode_option_button.get_item_index(NetworkManager.current_mode)
-	if default_idx != -1:
-		mode_option_button.select(default_idx)
-	mode_option_button.item_selected.connect(_on_mode_selected)
-	_update_mode_ui(NetworkManager.current_mode)
+	_profile.load(PROFILE_PATH)
+	player_name_input.text = str(_profile.get_value("player", "name", "")).left(MAX_NAME_LENGTH)
+	player_name_input.text_changed.connect(_save_player_name)
+	_free_for_all = _get_auto_target_players() >= 3
+	_room_free_for_all = _free_for_all
+	$MarginContainer/MatchmakingContainer/MatchmakingPanel/GameModeRow/DuelButton.pressed.connect(_open_play_options.bind(false))
+	$MarginContainer/MatchmakingContainer/MatchmakingPanel/GameModeRow/FFAButton.pressed.connect(_open_play_options.bind(true))
+	play_options_back.pressed.connect(_close_play_options)
+	cancel_match_button.visibility_changed.connect(func(): play_options_back.disabled = cancel_match_button.visible or _creating_private_room)
+	$MarginContainer/DeveloperContainer/DeveloperPanel/CloseButton.pressed.connect(_toggle_developer_tools)
 
 	# ENet button bindings
 	enet_host_button.pressed.connect(_on_enet_host_pressed)
@@ -142,7 +128,6 @@ func _ready() -> void:
 	# SessionManager signal bindings
 	SessionManager.matchmaking_status_changed.connect(_on_matchmaking_status_changed)
 	SessionManager.matchmaking_failed.connect(_on_matchmaking_failed)
-	SessionManager.room_code_created.connect(_on_room_code_created)
 	SessionManager.session_closed.connect(_on_session_closed)
 
 	# EOSManager bindings
@@ -166,7 +151,7 @@ func _process(delta: float) -> void:
 		search_timer_label.text = "%02d:%02d" % [minutes, seconds]
 
 		var dot_count: int = (int(matchmaking_search_elapsed * 2.0) % 3) + 1
-		search_status_label.text = "Finding match" + ".".repeat(dot_count)
+		search_status_label.text = "Finding %s match%s" % [_game_mode_name(), ".".repeat(dot_count)]
 
 
 # ==========================================
@@ -184,18 +169,13 @@ func _init_slot_cards() -> void:
 			continue
 		var title_lbl := vbox.get_node_or_null("P%dTitle" % slot) as Label
 		var swatch_rect := vbox.get_node_or_null("CenterContainer/P%dSwatch" % slot) as ColorRect
-		var name_lbl := vbox.get_node_or_null("P%dNameLabel" % slot) as Label
 		var status_lbl := vbox.get_node_or_null("P%dStatusLabel" % slot) as Label
-		var role_name: String = GameConfig.get_spy_role_name(slot) if GameConfig != null else ("SPY %d" % slot)
-		if title_lbl != null:
-			title_lbl.text = ("%s (HOST)" % role_name) if slot == 1 else role_name
 		if swatch_rect != null and GameConfig != null:
 			swatch_rect.color = GameConfig.get_spy_role_color(slot)
 		_slot_cards[slot] = {
 			"card": card,
 			"title": title_lbl,
 			"swatch": swatch_rect,
-			"name": name_lbl,
 			"status": status_lbl
 		}
 
@@ -227,7 +207,7 @@ func _find_slot_by_peer_id(peer_id: int) -> int:
 
 
 func _find_first_open_slot() -> int:
-	for slot in range(2, NetworkManager.MAX_PLAYERS + 1):
+	for slot in range(2, _room_capacity() + 1):
 		var slot_data: Dictionary = lobby_state.get(slot, {})
 		if int(slot_data.get("peer_id", 0)) == 0:
 			return slot
@@ -265,11 +245,14 @@ func _get_auto_target_players() -> int:
 
 
 func _show_matchmaking() -> void:
+	_room_was_ready = false
 	is_in_matchmaking_queue = false
 	_auto_launch_scheduled = false
 	_is_launching = false
 	lobby_state.clear()
 	matchmaking_container.visible = true
+	play_options_container.hide()
+	developer_container.hide()
 	searching_container.visible = false
 	staging_container.visible = false
 	_local_ready = false
@@ -278,6 +261,8 @@ func _show_matchmaking() -> void:
 
 func _show_searching_view() -> void:
 	matchmaking_container.visible = false
+	play_options_container.hide()
+	developer_container.hide()
 	searching_container.visible = true
 	staging_container.visible = false
 
@@ -287,6 +272,8 @@ func _enter_staging() -> void:
 	_auto_launch_scheduled = false
 	_is_launching = false
 	matchmaking_container.visible = false
+	play_options_container.hide()
+	developer_container.hide()
 	searching_container.visible = false
 	staging_container.visible = true
 	_local_ready = false
@@ -315,36 +302,112 @@ func _enter_staging() -> void:
 		)
 
 
-func _update_mode_ui(mode: NetworkManager.NetworkMode) -> void:
-	if mode == NetworkManager.NetworkMode.EOS_P2P:
-		eos_controls.visible = true
-		enet_controls.visible = false
+func _open_play_options(free_for_all: bool) -> void:
+	_free_for_all = free_for_all
+	play_options_title.text = "Free-for-All · 3–4 agents" if free_for_all else "1v1 · Two agents"
+	_relay_audio.play()
+	matchmaking_container.hide()
+	play_options_container.show()
+	quick_match_button.grab_focus()
+
+
+func _close_play_options() -> void:
+	play_options_container.hide()
+	matchmaking_container.show()
+	var mode_button: Button = $MarginContainer/MatchmakingContainer/MatchmakingPanel/GameModeRow/FFAButton if _free_for_all else $MarginContainer/MatchmakingContainer/MatchmakingPanel/GameModeRow/DuelButton
+	mode_button.grab_focus()
+
+
+func _toggle_developer_tools() -> void:
+	if searching_container.visible or staging_container.visible or cancel_match_button.visible or _creating_private_room:
+		return
+	if developer_container.visible:
+		if is_instance_valid(_spawner_cheatsheet_ui) and _spawner_cheatsheet_ui.visible:
+			_spawner_cheatsheet_ui.call("close_cheatsheet")
+		developer_container.hide()
+		if _developer_from_play_options:
+			_open_play_options(_free_for_all)
+		else:
+			matchmaking_container.show()
 	else:
-		eos_controls.visible = false
-		enet_controls.visible = true
+		_developer_from_play_options = play_options_container.visible
+		play_options_container.hide()
+		matchmaking_container.hide()
+		developer_container.show()
 
 
-func _on_mode_selected(index: int) -> void:
-	var mode: int = mode_option_button.get_item_id(index)
-	NetworkManager.current_mode = mode as NetworkManager.NetworkMode
-	_update_mode_ui(NetworkManager.current_mode)
+func _setup_developer_tools() -> void:
+	var solo_match_btn := Button.new()
+	solo_match_btn.name = "SoloFullMatchButton"
+	solo_match_btn.text = "Solo Full Match (1P Seeded Embassy Round)"
+	solo_match_btn.pressed.connect(func():
+		if GameConfig != null:
+			GameConfig.sandbox_gym_mode = false
+		NetworkManager.current_mode = NetworkManager.NetworkMode.ENET_LOCAL
+		if NetworkManager.start_host() == OK:
+			get_tree().change_scene_to_file(TEST_GYM_SCENE_PATH)
+	)
+	developer_panel.add_child(solo_match_btn)
 
+	var solo_btn := Button.new()
+	solo_btn.name = "SoloTestGymButton"
+	solo_btn.text = "Solo Test Gym (1P Sandbox Bench — All Items)"
+	solo_btn.pressed.connect(func():
+		if GameConfig != null:
+			GameConfig.sandbox_gym_mode = true
+		NetworkManager.current_mode = NetworkManager.NetworkMode.ENET_LOCAL
+		if NetworkManager.start_host() == OK:
+			get_tree().change_scene_to_file(TEST_GYM_SCENE_PATH)
+	)
+	developer_panel.add_child(solo_btn)
+
+	var cheatsheet_btn := Button.new()
+	cheatsheet_btn.name = "SpawnerCheatsheetButton"
+	cheatsheet_btn.text = "Spawner Cheatsheet & Tuner [F2]"
+	cheatsheet_btn.pressed.connect(open_spawner_cheatsheet)
+	developer_panel.add_child(cheatsheet_btn)
+
+	var sep := HSeparator.new()
+	developer_panel.add_child(sep)
+	var mouse_widget: VBoxContainer = preload("res://ui/mouse_settings_widget.gd").new()
+	mouse_widget.name = "MouseSettingsWidget"
+	developer_panel.add_child(mouse_widget)
+	developer_panel.move_child($MarginContainer/DeveloperContainer/DeveloperPanel/CloseButton, -1)
 
 func _update_header() -> void:
-	var mode_name: String = "LOCAL ENET" if NetworkManager.current_mode == NetworkManager.NetworkMode.ENET_LOCAL else "EOS P2P"
-	var details: String = ""
+	header_label.text = _game_mode_name()
+	var code := SessionManager.current_room_code
+	room_code_strip.visible = not code.is_empty() and code != "NONE"
+	staging_room_code.text = "Room Code  %s" % code if room_code_strip.visible else ""
 
-	if NetworkManager.current_mode == NetworkManager.NetworkMode.ENET_LOCAL:
-		details = "Port: %d" % NetworkManager.PORT
-	else:
-		if not SessionManager.current_room_code.is_empty() and SessionManager.current_room_code != "NONE":
-			details = "Room Code: %s" % SessionManager.current_room_code
-		else:
-			details = "Quick Match"
-		if multiplayer.is_server() and not EOSManager.local_puid.is_empty():
-			details += " | Host: %s" % EOSManager.local_puid
 
-	header_label.text = "[ %s ]  —  %s" % [mode_name, details]
+func _copy_staging_room_code() -> void:
+	DisplayServer.clipboard_set(SessionManager.current_room_code)
+	copy_room_code_button.text = "Copied"
+	_relay_audio.play()
+	await get_tree().create_timer(1.2).timeout
+	copy_room_code_button.text = "Copy"
+
+
+func _setup_console_audio() -> void:
+	_relay_audio = _add_console_audio(RELAY_AUDIO, -25.0)
+	_ready_audio = _add_console_audio(READY_AUDIO, -24.0)
+	var fan_player := _add_console_audio(FAN_AUDIO, -35.0)
+	if fan_player.stream is AudioStreamWAV:
+		var fan := fan_player.stream.duplicate() as AudioStreamWAV
+		fan.loop_mode = AudioStreamWAV.LOOP_FORWARD
+		fan.loop_end = roundi(fan.get_length() * fan.mix_rate)
+		fan_player.stream = fan
+		fan_player.play()
+
+
+func _add_console_audio(path: String, volume: float) -> AudioStreamPlayer:
+	var player := AudioStreamPlayer.new()
+	player.volume_db = volume
+	if ResourceLoader.exists(path):
+		player.stream = load(path) as AudioStream
+	add_child(player)
+	return player
 
 
 func _update_staging_ui() -> void:
@@ -366,34 +429,39 @@ func _update_staging_ui() -> void:
 		var is_occupied: bool = slot_peer_id != 0
 		var is_ready: bool = bool(slot_data.get("ready", false))
 		var card_panel := card_ui.get("card") as PanelContainer
-		var name_lbl := card_ui.get("name") as Label
+		var name_lbl := card_ui.get("title") as Label
 		var status_lbl := card_ui.get("status") as Label
+		if card_panel != null:
+			card_panel.visible = slot <= _room_capacity()
+		if name_lbl != null:
+			name_lbl.text = str(slot_data.get("name", "Player")) if is_occupied else "Open Slot"
+			if slot_peer_id == 1:
+				name_lbl.text += " (Host)"
+		if status_lbl != null:
+			status_lbl.self_modulate.a = 1.0 if is_occupied else 0.0
 
 		if is_occupied:
-			if name_lbl != null:
-				name_lbl.text = str(slot_data.get("name", "Player"))
 			if status_lbl != null:
-				status_lbl.text = "READY" if is_ready else "NOT READY"
-				status_lbl.modulate = Color(0.2, 0.85, 0.3) if is_ready else Color(0.65, 0.65, 0.65)
+				status_lbl.text = "● READY" if is_ready else "● NOT READY"
+				status_lbl.modulate = Color(0.53, 0.89, 0.65) if is_ready else Color(0.94, 0.73, 0.42)
 			if card_panel != null:
 				card_panel.modulate = Color(1.0, 1.0, 1.0, 1.0)
 		else:
-			if name_lbl != null:
-				name_lbl.text = "Open Slot"
-			if status_lbl != null:
-				status_lbl.text = "EMPTY"
-				status_lbl.modulate = Color(0.45, 0.45, 0.45)
 			if card_panel != null:
 				card_panel.modulate = Color(0.75, 0.75, 0.75, 0.85)
 
 	var occupied_count: int = _get_occupied_slot_count()
 	var all_ready: bool = _are_all_occupied_ready()
+	var room_ready := occupied_count >= _room_minimum() and all_ready
+	if room_ready and not _room_was_ready and staging_container.visible:
+		_ready_audio.play()
+	_room_was_ready = room_ready
 
 	# Update Start Button (Host only)
 	if multiplayer.is_server():
 		start_button.visible = true
-		start_button.text = "LAUNCH MATCH (%d/%d)" % [occupied_count, NetworkManager.MAX_PLAYERS]
-		start_button.disabled = not (occupied_count >= NetworkManager.MIN_PLAYERS and all_ready)
+		start_button.text = "LAUNCH MATCH (%d/%d)" % [occupied_count, _room_capacity()]
+		start_button.disabled = not room_ready
 		if (
 			occupied_count >= _get_auto_target_players()
 			and all_ready
@@ -418,16 +486,37 @@ func _update_staging_ui() -> void:
 		start_button.visible = false
 
 
+func _game_mode_name() -> String:
+	return "Free-for-All" if _room_free_for_all else "1v1"
+
+
+func _room_capacity() -> int:
+	return 4 if _room_free_for_all else 2
+
+
+func _room_minimum() -> int:
+	return 3 if _room_free_for_all else 2
+
+
+func _save_player_name(value: String) -> void:
+	_profile.set_value("player", "name", value.strip_edges())
+	var error := _profile.save(PROFILE_PATH)
+	if error != OK:
+		push_warning("Could not save lobby player name: %s" % error_string(error))
+
+
 func _get_host_name() -> String:
-	if NetworkManager.current_mode == NetworkManager.NetworkMode.EOS_P2P and not EOSManager.local_puid.is_empty():
-		return "Host (%s...)" % EOSManager.local_puid.substr(0, 8)
-	return "Host (Peer 1)"
+	var chosen_name := player_name_input.text.strip_edges()
+	if not chosen_name.is_empty():
+		return chosen_name
+	return "Player"
 
 
 func _get_client_name() -> String:
-	if NetworkManager.current_mode == NetworkManager.NetworkMode.EOS_P2P and not EOSManager.local_puid.is_empty():
-		return "Contender (%s...)" % EOSManager.local_puid.substr(0, 8)
-	return "Contender (Peer %d)" % multiplayer.get_unique_id()
+	var chosen_name := player_name_input.text.strip_edges()
+	if not chosen_name.is_empty():
+		return chosen_name
+	return "Player"
 
 
 # ==========================================
@@ -435,12 +524,13 @@ func _get_client_name() -> String:
 # ==========================================
 
 func _on_enet_host_pressed() -> void:
+	_room_free_for_all = _free_for_all
 	NetworkManager.current_mode = NetworkManager.NetworkMode.ENET_LOCAL
 	var err: Error = NetworkManager.start_host()
 	if err == OK:
-		status_label.text = "ENet server started."
+		developer_status.text = "ENet server started."
 	else:
-		status_label.text = "Failed to start ENet host: %s" % error_string(err)
+		developer_status.text = "Failed to start ENet host: %s" % error_string(err)
 
 
 func _on_enet_join_pressed() -> void:
@@ -450,18 +540,20 @@ func _on_enet_join_pressed() -> void:
 		target_addr = "127.0.0.1"
 	var err: Error = NetworkManager.start_join(target_addr)
 	if err == OK:
-		status_label.text = "Connecting via ENet to %s:%d..." % [target_addr, NetworkManager.PORT]
+		developer_status.text = "Connecting via ENet to %s:%d..." % [target_addr, NetworkManager.PORT]
 	else:
-		status_label.text = "Failed to connect: %s" % error_string(err)
+		developer_status.text = "Failed to connect: %s" % error_string(err)
 
 
 func _on_find_match_pressed() -> void:
+	NetworkManager.current_mode = NetworkManager.NetworkMode.EOS_P2P
+	_room_free_for_all = _free_for_all
 	is_in_matchmaking_queue = true
 	matchmaking_search_elapsed = 0.0
 	search_timer_label.text = "00:00"
-	search_status_label.text = "Finding match..."
+	search_status_label.text = "Finding %s match..." % _game_mode_name()
 	_show_searching_view()
-	SessionManager.start_quick_match()
+	SessionManager.start_quick_match(_room_free_for_all)
 
 
 func _on_cancel_search_pressed() -> void:
@@ -469,34 +561,43 @@ func _on_cancel_search_pressed() -> void:
 	SessionManager.destroy_active_session()
 	NetworkManager.disconnect_session()
 	_show_matchmaking()
+	_open_play_options(_free_for_all)
 	status_label.text = "Matchmaking cancelled."
 
 
 func _on_host_private_pressed() -> void:
+	NetworkManager.current_mode = NetworkManager.NetworkMode.EOS_P2P
+	_room_free_for_all = _free_for_all
 	is_in_matchmaking_queue = false
+	_set_private_room_pending(true)
+	status_label.text = "Creating private room…"
 	var code: String = SessionManager.generate_room_code()
-	DisplayServer.clipboard_set(code)
-	room_code_display.text = "Your Room Code: %s (Copied)" % code
-	room_code_display.visible = true
-	cancel_match_button.visible = true
-	SessionManager.create_and_host_session(SessionManager.MatchType.PRIVATE, code)
+	await SessionManager.create_and_host_session(SessionManager.MatchType.PRIVATE, code, _room_free_for_all)
+	_set_private_room_pending(false)
+
+
+func _set_private_room_pending(pending: bool) -> void:
+	_creating_private_room = pending
+	quick_match_button.disabled = pending
+	host_private_button.disabled = pending
+	join_private_button.disabled = pending
+	play_options_back.disabled = pending or cancel_match_button.visible
 
 
 func _on_join_private_pressed() -> void:
+	NetworkManager.current_mode = NetworkManager.NetworkMode.EOS_P2P
 	is_in_matchmaking_queue = false
 	var code: String = room_code_input.text.strip_edges().to_upper()
 	if code.length() != 4:
 		status_label.text = "Room code must be exactly 4 characters."
 		return
 	cancel_match_button.visible = true
-	room_code_display.visible = false
 	SessionManager.join_private_room(code)
 
 
 func _on_cancel_match_pressed() -> void:
 	is_in_matchmaking_queue = false
 	cancel_match_button.visible = false
-	room_code_display.visible = false
 	SessionManager.destroy_active_session()
 	NetworkManager.disconnect_session()
 	status_label.text = "Matchmaking cancelled."
@@ -506,9 +607,8 @@ func _on_cancel_match_pressed() -> void:
 # EOS Callbacks
 # ==========================================
 
-func _on_eos_login_success(puid: String) -> void:
-	local_puid_label.text = "[center]Local PUID: [b]%s[/b][/center]" % puid
-	status_label.text = "EOS Connected"
+func _on_eos_login_success(_puid: String) -> void:
+	status_label.text = ""
 
 
 func _on_eos_login_failed(err: String) -> void:
@@ -526,20 +626,13 @@ func _on_matchmaking_status_changed(message: String) -> void:
 func _on_matchmaking_failed(reason: String) -> void:
 	if is_in_matchmaking_queue:
 		_show_matchmaking()
+		_open_play_options(_free_for_all)
 	status_label.text = "Error: %s" % reason
 	cancel_match_button.visible = false
-	room_code_display.visible = false
-
-
-func _on_room_code_created(code: String) -> void:
-	DisplayServer.clipboard_set(code)
-	room_code_display.text = "Your Room Code: %s (Copied)" % code
-	room_code_display.visible = true
 
 
 func _on_session_closed() -> void:
 	cancel_match_button.visible = false
-	room_code_display.visible = false
 
 
 # ==========================================
@@ -566,13 +659,16 @@ func _on_connected_to_server() -> void:
 func _on_connection_failed() -> void:
 	if is_in_matchmaking_queue:
 		print("Lobby: Connection failed while in matchmaking queue. Retrying search...")
-		search_status_label.text = "Finding match..."
-		SessionManager.start_quick_match()
+		search_status_label.text = "Finding %s match..." % _game_mode_name()
+		SessionManager.start_quick_match(_room_free_for_all)
 		return
 
+	if developer_container.visible:
+		developer_status.text = "Connection failed."
+		return
 	_show_matchmaking()
+	_open_play_options(_free_for_all)
 	cancel_match_button.visible = false
-	room_code_display.visible = false
 	status_label.text = "Connection failed."
 
 
@@ -593,7 +689,7 @@ func _on_player_connected(peer_id: int) -> void:
 
 	var open_slot: int = _find_first_open_slot()
 	if open_slot == 0:
-		print("Lobby: Rejecting peer %d — lobby full (%d/%d)." % [peer_id, NetworkManager.MAX_PLAYERS, NetworkManager.MAX_PLAYERS])
+		print("Lobby: Rejecting peer %d — lobby full (%d/%d)." % [peer_id, _room_capacity(), _room_capacity()])
 		if multiplayer.multiplayer_peer != null:
 			multiplayer.multiplayer_peer.disconnect_peer(peer_id)
 		return
@@ -604,12 +700,12 @@ func _on_player_connected(peer_id: int) -> void:
 		"role": open_slot,
 		"peer_id": peer_id,
 		"ready": false,
-		"name": "Spy (Peer %d)" % peer_id
+		"name": "Player"
 	}
-	sync_lobby_state.rpc(lobby_state)
+	sync_lobby_state.rpc(lobby_state, _room_free_for_all)
 
-	# Close quick match advertisement only when all 4 slots are filled
-	if NetworkManager.current_mode == NetworkManager.NetworkMode.EOS_P2P and _get_occupied_slot_count() >= NetworkManager.MAX_PLAYERS:
+	# Close quick match advertisement when the room is full
+	if NetworkManager.current_mode == NetworkManager.NetworkMode.EOS_P2P and SessionManager.current_room_code.is_empty() and _get_occupied_slot_count() >= _room_capacity():
 		SessionManager.set_session_matchmaking_open(false)
 
 	if is_in_matchmaking_queue:
@@ -649,11 +745,11 @@ func _on_player_disconnected(peer_id: int) -> void:
 	ready_button.text = "READY UP"
 	if lobby_state.has(1):
 		lobby_state[1]["ready"] = false
-	sync_lobby_state.rpc(lobby_state)
+	sync_lobby_state.rpc(lobby_state, _room_free_for_all)
 	_update_staging_ui()
 
-	# Re-open EOS quick match searches while below MAX_PLAYERS
-	if NetworkManager.current_mode == NetworkManager.NetworkMode.EOS_P2P and _get_occupied_slot_count() < NetworkManager.MAX_PLAYERS:
+	# Re-open quick match searches when a slot frees up.
+	if NetworkManager.current_mode == NetworkManager.NetworkMode.EOS_P2P and SessionManager.current_room_code.is_empty() and _get_occupied_slot_count() < _room_capacity():
 		SessionManager.set_session_matchmaking_open(true)
 
 
@@ -674,8 +770,10 @@ func register_client_identity(display_name: String) -> void:
 		lobby_state[slot]["peer_id"] = sender_id
 		lobby_state[slot]["ready"] = false
 
-	lobby_state[slot]["name"] = display_name
-	sync_lobby_state.rpc(lobby_state)
+	var safe_name := display_name.strip_edges().left(MAX_NAME_LENGTH)
+	if not safe_name.is_empty():
+		lobby_state[slot]["name"] = safe_name
+	sync_lobby_state.rpc(lobby_state, _room_free_for_all)
 	_update_staging_ui()
 
 
@@ -703,13 +801,15 @@ func server_set_ready(is_ready: bool) -> void:
 		return
 
 	lobby_state[slot]["ready"] = is_ready
-	sync_lobby_state.rpc(lobby_state)
+	sync_lobby_state.rpc(lobby_state, _room_free_for_all)
 	_update_staging_ui()
 
 
 @rpc("authority", "call_local", "reliable")
-func sync_lobby_state(new_state: Dictionary) -> void:
+func sync_lobby_state(new_state: Dictionary, free_for_all: bool) -> void:
+	_room_free_for_all = free_for_all
 	lobby_state = new_state
+	_update_header()
 	_update_staging_ui()
 
 
@@ -717,7 +817,7 @@ func _on_start_pressed() -> void:
 	if not multiplayer.is_server() or _is_launching:
 		return
 	var occupied_count: int = _get_occupied_slot_count()
-	if occupied_count < NetworkManager.MIN_PLAYERS or not _are_all_occupied_ready():
+	if occupied_count < _room_minimum() or not _are_all_occupied_ready():
 		return
 
 	_is_launching = true
@@ -736,7 +836,7 @@ func _on_start_pressed() -> void:
 
 	if GameConfig != null:
 		GameConfig.sandbox_gym_mode = false
-	print("Lobby: %d players ready. Launching FFA match into arena..." % occupied_count)
+	print("Lobby: %d players ready. Launching match into arena..." % occupied_count)
 	rpc_load_arena.rpc(TEST_GYM_SCENE_PATH)
 
 
@@ -751,8 +851,11 @@ func _on_disconnect_pressed() -> void:
 
 
 func _leave_lobby(reason: String = "") -> void:
+	var departed_mode := _room_free_for_all
 	NetworkManager.disconnect_session()
 	_show_matchmaking()
+	cancel_match_button.hide()
+	_open_play_options(departed_mode)
 	if not reason.is_empty():
 		status_label.text = reason
 
@@ -775,8 +878,14 @@ func open_spawner_cheatsheet() -> void:
 		_spawner_cheatsheet_ui.call("open_cheatsheet", false, {})
 
 
+func _input(event: InputEvent) -> void:
+	if event is InputEventKey and event.pressed and not event.is_echo() and event.keycode == KEY_F12:
+		_toggle_developer_tools()
+		get_viewport().set_input_as_handled()
+
+
 func _unhandled_input(event: InputEvent) -> void:
-	if event is InputEventKey and event.pressed and not event.is_echo() and event.keycode == KEY_F2:
+	if developer_container.visible and event is InputEventKey and event.pressed and not event.is_echo() and event.keycode == KEY_F2:
 		_ensure_spawner_cheatsheet_ui()
 		if _spawner_cheatsheet_ui != null:
 			if _spawner_cheatsheet_ui.visible:

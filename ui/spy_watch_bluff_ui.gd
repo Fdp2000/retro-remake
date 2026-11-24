@@ -13,6 +13,11 @@ const BLUFF_CUES: Array[Dictionary] = [
 	{"id": "door_bash", "label": "Door Bash", "radius": 12.0}
 ]
 
+const MAP_AMBER := Color("#e4af62")
+const MAP_TEXT := Color("#efe5cc")
+const MAP_MUTED := Color("#a3b4ad")
+const MAP_PASSAGE := Color("#7ca49a")
+
 class PlayerMapMarker extends Control:
 	const RADIUS := 5.0
 	const DOT_COLOR := Color(1.0, 0.19, 0.23)
@@ -28,6 +33,7 @@ class PlayerMapMarker extends Control:
 
 	func _draw() -> void:
 		var across := facing.orthogonal()
+		draw_circle(Vector2.ZERO, 11.0, Color(1.0, 0.19, 0.23, 0.18), true, -1.0, true)
 		draw_colored_polygon(PackedVector2Array([facing * 15.0, across * 6.0, -across * 6.0]), OUTLINE_COLOR)
 		draw_colored_polygon(PackedVector2Array([facing * 12.0, across * 4.0, -across * 4.0]), DOT_COLOR)
 		draw_circle(Vector2.ZERO, RADIUS + 1.5, OUTLINE_COLOR, true, -1.0, true)
@@ -121,6 +127,8 @@ var _floor_maps: BoxContainer = null
 var is_map_open: bool = false
 var _player_markers: Array[PlayerMapMarker] = []
 var _upper_floor: Node3D
+var _map_shade: ColorRect
+var _ladder_hint: Label
 
 
 func _ready() -> void:
@@ -160,7 +168,8 @@ func _process(_delta: float) -> void:
 	# Use the player’s feet to switch floors near the top of a ladder.
 	var is_upstairs := is_instance_valid(_upper_floor) and _upper_floor.to_local(world_position).y >= -0.15
 	for marker in _player_markers:
-		marker.update_position(world_position, -player_transform.basis.z, not is_instance_valid(_upper_floor) or (marker.level == _upper_floor) == is_upstairs)
+		var active := not is_instance_valid(_upper_floor) or (marker.level == _upper_floor) == is_upstairs
+		marker.update_position(world_position, -player_transform.basis.z, active)
 
 
 func setup_for_player(player_node: Node) -> void:
@@ -198,7 +207,13 @@ func _build_layout() -> void:
 	_radio_lbl.add_theme_font_size_override("font_size", 13)
 	hbox.add_child(_radio_lbl)
 
-	# Hold Tab Top-Down Room Bluff Projector
+	_map_shade = ColorRect.new()
+	_map_shade.color = Color(0.025, 0.05, 0.05, 0.36)
+	_map_shade.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_map_shade.hide()
+	add_child(_map_shade)
+	_map_shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+
 	var center := CenterContainer.new()
 	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(center)
@@ -208,25 +223,43 @@ func _build_layout() -> void:
 	_map_panel.visible = false
 	center.add_child(_map_panel)
 
-	var margin := MarginContainer.new()
-	for side in ["left", "right", "top", "bottom"]:
-		margin.add_theme_constant_override("margin_" + side, 14)
-	_map_panel.add_child(margin)
+	var frame := _map_style(Color(0.059, 0.089, 0.091, 0.96), Color("#78654a"), 20, 16)
+	frame.border_width_left = 2
+	_map_panel.add_theme_stylebox_override("panel", frame)
+
+	var mono := SystemFont.new()
+	mono.font_names = PackedStringArray(["Cascadia Mono", "Consolas", "DejaVu Sans Mono"])
+	var map_theme := Theme.new()
+	map_theme.default_font = mono
+	map_theme.default_font_size = 13
+	map_theme.set_color("font_color", "Label", MAP_TEXT)
+	map_theme.set_color("font_color", "Button", MAP_TEXT)
+	map_theme.set_color("font_hover_color", "Button", Color.WHITE)
+	_map_panel.theme = map_theme
 
 	var content := VBoxContainer.new()
 	content.add_theme_constant_override("separation", 12)
-	margin.add_child(content)
+	_map_panel.add_child(content)
 
-	var ink_hint := Label.new()
-	ink_hint.text = "Left-drag to draw · Right-click to clear a room"
-	ink_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	ink_hint.add_theme_font_size_override("font_size", 12)
-	content.add_child(ink_hint)
+	var heading := Label.new()
+	heading.text = "Embassy floor plan"
+	heading.add_theme_font_size_override("font_size", 23)
+	content.add_child(heading)
 
 	_floor_maps = VBoxContainer.new()
-	_floor_maps.add_theme_constant_override("separation", 18)
+	_floor_maps.add_theme_constant_override("separation", 12)
 	content.add_child(_floor_maps)
+	get_viewport().size_changed.connect(_fit_floor_maps)
 
+	var ink_hint := Label.new()
+	ink_hint.text = "Left-drag  Draw    ·    Right-click  Clear"
+	ink_hint.add_theme_color_override("font_color", MAP_MUTED)
+	ink_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	content.add_child(ink_hint)
+	_ladder_hint = Label.new()
+	_ladder_hint.text = "↕  Ladder"
+	_ladder_hint.add_theme_color_override("font_color", MAP_AMBER)
+	content.add_child(_ladder_hint)
 
 	_refresh_labels()
 
@@ -255,6 +288,7 @@ func set_map_open(opened: bool) -> void:
 	if _map_panel == null:
 		_build_layout()
 	_map_panel.visible = opened
+	_map_shade.visible = opened
 	set_process(opened)
 	set_process_input(opened)
 	_active_ink = null
@@ -289,17 +323,52 @@ func _rebuild_room_buttons() -> void:
 		if _upper_floor != null:
 			_build_floor_map("Upper Floor", _upper_floor, building, size_in_rooms)
 		_build_floor_map("Ground Floor", building, building, size_in_rooms)
+	_ladder_hint.visible = _upper_floor != null
+	_fit_floor_maps()
+
+
+func _fit_floor_maps() -> void:
+	var viewport_size := get_viewport_rect().size
+	var floor_count := _player_markers.size()
+	if floor_count == 0:
+		return
+
+	var rooms := _player_markers[0].room_count
+	# Reserve room for the headers, map borders, and the passages between tiles.
+	var floor_width := viewport_size.x - 84.0
+	var floor_height := (viewport_size.y - 144.0 - (floor_count - 1) * 12.0) / floor_count
+	var room_width := (floor_width - 20.0 - (rooms.x - 1) * 14.0) / rooms.x
+	var room_height := (floor_height - 46.0 - (rooms.y - 1) * 12.0) / rooms.y
+	var tile_size := Vector2(clampf(floorf(room_width), 42.0, 112.0), clampf(floorf(room_height), 26.0, 68.0))
+	for ink in _ink_layers:
+		(ink.get_parent() as Control).custom_minimum_size = tile_size
+
+
+func _map_style(fill: Color, border: Color, pad_x: int, pad_y: int) -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = fill
+	style.border_color = border
+	style.set_border_width_all(1)
+	style.content_margin_left = pad_x
+	style.content_margin_right = pad_x
+	style.content_margin_top = pad_y
+	style.content_margin_bottom = pad_y
+	return style
 
 
 func _build_floor_map(title: String, level: Node, ground: Node, size_in_rooms: Vector2i) -> void:
+	var floor_frame := PanelContainer.new()
+	floor_frame.add_theme_stylebox_override("panel", _map_style(Color("#111b1d"), Color("#405754"), 10, 8))
+	_floor_maps.add_child(floor_frame)
+
 	var floor_panel := VBoxContainer.new()
-	floor_panel.add_theme_constant_override("separation", 7)
-	_floor_maps.add_child(floor_panel)
+	floor_panel.add_theme_constant_override("separation", 8)
+	floor_frame.add_child(floor_panel)
 
 	var label := Label.new()
 	label.text = title
-	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	label.add_theme_font_size_override("font_size", 16)
+	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	label.add_theme_font_size_override("font_size", 15)
 	floor_panel.add_child(label)
 
 	var map_area := Control.new()
@@ -337,7 +406,7 @@ func _build_floor_map(title: String, level: Node, ground: Node, size_in_rooms: V
 				var room := level.get_node_or_null("Rooms/" + room_name) as Node3D if level != null else null
 				var has_ladder := ground != null and ground.has_node("Rooms/" + room_name + "/LadderSpawn/AccessLadder")
 				var fallback_pos := Vector3((room_x - 1) * 9.0, 0.0, (room_z - 1) * 9.0)
-				var button := _make_room_button(room, has_ladder, title + "/" + room_name)
+				var button := _make_room_button(level, room, has_ladder, title + "/" + room_name)
 				grid.add_child(button)
 				if marker.first_button == null:
 					marker.first_button = button
@@ -356,31 +425,33 @@ func _build_floor_map(title: String, level: Node, ground: Node, size_in_rooms: V
 			passage.custom_minimum_size = Vector2(12, 4) if row % 2 == 0 else Vector2(4, 10)
 			passage.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 			passage.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-			passage.color = Color(0.69, 0.82, 0.78) if active else Color.TRANSPARENT
+			passage.color = MAP_PASSAGE if active else Color.TRANSPARENT
 			passage.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			grid.add_child(passage)
 
 	map_area.custom_minimum_size = grid.get_combined_minimum_size()
 
 
-func _make_room_button(room: Node3D, has_ladder: bool, ink_key: String) -> Button:
+func _make_room_button(level: Node, room: Node3D, has_ladder: bool, ink_key: String) -> Button:
 	var btn := Button.new()
 	btn.focus_mode = Control.FOCUS_NONE
-	btn.custom_minimum_size = Vector2(69, 44)
 	if has_ladder:
 		btn.text = "↕"
-		btn.add_theme_font_size_override("font_size", 17)
+		btn.add_theme_font_size_override("font_size", 20)
+		btn.add_theme_color_override("font_color", MAP_AMBER)
+		btn.add_theme_color_override("font_outline_color", Color("#181511"))
+		btn.add_theme_constant_override("outline_size", 4)
 
-	if room != null:
-		var tint: Color = room.get("wall_color")
-		var card := StyleBoxFlat.new()
-		card.bg_color = Color(0.14, 0.17, 0.18).lerp(tint, 0.38)
-		card.set_corner_radius_all(5)
-		btn.add_theme_stylebox_override("normal", card)
-		var hover := card.duplicate() as StyleBoxFlat
-		hover.bg_color = card.bg_color.lightened(0.18)
-		btn.add_theme_stylebox_override("hover", hover)
-		btn.add_theme_stylebox_override("pressed", hover)
+	var tile_color := Color("#546c65")
+	if room != null and level != null and level.has_method("get_room_wall_swatch"):
+		tile_color = level.get_room_wall_swatch(room)
+	elif room != null:
+		tile_color = room.get("wall_color")
+	var tile := _map_style(tile_color, Color("#52706a"), 4, 2)
+	var hover := _map_style(tile_color.lightened(0.13), MAP_AMBER, 4, 2)
+	btn.add_theme_stylebox_override("normal", tile)
+	btn.add_theme_stylebox_override("hover", hover)
+	btn.add_theme_stylebox_override("pressed", hover)
 
 	if not _room_ink.has(ink_key):
 		_room_ink[ink_key] = []

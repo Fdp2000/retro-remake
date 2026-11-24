@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://bfsgvb01qqy36"
+path="res://.godot/imported/Cartoon Male Belly Laugh 01.wav-9be8ba4422b189c7a1652cf7e0ee9345.sample"
+
+[deps]
+
+source_file="res://Assets/SFX/Audio Candidates/Finisher Laughs/Cartoon Male Belly Laugh 01.wav"
+dest_files=["res://.godot/imported/Cartoon Male Belly Laugh 01.wav-9be8ba4422b189c7a1652cf7e0ee9345.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2

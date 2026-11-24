@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://bgq3bqy3gs8c3"
+path="res://.godot/imported/Cartoon Bell Hit 01.wav-4644a5b033e2790638b6ffd3d3afae4e.sample"
+
+[deps]
+
+source_file="res://Assets/SFX/Audio Candidates/Trap and Item Cues/Cartoon Bell Hit 01.wav"
+dest_files=["res://.godot/imported/Cartoon Bell Hit 01.wav-4644a5b033e2790638b6ffd3d3afae4e.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2

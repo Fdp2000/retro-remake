@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://bbub7kx8u1yv"
+path="res://.godot/imported/Cartoon Spring Cartoon  Spring 03.wav-5b60ccba84c3e58aa8403210b3591a0c.sample"
+
+[deps]
+
+source_file="res://Assets/SFX/Audio Candidates/Trap and Item Cues/Cartoon Spring Cartoon  Spring 03.wav"
+dest_files=["res://.godot/imported/Cartoon Spring Cartoon  Spring 03.wav-5b60ccba84c3e58aa8403210b3591a0c.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2

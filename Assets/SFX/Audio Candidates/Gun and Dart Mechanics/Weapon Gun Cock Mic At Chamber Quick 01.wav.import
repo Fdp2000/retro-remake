@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://bk5v2wr2d44t0"
+path="res://.godot/imported/Weapon Gun Cock Mic At Chamber Quick 01.wav-ee84a53526721485fd249ded0006862d.sample"
+
+[deps]
+
+source_file="res://Assets/SFX/Audio Candidates/Gun and Dart Mechanics/Weapon Gun Cock Mic At Chamber Quick 01.wav"
+dest_files=["res://.godot/imported/Weapon Gun Cock Mic At Chamber Quick 01.wav-ee84a53526721485fd249ded0006862d.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2

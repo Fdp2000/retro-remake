@@ -14,6 +14,8 @@ const WALL_TEXTURES := {
 }
 @export_range(0, 4) var wall_texture_offset := 0
 
+static var _wall_swatches: Dictionary[int, Color] = {}
+
 var _wall_material: ShaderMaterial
 var _plain_materials: Dictionary[String, StandardMaterial3D] = {}
 
@@ -53,6 +55,32 @@ func _wall_texture_material() -> ShaderMaterial:
 	var variants := PackedInt32Array()
 	for row in range(4):
 		for column in range(4):
-			variants.append((row * 2 + column + wall_texture_offset) % WALL_TEXTURES.size())
+			variants.append(_wall_variant(Vector2i(column, row)))
 	_wall_material.set_shader_parameter("wall_variants", variants)
 	return _wall_material
+
+
+func get_room_wall_swatch(room: Node3D) -> Color:
+	# Use the same world-to-cell mapping as the wall shader, even on smaller layouts.
+	var center := to_local(room.global_position)
+	var coords := (Vector2(center.x, center.z) + Vector2(18.0, 18.0)) / 9.0
+	var cell := Vector2i(coords.floor().clamp(Vector2.ZERO, Vector2(3.0, 3.0)))
+	var variant := _wall_variant(cell)
+	if not _wall_swatches.has(variant):
+		var texture: Texture2D = WALL_TEXTURES.values()[variant]
+		var image := texture.get_image()
+		if image.is_compressed() and image.decompress() != OK:
+			return Color("#546c65")
+		var swatch := Color(0, 0, 0, 0)
+		# Sample the painted area of the texture, away from the trim.
+		for row in range(4):
+			for column in range(5):
+				var uv := Vector2(0.25 + column * 0.125, 0.28 + row * 0.07)
+				var pixel := Vector2i(uv * Vector2(image.get_size() - Vector2i.ONE))
+				swatch += image.get_pixelv(pixel)
+		_wall_swatches[variant] = swatch / 20.0
+	return _wall_swatches[variant]
+
+
+func _wall_variant(cell: Vector2i) -> int:
+	return (cell.y * 2 + cell.x + wall_texture_offset) % WALL_TEXTURES.size()

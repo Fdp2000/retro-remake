@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://o7ml5hqh7y6y"
+path="res://.godot/imported/Ambience Factory Fan 01.wav-02142f26c0cc569351f013f1855ecb52.sample"
+
+[deps]
+
+source_file="res://Assets/SFX/Audio Candidates/Building and City Ambience/Ambience Factory Fan 01.wav"
+dest_files=["res://.godot/imported/Ambience Factory Fan 01.wav-02142f26c0cc569351f013f1855ecb52.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2

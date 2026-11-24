@@ -4,6 +4,133 @@
 [ext_resource type="Texture2D" path="res://scenes/lobby_interior.jpg" id="2_interior"]
 [ext_resource type="Script" uid="uid://netvd6p344t5" path="res://scenes/lobby.gd" id="1_lobby"]
 
+[sub_resource type="StyleBoxFlat" id="Console"]
+content_margin_left = 26.0
+content_margin_top = 22.0
+content_margin_right = 26.0
+content_margin_bottom = 22.0
+bg_color = Color(0.0667, 0.0980, 0.1059, 0.97)
+border_width_left = 2
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.4157, 0.3608, 0.2627, 1)
+
+[sub_resource type="StyleBoxFlat" id="AgentFile"]
+content_margin_left = 15.0
+content_margin_top = 15.0
+content_margin_right = 15.0
+content_margin_bottom = 15.0
+bg_color = Color(0.0902, 0.1255, 0.1373, 0.97)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.3608, 0.3451, 0.2863, 1)
+
+[sub_resource type="StyleBoxFlat" id="ButtonIdle"]
+content_margin_left = 12.0
+content_margin_top = 8.0
+content_margin_right = 12.0
+content_margin_bottom = 8.0
+bg_color = Color(0.1333, 0.1725, 0.1804, 0.97)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.3176, 0.3529, 0.3294, 1)
+
+[sub_resource type="StyleBoxFlat" id="ButtonHover"]
+content_margin_left = 12.0
+content_margin_top = 8.0
+content_margin_right = 12.0
+content_margin_bottom = 8.0
+bg_color = Color(0.2392, 0.2196, 0.1608, 0.97)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.8941, 0.6863, 0.3843, 1)
+
+[sub_resource type="StyleBoxFlat" id="ButtonPressed"]
+content_margin_left = 12.0
+content_margin_top = 8.0
+content_margin_right = 12.0
+content_margin_bottom = 8.0
+bg_color = Color(0.3216, 0.2667, 0.1725, 0.97)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.8941, 0.6863, 0.3843, 1)
+
+[sub_resource type="StyleBoxFlat" id="ButtonDisabled"]
+content_margin_left = 12.0
+content_margin_top = 8.0
+content_margin_right = 12.0
+content_margin_bottom = 8.0
+bg_color = Color(0.0902, 0.1137, 0.1176, 0.97)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.2039, 0.2471, 0.2431, 1)
+
+[sub_resource type="StyleBoxFlat" id="Input"]
+content_margin_left = 12.0
+content_margin_top = 7.0
+content_margin_right = 12.0
+content_margin_bottom = 7.0
+bg_color = Color(0.0510, 0.0784, 0.0863, 0.97)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.3373, 0.3765, 0.3529, 1)
+
+[sub_resource type="StyleBoxFlat" id="CodeStrip"]
+content_margin_left = 16.0
+content_margin_top = 8.0
+content_margin_right = 16.0
+content_margin_bottom = 8.0
+bg_color = Color(0.1294, 0.1176, 0.0941, 0.97)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.6667, 0.5059, 0.2824, 1)
+
+[sub_resource type="StyleBoxFlat" id="Focus"]
+draw_center = false
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.8941, 0.6863, 0.3843, 1)
+
+[sub_resource type="SystemFont" id="ConsoleMono"]
+font_names = PackedStringArray("Cascadia Mono", "Consolas", "DejaVu Sans Mono")
+
+[sub_resource type="Theme" id="LobbyTheme"]
+default_font = SubResource("ConsoleMono")
+default_font_size = 16
+Button/colors/font_color = Color(0.9373, 0.8980, 0.8000, 1)
+Button/colors/font_hover_color = Color(1.0000, 0.8431, 0.5333, 1)
+Button/colors/font_focus_color = Color(1.0000, 0.8431, 0.5333, 1)
+Button/colors/font_pressed_color = Color(1.0000, 0.8431, 0.5333, 1)
+Button/colors/font_disabled_color = Color(0.5451, 0.5882, 0.5647, 1)
+Button/styles/disabled = SubResource("ButtonDisabled")
+Button/styles/focus = SubResource("Focus")
+Button/styles/hover = SubResource("ButtonHover")
+Button/styles/normal = SubResource("ButtonIdle")
+Button/styles/pressed = SubResource("ButtonPressed")
+Label/colors/font_color = Color(0.9373, 0.8980, 0.8000, 1)
+LineEdit/colors/font_color = Color(0.9373, 0.8980, 0.8000, 1)
+LineEdit/colors/font_placeholder_color = Color(0.6392, 0.6784, 0.6431, 1)
+LineEdit/styles/focus = SubResource("Focus")
+LineEdit/styles/normal = SubResource("Input")
+PanelContainer/styles/panel = SubResource("Console")
+
 [node name="Lobby" type="Control" unique_id=1498503600]
 layout_mode = 3
 anchors_preset = 15
@@ -11,6 +138,7 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
+theme = SubResource("LobbyTheme")
 script = ExtResource("1_lobby")
 
 [node name="Background" type="TextureRect" parent="." unique_id=1468226185]
@@ -32,7 +160,33 @@ anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 mouse_filter = 2
-color = Color(0.025, 0.040, 0.065, 0.16)
+color = Color(0.02, 0.047, 0.046, 0.30)
+
+[node name="CameraDisplay" type="HBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -140.0
+offset_top = 26.0
+offset_right = -36.0
+mouse_filter = 2
+theme_override_constants/separation = 9
+alignment = 2
+
+[node name="RecordingLight" type="ColorRect" parent="CameraDisplay"]
+custom_minimum_size = Vector2(8, 8)
+layout_mode = 2
+size_flags_vertical = 4
+mouse_filter = 2
+color = Color(0.9451, 0.4353, 0.3765, 1)
+
+[node name="CameraLabel" type="Label" parent="CameraDisplay"]
+layout_mode = 2
+text = "CAM 03"
+theme_override_colors/font_shadow_color = Color(0.0392, 0.0588, 0.0627, 1)
+theme_override_constants/shadow_offset_x = 1
+theme_override_constants/shadow_offset_y = 2
 
 [node name="MarginContainer" type="MarginContainer" parent="." unique_id=976286355]
 layout_mode = 1
@@ -47,9 +201,9 @@ theme_override_constants/margin_right = 40
 theme_override_constants/margin_bottom = 40
 
 [node name="MatchmakingContainer" type="PanelContainer" parent="MarginContainer" unique_id=2024361493]
-custom_minimum_size = Vector2(420, 0)
+custom_minimum_size = Vector2(500, 0)
 layout_mode = 2
-size_flags_horizontal = 4
+size_flags_horizontal = 0
 size_flags_vertical = 4
 
 [node name="MatchmakingPanel" type="VBoxContainer" parent="MarginContainer/MatchmakingContainer" unique_id=317893438]
@@ -58,86 +212,156 @@ theme_override_constants/separation = 12
 
 [node name="TitleLabel" type="Label" parent="MarginContainer/MatchmakingContainer/MatchmakingPanel" unique_id=117329815]
 layout_mode = 2
-theme_override_font_sizes/font_size = 20
-text = "SPY VS SPY — MATCHMAKING"
-horizontal_alignment = 1
+theme_override_font_sizes/font_size = 29
+text = "Dead Drop Double-Cross"
+horizontal_alignment = 0
 
 [node name="HSeparator" type="HSeparator" parent="MarginContainer/MatchmakingContainer/MatchmakingPanel" unique_id=1324713429]
 layout_mode = 2
 
-[node name="ModeOptionButton" type="OptionButton" parent="MarginContainer/MatchmakingContainer/MatchmakingPanel" unique_id=910048544]
+[node name="NameRow" type="HBoxContainer" parent="MarginContainer/MatchmakingContainer/MatchmakingPanel"]
 layout_mode = 2
+theme_override_constants/separation = 12
 
-[node name="ENetControls" type="VBoxContainer" parent="MarginContainer/MatchmakingContainer/MatchmakingPanel" unique_id=1571632289]
+[node name="PlayerNameLabel" type="Label" parent="MarginContainer/MatchmakingContainer/MatchmakingPanel/NameRow"]
+custom_minimum_size = Vector2(100, 0)
 layout_mode = 2
-theme_override_constants/separation = 8
+text = "Alias"
 
-[node name="ENetAddressInput" type="LineEdit" parent="MarginContainer/MatchmakingContainer/MatchmakingPanel/ENetControls" unique_id=58353174]
+[node name="PlayerNameInput" type="LineEdit" parent="MarginContainer/MatchmakingContainer/MatchmakingPanel/NameRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 36)
 layout_mode = 2
-text = "127.0.0.1"
-placeholder_text = "Host Address"
+size_flags_horizontal = 3
+placeholder_text = "Enter your alias"
+max_length = 24
 
-[node name="ENetHostButton" type="Button" parent="MarginContainer/MatchmakingContainer/MatchmakingPanel/ENetControls" unique_id=1574326723]
+[node name="GameModeRow" type="HBoxContainer" parent="MarginContainer/MatchmakingContainer/MatchmakingPanel"]
 layout_mode = 2
-text = "Host (ENet)"
+theme_override_constants/separation = 12
 
-[node name="ENetJoinButton" type="Button" parent="MarginContainer/MatchmakingContainer/MatchmakingPanel/ENetControls" unique_id=1185989517]
+[node name="DuelButton" type="Button" parent="MarginContainer/MatchmakingContainer/MatchmakingPanel/GameModeRow"]
+custom_minimum_size = Vector2(0, 72)
 layout_mode = 2
-text = "Join (ENet)"
+size_flags_horizontal = 3
+text = "1v1\nTwo agents"
 
-[node name="EOSControls" type="VBoxContainer" parent="MarginContainer/MatchmakingContainer/MatchmakingPanel" unique_id=1521956622]
+[node name="FFAButton" type="Button" parent="MarginContainer/MatchmakingContainer/MatchmakingPanel/GameModeRow"]
+custom_minimum_size = Vector2(0, 72)
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Free-for-All\n3–4 agents"
+
+[node name="PlayOptionsContainer" type="PanelContainer" parent="MarginContainer"]
 visible = false
+custom_minimum_size = Vector2(500, 0)
+layout_mode = 2
+size_flags_horizontal = 0
+size_flags_vertical = 4
+
+[node name="PlayOptionsPanel" type="VBoxContainer" parent="MarginContainer/PlayOptionsContainer"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="TitleLabel" type="Label" parent="MarginContainer/PlayOptionsContainer/PlayOptionsPanel"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "Operation Briefing"
+
+[node name="ModeLabel" type="Label" parent="MarginContainer/PlayOptionsContainer/PlayOptionsPanel"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.8941, 0.6863, 0.3843, 1)
+text = "1v1 · Two agents"
+
+[node name="EOSControls" type="VBoxContainer" parent="MarginContainer/PlayOptionsContainer/PlayOptionsPanel" unique_id=1521956622]
 layout_mode = 2
 theme_override_constants/separation = 8
 
-[node name="LocalPUIDLabel" type="RichTextLabel" parent="MarginContainer/MatchmakingContainer/MatchmakingPanel/EOSControls" unique_id=1676923206]
-layout_mode = 2
-focus_mode = 2
-bbcode_enabled = true
-text = "[center]Local PUID: (Initializing EOS...)[/center]"
-fit_content = true
-selection_enabled = true
-
-[node name="QuickMatchButton" type="Button" parent="MarginContainer/MatchmakingContainer/MatchmakingPanel/EOSControls" unique_id=354405199]
+[node name="QuickMatchButton" type="Button" parent="MarginContainer/PlayOptionsContainer/PlayOptionsPanel/EOSControls" unique_id=354405199]
 layout_mode = 2
 text = "Find Match"
 
-[node name="HostPrivateButton" type="Button" parent="MarginContainer/MatchmakingContainer/MatchmakingPanel/EOSControls" unique_id=869890424]
+[node name="HostPrivateButton" type="Button" parent="MarginContainer/PlayOptionsContainer/PlayOptionsPanel/EOSControls" unique_id=869890424]
 layout_mode = 2
-text = "Host Private Room"
+text = "Create Private Room"
 
-[node name="PrivateJoinContainer" type="HBoxContainer" parent="MarginContainer/MatchmakingContainer/MatchmakingPanel/EOSControls" unique_id=393491087]
+[node name="PrivateJoinContainer" type="HBoxContainer" parent="MarginContainer/PlayOptionsContainer/PlayOptionsPanel/EOSControls" unique_id=393491087]
 layout_mode = 2
 theme_override_constants/separation = 8
 
-[node name="RoomCodeInput" type="LineEdit" parent="MarginContainer/MatchmakingContainer/MatchmakingPanel/EOSControls/PrivateJoinContainer" unique_id=572197211]
+[node name="RoomCodeInput" type="LineEdit" parent="MarginContainer/PlayOptionsContainer/PlayOptionsPanel/EOSControls/PrivateJoinContainer" unique_id=572197211]
 layout_mode = 2
 size_flags_horizontal = 3
-placeholder_text = "CODE"
+placeholder_text = "Room code"
 max_length = 4
 
-[node name="JoinPrivateButton" type="Button" parent="MarginContainer/MatchmakingContainer/MatchmakingPanel/EOSControls/PrivateJoinContainer" unique_id=939160757]
+[node name="JoinPrivateButton" type="Button" parent="MarginContainer/PlayOptionsContainer/PlayOptionsPanel/EOSControls/PrivateJoinContainer" unique_id=939160757]
 layout_mode = 2
-text = "Join Room"
+text = "Join Private Room"
 
-[node name="RoomCodeDisplay" type="Label" parent="MarginContainer/MatchmakingContainer/MatchmakingPanel/EOSControls" unique_id=362329685]
-visible = false
-layout_mode = 2
-text = "Your Room Code: ABCD"
-horizontal_alignment = 1
-
-[node name="CancelMatchButton" type="Button" parent="MarginContainer/MatchmakingContainer/MatchmakingPanel/EOSControls" unique_id=1917648097]
+[node name="CancelMatchButton" type="Button" parent="MarginContainer/PlayOptionsContainer/PlayOptionsPanel/EOSControls" unique_id=1917648097]
 visible = false
 layout_mode = 2
 text = "Cancel / Leave Session"
 
-[node name="HSeparator2" type="HSeparator" parent="MarginContainer/MatchmakingContainer/MatchmakingPanel" unique_id=1368635150]
+[node name="HSeparator2" type="HSeparator" parent="MarginContainer/PlayOptionsContainer/PlayOptionsPanel" unique_id=1368635150]
 layout_mode = 2
 
-[node name="StatusLabel" type="Label" parent="MarginContainer/MatchmakingContainer/MatchmakingPanel" unique_id=65219435]
+[node name="StatusLabel" type="Label" parent="MarginContainer/PlayOptionsContainer/PlayOptionsPanel" unique_id=65219435]
 layout_mode = 2
-text = "Idle"
+text = ""
+autowrap_mode = 2
 horizontal_alignment = 1
+
+[node name="BackButton" type="Button" parent="MarginContainer/PlayOptionsContainer/PlayOptionsPanel"]
+custom_minimum_size = Vector2(0, 40)
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Back"
+
+[node name="DeveloperContainer" type="PanelContainer" parent="MarginContainer"]
+visible = false
+custom_minimum_size = Vector2(420, 0)
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+
+[node name="DeveloperPanel" type="VBoxContainer" parent="MarginContainer/DeveloperContainer"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="TitleLabel" type="Label" parent="MarginContainer/DeveloperContainer/DeveloperPanel"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "DEVELOPER TOOLS"
+horizontal_alignment = 1
+
+[node name="ENetControls" type="VBoxContainer" parent="MarginContainer/DeveloperContainer/DeveloperPanel" unique_id=1571632289]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="ENetAddressInput" type="LineEdit" parent="MarginContainer/DeveloperContainer/DeveloperPanel/ENetControls" unique_id=58353174]
+layout_mode = 2
+text = "127.0.0.1"
+placeholder_text = "Host Address"
+
+[node name="ENetHostButton" type="Button" parent="MarginContainer/DeveloperContainer/DeveloperPanel/ENetControls" unique_id=1574326723]
+layout_mode = 2
+text = "Host (ENet)"
+
+[node name="ENetJoinButton" type="Button" parent="MarginContainer/DeveloperContainer/DeveloperPanel/ENetControls" unique_id=1185989517]
+layout_mode = 2
+text = "Join (ENet)"
+
+[node name="StatusLabel" type="Label" parent="MarginContainer/DeveloperContainer/DeveloperPanel"]
+layout_mode = 2
+autowrap_mode = 2
+
+[node name="CloseButton" type="Button" parent="MarginContainer/DeveloperContainer/DeveloperPanel"]
+custom_minimum_size = Vector2(0, 40)
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Close"
 
 [node name="SearchingContainer" type="PanelContainer" parent="MarginContainer" unique_id=901140976]
 visible = false
@@ -188,8 +412,30 @@ theme_override_constants/separation = 24
 [node name="HeaderLabel" type="Label" parent="MarginContainer/StagingContainer" unique_id=462529134]
 layout_mode = 2
 theme_override_font_sizes/font_size = 22
-text = "[ LOCAL ENET ] — Port: 8910"
+text = "1v1"
 horizontal_alignment = 1
+
+[node name="RoomCodeStrip" type="PanelContainer" parent="MarginContainer/StagingContainer"]
+visible = false
+layout_mode = 2
+size_flags_horizontal = 4
+theme_override_styles/panel = SubResource("CodeStrip")
+
+[node name="RoomCodeRow" type="HBoxContainer" parent="MarginContainer/StagingContainer/RoomCodeStrip"]
+layout_mode = 2
+theme_override_constants/separation = 18
+
+[node name="RoomCodeLabel" type="Label" parent="MarginContainer/StagingContainer/RoomCodeStrip/RoomCodeRow"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1.0000, 0.8431, 0.5333, 1)
+theme_override_font_sizes/font_size = 29
+horizontal_alignment = 1
+
+[node name="CopyButton" type="Button" parent="MarginContainer/StagingContainer/RoomCodeStrip/RoomCodeRow"]
+custom_minimum_size = Vector2(88, 36)
+layout_mode = 2
+size_flags_vertical = 4
+text = "Copy"
 
 [node name="CardsContainer" type="HBoxContainer" parent="MarginContainer/StagingContainer" unique_id=1787518463]
 layout_mode = 2
@@ -197,66 +443,60 @@ theme_override_constants/separation = 16
 alignment = 1
 
 [node name="Player1Card" type="PanelContainer" parent="MarginContainer/StagingContainer/CardsContainer" unique_id=755639743]
-custom_minimum_size = Vector2(215, 230)
+custom_minimum_size = Vector2(204, 144)
 layout_mode = 2
+theme_override_styles/panel = SubResource("AgentFile")
 
 [node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer/StagingContainer/CardsContainer/Player1Card" unique_id=447693156]
 layout_mode = 2
 theme_override_constants/separation = 12
 alignment = 1
 
-[node name="P1Title" type="Label" parent="MarginContainer/StagingContainer/CardsContainer/Player1Card/VBoxContainer" unique_id=2011171313]
-layout_mode = 2
-theme_override_font_sizes/font_size = 16
-text = "SPY GREEN (HOST)"
-horizontal_alignment = 1
-
 [node name="CenterContainer" type="CenterContainer" parent="MarginContainer/StagingContainer/CardsContainer/Player1Card/VBoxContainer" unique_id=977069057]
 layout_mode = 2
 
 [node name="P1Swatch" type="ColorRect" parent="MarginContainer/StagingContainer/CardsContainer/Player1Card/VBoxContainer/CenterContainer" unique_id=577929113]
-custom_minimum_size = Vector2(140, 70)
+custom_minimum_size = Vector2(140, 7)
 layout_mode = 2
 color = Color(0.22, 0.68, 0.32, 1)
 
-[node name="P1NameLabel" type="Label" parent="MarginContainer/StagingContainer/CardsContainer/Player1Card/VBoxContainer" unique_id=738591903]
+[node name="P1Title" type="Label" parent="MarginContainer/StagingContainer/CardsContainer/Player1Card/VBoxContainer" unique_id=2011171313]
 layout_mode = 2
-text = "Host (Peer 1)"
+theme_override_font_sizes/font_size = 20
+text = "Open Slot"
 horizontal_alignment = 1
+text_overrun_behavior = 3
 
 [node name="P1StatusLabel" type="Label" parent="MarginContainer/StagingContainer/CardsContainer/Player1Card/VBoxContainer" unique_id=81071331]
 layout_mode = 2
 theme_override_font_sizes/font_size = 18
-text = "NOT READY"
+text = "● NOT READY"
 horizontal_alignment = 1
 
 [node name="Player2Card" type="PanelContainer" parent="MarginContainer/StagingContainer/CardsContainer" unique_id=1567954740]
-custom_minimum_size = Vector2(215, 230)
+custom_minimum_size = Vector2(204, 144)
 layout_mode = 2
+theme_override_styles/panel = SubResource("AgentFile")
 
 [node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer/StagingContainer/CardsContainer/Player2Card" unique_id=667475846]
 layout_mode = 2
 theme_override_constants/separation = 12
 alignment = 1
 
-[node name="P2Title" type="Label" parent="MarginContainer/StagingContainer/CardsContainer/Player2Card/VBoxContainer" unique_id=419006415]
-layout_mode = 2
-theme_override_font_sizes/font_size = 16
-text = "SPY PURPLE"
-horizontal_alignment = 1
-
 [node name="CenterContainer" type="CenterContainer" parent="MarginContainer/StagingContainer/CardsContainer/Player2Card/VBoxContainer" unique_id=701227157]
 layout_mode = 2
 
 [node name="P2Swatch" type="ColorRect" parent="MarginContainer/StagingContainer/CardsContainer/Player2Card/VBoxContainer/CenterContainer" unique_id=64199357]
-custom_minimum_size = Vector2(140, 70)
+custom_minimum_size = Vector2(140, 7)
 layout_mode = 2
 color = Color(0.52, 0.24, 0.76, 1)
 
-[node name="P2NameLabel" type="Label" parent="MarginContainer/StagingContainer/CardsContainer/Player2Card/VBoxContainer" unique_id=927578684]
+[node name="P2Title" type="Label" parent="MarginContainer/StagingContainer/CardsContainer/Player2Card/VBoxContainer" unique_id=419006415]
 layout_mode = 2
+theme_override_font_sizes/font_size = 20
 text = "Open Slot"
 horizontal_alignment = 1
+text_overrun_behavior = 3
 
 [node name="P2StatusLabel" type="Label" parent="MarginContainer/StagingContainer/CardsContainer/Player2Card/VBoxContainer" unique_id=1001713912]
 layout_mode = 2
@@ -265,32 +505,29 @@ text = "EMPTY"
 horizontal_alignment = 1
 
 [node name="Player3Card" type="PanelContainer" parent="MarginContainer/StagingContainer/CardsContainer" unique_id=1812346001]
-custom_minimum_size = Vector2(215, 230)
+custom_minimum_size = Vector2(204, 144)
 layout_mode = 2
+theme_override_styles/panel = SubResource("AgentFile")
 
 [node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer/StagingContainer/CardsContainer/Player3Card" unique_id=1812346002]
 layout_mode = 2
 theme_override_constants/separation = 12
 alignment = 1
 
-[node name="P3Title" type="Label" parent="MarginContainer/StagingContainer/CardsContainer/Player3Card/VBoxContainer" unique_id=1812346003]
-layout_mode = 2
-theme_override_font_sizes/font_size = 16
-text = "SPY BLUE"
-horizontal_alignment = 1
-
 [node name="CenterContainer" type="CenterContainer" parent="MarginContainer/StagingContainer/CardsContainer/Player3Card/VBoxContainer" unique_id=1812346004]
 layout_mode = 2
 
 [node name="P3Swatch" type="ColorRect" parent="MarginContainer/StagingContainer/CardsContainer/Player3Card/VBoxContainer/CenterContainer" unique_id=1812346005]
-custom_minimum_size = Vector2(140, 70)
+custom_minimum_size = Vector2(140, 7)
 layout_mode = 2
 color = Color(0.2, 0.48, 0.88, 1)
 
-[node name="P3NameLabel" type="Label" parent="MarginContainer/StagingContainer/CardsContainer/Player3Card/VBoxContainer" unique_id=1812346006]
+[node name="P3Title" type="Label" parent="MarginContainer/StagingContainer/CardsContainer/Player3Card/VBoxContainer" unique_id=1812346003]
 layout_mode = 2
+theme_override_font_sizes/font_size = 20
 text = "Open Slot"
 horizontal_alignment = 1
+text_overrun_behavior = 3
 
 [node name="P3StatusLabel" type="Label" parent="MarginContainer/StagingContainer/CardsContainer/Player3Card/VBoxContainer" unique_id=1812346007]
 layout_mode = 2
@@ -299,32 +536,29 @@ text = "EMPTY"
 horizontal_alignment = 1
 
 [node name="Player4Card" type="PanelContainer" parent="MarginContainer/StagingContainer/CardsContainer" unique_id=1812346011]
-custom_minimum_size = Vector2(215, 230)
+custom_minimum_size = Vector2(204, 144)
 layout_mode = 2
+theme_override_styles/panel = SubResource("AgentFile")
 
 [node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer/StagingContainer/CardsContainer/Player4Card" unique_id=1812346012]
 layout_mode = 2
 theme_override_constants/separation = 12
 alignment = 1
 
-[node name="P4Title" type="Label" parent="MarginContainer/StagingContainer/CardsContainer/Player4Card/VBoxContainer" unique_id=1812346013]
-layout_mode = 2
-theme_override_font_sizes/font_size = 16
-text = "SPY RED"
-horizontal_alignment = 1
-
 [node name="CenterContainer" type="CenterContainer" parent="MarginContainer/StagingContainer/CardsContainer/Player4Card/VBoxContainer" unique_id=1812346014]
 layout_mode = 2
 
 [node name="P4Swatch" type="ColorRect" parent="MarginContainer/StagingContainer/CardsContainer/Player4Card/VBoxContainer/CenterContainer" unique_id=1812346015]
-custom_minimum_size = Vector2(140, 70)
+custom_minimum_size = Vector2(140, 7)
 layout_mode = 2
 color = Color(0.84, 0.22, 0.24, 1)
 
-[node name="P4NameLabel" type="Label" parent="MarginContainer/StagingContainer/CardsContainer/Player4Card/VBoxContainer" unique_id=1812346016]
+[node name="P4Title" type="Label" parent="MarginContainer/StagingContainer/CardsContainer/Player4Card/VBoxContainer" unique_id=1812346013]
 layout_mode = 2
+theme_override_font_sizes/font_size = 20
 text = "Open Slot"
 horizontal_alignment = 1
+text_overrun_behavior = 3
 
 [node name="P4StatusLabel" type="Label" parent="MarginContainer/StagingContainer/CardsContainer/Player4Card/VBoxContainer" unique_id=1812346017]
 layout_mode = 2

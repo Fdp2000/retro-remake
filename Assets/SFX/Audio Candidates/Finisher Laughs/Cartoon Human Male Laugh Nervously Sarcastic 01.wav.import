@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://8y6ckc72ceen"
+path="res://.godot/imported/Cartoon Human Male Laugh Nervously Sarcastic 01.wav-59ccc46be86096b27e1c40e8e8ccb616.sample"
+
+[deps]
+
+source_file="res://Assets/SFX/Audio Candidates/Finisher Laughs/Cartoon Human Male Laugh Nervously Sarcastic 01.wav"
+dest_files=["res://.godot/imported/Cartoon Human Male Laugh Nervously Sarcastic 01.wav-59ccc46be86096b27e1c40e8e8ccb616.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2

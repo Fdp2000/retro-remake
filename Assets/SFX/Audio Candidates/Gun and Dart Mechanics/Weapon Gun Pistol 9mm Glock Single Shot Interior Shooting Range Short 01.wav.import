@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://buuek1ctgylhl"
+path="res://.godot/imported/Weapon Gun Pistol 9mm Glock Single Shot Interior Shooting Range Short 01.wav-28b367987083ad1fed8cf18f26813482.sample"
+
+[deps]
+
+source_file="res://Assets/SFX/Audio Candidates/Gun and Dart Mechanics/Weapon Gun Pistol 9mm Glock Single Shot Interior Shooting Range Short 01.wav"
+dest_files=["res://.godot/imported/Weapon Gun Pistol 9mm Glock Single Shot Interior Shooting Range Short 01.wav-28b367987083ad1fed8cf18f26813482.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2

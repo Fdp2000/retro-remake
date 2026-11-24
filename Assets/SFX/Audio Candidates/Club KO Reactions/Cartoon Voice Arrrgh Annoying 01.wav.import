@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://dcvcauei1off8"
+path="res://.godot/imported/Cartoon Voice Arrrgh Annoying 01.wav-bb14e70c561206c110d574afc0699ae5.sample"
+
+[deps]
+
+source_file="res://Assets/SFX/Audio Candidates/Club KO Reactions/Cartoon Voice Arrrgh Annoying 01.wav"
+dest_files=["res://.godot/imported/Cartoon Voice Arrrgh Annoying 01.wav-bb14e70c561206c110d574afc0699ae5.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2

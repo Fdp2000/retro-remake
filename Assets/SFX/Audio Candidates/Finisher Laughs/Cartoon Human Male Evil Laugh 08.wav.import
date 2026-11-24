@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://50144253jnse"
+path="res://.godot/imported/Cartoon Human Male Evil Laugh 08.wav-887ff1e2c0e004675ef7e13fac5d0105.sample"
+
+[deps]
+
+source_file="res://Assets/SFX/Audio Candidates/Finisher Laughs/Cartoon Human Male Evil Laugh 08.wav"
+dest_files=["res://.godot/imported/Cartoon Human Male Evil Laugh 08.wav-887ff1e2c0e004675ef7e13fac5d0105.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2

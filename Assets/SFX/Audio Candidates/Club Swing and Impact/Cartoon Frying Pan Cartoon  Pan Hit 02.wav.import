@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://b8o682elq7fwb"
+path="res://.godot/imported/Cartoon Frying Pan Cartoon  Pan Hit 02.wav-edfe52e131e70ef6824f04070bc76845.sample"
+
+[deps]
+
+source_file="res://Assets/SFX/Audio Candidates/Club Swing and Impact/Cartoon Frying Pan Cartoon  Pan Hit 02.wav"
+dest_files=["res://.godot/imported/Cartoon Frying Pan Cartoon  Pan Hit 02.wav-edfe52e131e70ef6824f04070bc76845.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2

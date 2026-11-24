@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://k6n310t5okkg"
+path="res://.godot/imported/Weapon Axe Whip 01.wav-beb12a962b9f43497f1df317a0e1f2f4.sample"
+
+[deps]
+
+source_file="res://Assets/SFX/Audio Candidates/Club Swing and Impact/Weapon Axe Whip 01.wav"
+dest_files=["res://.godot/imported/Weapon Axe Whip 01.wav-beb12a962b9f43497f1df317a0e1f2f4.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2

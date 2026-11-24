@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://bx7dds6povep1"
+path="res://.godot/imported/Cartoon Human Male Scream High Pitched 02.wav-96f23d2207b494168d0ca12e5006cfe2.sample"
+
+[deps]
+
+source_file="res://Assets/SFX/Audio Candidates/Bomb Death Reactions/Cartoon Human Male Scream High Pitched 02.wav"
+dest_files=["res://.godot/imported/Cartoon Human Male Scream High Pitched 02.wav-96f23d2207b494168d0ca12e5006cfe2.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2

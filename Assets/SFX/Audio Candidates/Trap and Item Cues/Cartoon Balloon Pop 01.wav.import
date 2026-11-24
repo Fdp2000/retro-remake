@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://c2fueurpi5248"
+path="res://.godot/imported/Cartoon Balloon Pop 01.wav-1697c8e25f145026db530c3820197275.sample"
+
+[deps]
+
+source_file="res://Assets/SFX/Audio Candidates/Trap and Item Cues/Cartoon Balloon Pop 01.wav"
+dest_files=["res://.godot/imported/Cartoon Balloon Pop 01.wav-1697c8e25f145026db530c3820197275.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2

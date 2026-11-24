@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://cabu3dw2uqryi"
+path="res://.godot/imported/Cartoon Loud Voice Arrrgh 01.wav-6939fdc22855e2a49509ae18d0028065.sample"
+
+[deps]
+
+source_file="res://Assets/SFX/Audio Candidates/Club KO Reactions/Cartoon Loud Voice Arrrgh 01.wav"
+dest_files=["res://.godot/imported/Cartoon Loud Voice Arrrgh 01.wav-6939fdc22855e2a49509ae18d0028065.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2

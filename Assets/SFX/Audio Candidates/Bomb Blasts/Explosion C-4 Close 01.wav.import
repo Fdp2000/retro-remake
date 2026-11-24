@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://clgwu6fq2ind6"
+path="res://.godot/imported/Explosion C-4 Close 01.wav-7fac49f74aedae50946825293b9d97aa.sample"
+
+[deps]
+
+source_file="res://Assets/SFX/Audio Candidates/Bomb Blasts/Explosion C-4 Close 01.wav"
+dest_files=["res://.godot/imported/Explosion C-4 Close 01.wav-7fac49f74aedae50946825293b9d97aa.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2

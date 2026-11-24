@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://b3y3fwqnxcx2b"
+path="res://.godot/imported/Explosion Large Deep 01.wav-09979989aef8a71cf198a1800f582e40.sample"
+
+[deps]
+
+source_file="res://Assets/SFX/Audio Candidates/Bomb Blasts/Explosion Large Deep 01.wav"
+dest_files=["res://.godot/imported/Explosion Large Deep 01.wav-09979989aef8a71cf198a1800f582e40.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2

@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://cgpb0mesm6ads"
+path="res://.godot/imported/Cartoon Human Male Scream Surprise Scream 02.wav-cf8fe211bc5e9ee34a750d10c0dcbfd0.sample"
+
+[deps]
+
+source_file="res://Assets/SFX/Audio Candidates/Bomb Death Reactions/Cartoon Human Male Scream Surprise Scream 02.wav"
+dest_files=["res://.godot/imported/Cartoon Human Male Scream Surprise Scream 02.wav-cf8fe211bc5e9ee34a750d10c0dcbfd0.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2

@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://bh4d3t847lkk4"
+path="res://.godot/imported/Weapon Staff Whip 01.wav-8d40298333c41d399a34b2f6f8efd314.sample"
+
+[deps]
+
+source_file="res://Assets/SFX/Audio Candidates/Club Swing and Impact/Weapon Staff Whip 01.wav"
+dest_files=["res://.godot/imported/Weapon Staff Whip 01.wav-8d40298333c41d399a34b2f6f8efd314.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2

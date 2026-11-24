@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://cpggd8qilkwxy"
+path="res://.godot/imported/Explosion Dynamite 01.wav-720ca6238c465d65b542615d91222ad0.sample"
+
+[deps]
+
+source_file="res://Assets/SFX/Audio Candidates/Bomb Blasts/Explosion Dynamite 01.wav"
+dest_files=["res://.godot/imported/Explosion Dynamite 01.wav-720ca6238c465d65b542615d91222ad0.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2

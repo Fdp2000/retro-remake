@@ -2,6 +2,8 @@ extends Node
 
 const SESSION_NAME: String = "SpyVsSpySession"
 const BUCKET_ID: String = "1:SpyVsSpy"
+const DUEL_BUCKET_ID: String = "1:SpyVsSpy:1v1"
+const FFA_BUCKET_ID: String = "1:SpyVsSpy:FFA"
 const ATTR_HOST_PUID: String = "HOST_PUID"
 const ATTR_MATCH_TYPE: String = "MATCH_TYPE"
 const ATTR_ROOM_CODE: String = "ROOM_CODE"
@@ -44,7 +46,7 @@ func generate_room_code() -> String:
 	return code
 
 
-func create_and_host_session(match_type: MatchType, custom_code: String = "") -> bool:
+func create_and_host_session(match_type: MatchType, custom_code: String = "", free_for_all: bool = false) -> bool:
 	if EOSManager.local_puid.is_empty():
 		var err_msg: String = "Cannot host session: EOS user is not authenticated."
 		push_error("[SessionManager] %s" % err_msg)
@@ -54,10 +56,12 @@ func create_and_host_session(match_type: MatchType, custom_code: String = "") ->
 	if not active_session_name.is_empty():
 		await destroy_active_session()
 
+	var bucket_id := BUCKET_ID if match_type == MatchType.PRIVATE else _quick_match_bucket(free_for_all)
+	var capacity := NetworkManager.MAX_PLAYERS if free_for_all else 2
 	var opts := EOS.Sessions.CreateSessionModificationOptions.new()
 	opts.session_name = SESSION_NAME
-	opts.bucket_id = BUCKET_ID
-	opts.max_players = NetworkManager.MAX_PLAYERS
+	opts.bucket_id = bucket_id
+	opts.max_players = capacity
 	opts.presence_enabled = false
 	opts.sanctions_enabled = false
 
@@ -69,8 +73,8 @@ func create_and_host_session(match_type: MatchType, custom_code: String = "") ->
 		return false
 
 	var session_mod: EOSGSessionModification = mod_res.session_modification
-	session_mod.set_bucket_id(BUCKET_ID)
-	session_mod.set_max_players(NetworkManager.MAX_PLAYERS)
+	session_mod.set_bucket_id(bucket_id)
+	session_mod.set_max_players(capacity)
 	session_mod.set_permission_level(EOS.Sessions.OnlineSessionPermissionLevel.PublicAdvertised)
 	session_mod.set_join_in_progress_allowed(true)
 	session_mod.set_invites_allowed(false)
@@ -104,17 +108,16 @@ func create_and_host_session(match_type: MatchType, custom_code: String = "") ->
 		return false
 
 	if match_type == MatchType.PRIVATE:
-		DisplayServer.clipboard_set(custom_code)
 		room_code_created.emit(custom_code)
-		matchmaking_status_changed.emit("Private room created. Code: %s (copied to clipboard)" % custom_code)
+		matchmaking_status_changed.emit("Private room created. Code: %s" % custom_code)
 	else:
 		matchmaking_status_changed.emit("Waiting for players to join...")
-		_start_host_reconciliation_poll()
+		_start_host_reconciliation_poll(bucket_id)
 
 	return true
 
 
-func _start_host_reconciliation_poll() -> void:
+func _start_host_reconciliation_poll(bucket_id: String) -> void:
 	while is_hosting_session and current_room_code.is_empty():
 		await get_tree().create_timer(randf_range(3.0, 4.5)).timeout
 
@@ -127,7 +130,7 @@ func _start_host_reconciliation_poll() -> void:
 		if not session_search:
 			continue
 
-		session_search.set_parameter(EOS.Sessions.SEARCH_BUCKET_ID, BUCKET_ID, EOS.ComparisonOp.Equal)
+		session_search.set_parameter(EOS.Sessions.SEARCH_BUCKET_ID, bucket_id, EOS.ComparisonOp.Equal)
 		session_search.set_parameter(ATTR_MATCH_TYPE, "QUICK", EOS.ComparisonOp.Equal)
 		session_search.set_parameter(EOS.Sessions.SEARCH_MINSLOTSAVAILABLE, 1, EOS.ComparisonOp.GreaterThanOrEqual)
 
@@ -200,7 +203,11 @@ func _update_session_match_type(match_type_str: String) -> void:
 	print("[SessionManager] Session advertisement updated: MATCH_TYPE = %s" % match_type_str)
 
 
-func start_quick_match() -> void:
+func _quick_match_bucket(free_for_all: bool) -> String:
+	return FFA_BUCKET_ID if free_for_all else DUEL_BUCKET_ID
+
+
+func start_quick_match(free_for_all: bool = false) -> void:
 	is_searching = true
 	matchmaking_status_changed.emit("Finding match...")
 
@@ -222,7 +229,7 @@ func start_quick_match() -> void:
 		matchmaking_failed.emit("Failed to create session search.")
 		return
 
-	session_search.set_parameter(EOS.Sessions.SEARCH_BUCKET_ID, BUCKET_ID, EOS.ComparisonOp.Equal)
+	session_search.set_parameter(EOS.Sessions.SEARCH_BUCKET_ID, _quick_match_bucket(free_for_all), EOS.ComparisonOp.Equal)
 	session_search.set_parameter(ATTR_MATCH_TYPE, "QUICK", EOS.ComparisonOp.Equal)
 	session_search.set_parameter(EOS.Sessions.SEARCH_MINSLOTSAVAILABLE, 1, EOS.ComparisonOp.GreaterThanOrEqual)
 
@@ -274,7 +281,7 @@ func start_quick_match() -> void:
 	matchmaking_status_changed.emit("Finding match...")
 	is_searching = false
 	last_attempted_host_puid = ""
-	await create_and_host_session(MatchType.QUICK)
+	await create_and_host_session(MatchType.QUICK, "", free_for_all)
 
 
 func join_private_room(code: String) -> void:
@@ -404,4 +411,3 @@ func _extract_host_puid(session_search: EOSGSessionSearch, index: int) -> String
 			return str(info.host_address)
 
 	return ""
-

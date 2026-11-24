@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://br863v81gjbes"
+path="res://.godot/imported/Cartoon Human Male Screams While Falling 01.wav-0e6effe91230545934a1502ad40d0b26.sample"
+
+[deps]
+
+source_file="res://Assets/SFX/Audio Candidates/Bomb Death Reactions/Cartoon Human Male Screams While Falling 01.wav"
+dest_files=["res://.godot/imported/Cartoon Human Male Screams While Falling 01.wav-0e6effe91230545934a1502ad40d0b26.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2
