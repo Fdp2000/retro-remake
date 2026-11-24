@@ -90,25 +90,14 @@ static func build_briefcase_rig(parent: Node3D) -> Dictionary:
 
 	var lid_pivot: Node3D = model.find_child("KnogleKuffertTop", true, false) as Node3D
 
-	# Soft interior OmniLight3D (only turned on while opened)
-	var light := OmniLight3D.new()
-	light.name = "BriefcaseInteriorLight"
-	light.position = Vector3(0.0, 0.50, 0.0)
-	light.omni_range = 1.4
-	light.light_energy = 0.85
-	light.visible = false
-	parent.add_child(light)
-
 	return {
 		"root": rig_root,
 		"lid_pivot": lid_pivot,
-		"interior_light": light
+		"interior_light": null
 	}
 
 
-static func set_lid_open_ratio(lid_pivot: Node3D, ratio: float, interior_light: OmniLight3D = null) -> void:
+static func set_lid_open_ratio(lid_pivot: Node3D, ratio: float, _interior_light: OmniLight3D = null) -> void:
 	var clamped: float = clampf(ratio, 0.0, 1.0)
 	if lid_pivot != null and is_instance_valid(lid_pivot):
 		lid_pivot.rotation.x = deg_to_rad(OPEN_LID_ANGLE_DEG * clamped)
-	if interior_light != null and is_instance_valid(interior_light):
-		interior_light.visible = clamped > 0.04

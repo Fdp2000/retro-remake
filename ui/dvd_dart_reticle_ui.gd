@@ -3,7 +3,7 @@ class_name DVDDartReticleUI
 extends Control
 
 ## Bouncing DVD-Logo Crosshair for the 1-Shot DVD Dart Gun (Doc 4 §3.5).
-## Glides across the viewport at 320 px/s, bouncing off screen edges and flashing gold on corner hits.
+## Glides across the viewport at 384 px/s, bouncing off screen edges and flashing gold on corner hits.
 
 const RETICLE_SIZE := Vector2(48.0, 48.0)
 const COOLDOWN_SIZE := Vector2(44.0, 44.0)
@@ -158,7 +158,7 @@ func _randomize_spawn() -> void:
 	var max_x: float = maxf(bounds.x - RETICLE_SIZE.x, 10.0)
 	var max_y: float = maxf(bounds.y - RETICLE_SIZE.y, 10.0)
 	_reticle_graphic.position = Vector2(randf_range(0.0, max_x), randf_range(0.0, max_y))
-	var spd: float = GameConfig.dvd_reticle_speed_px if GameConfig != null else 320.0
+	var spd: float = GameConfig.dvd_reticle_speed_px if GameConfig != null else 384.0
 	var sx: float = -1.0 if randi() % 2 == 0 else 1.0
 	var sy: float = -1.0 if randi() % 2 == 0 else 1.0
 	velocity = Vector2(sx, sy).normalized() * spd
@@ -183,7 +183,7 @@ func _process(delta: float) -> void:
 func step_bounce(delta: float, bounds_size: Vector2) -> bool:
 	if _reticle_graphic == null:
 		_build_visual()
-	var spd: float = GameConfig.dvd_reticle_speed_px if GameConfig != null else 320.0
+	var spd: float = GameConfig.dvd_reticle_speed_px if GameConfig != null else 384.0
 	var norm_dir: Vector2 = velocity.normalized() if velocity.length_squared() > 0.01 else Vector2(0.7071, 0.7071)
 	velocity = norm_dir * spd
 

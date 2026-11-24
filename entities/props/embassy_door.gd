@@ -221,7 +221,7 @@ func rig_water_bucket(owner_peer_id: int, other_side: bool = false) -> bool:
 	bucket_side_sign = -base_sign if other_side else base_sign
 	_apply_closed_visuals()
 	if AudioBridge != null and GameConfig != null:
-		AudioBridge.request_world_cue("trap_arm", _safe_global_pos() + Vector3(0.0, 2.0, 0.0), GameConfig.audio_radius_trap_setup, owner_peer_id)
+		AudioBridge.request_world_cue("bucket_arm", _safe_global_pos() + Vector3(0.0, 2.0, 0.0), GameConfig.audio_radius_bucket_arm, owner_peer_id)
 	if _is_peer_connected():
 		_rpc_sync_door.rpc(is_open, current_target_angle_rad, 0.0, has_rigged_bucket, bucket_side_sign)
 	return true
@@ -464,12 +464,31 @@ func _resolve_bucket_drop(opener_peer_id: int, opener_pos: Vector3, owner_id: in
 func _apply_bucket_impact(opener_peer_id: int, opener_pos: Vector3, owner_id: int, drop_world_pos: Vector3) -> void:
 	var flat_dist: float = Vector2(opener_pos.x - drop_world_pos.x, opener_pos.z - drop_world_pos.z).length()
 	var hit_radius: float = GameConfig.bucket_hit_radius if GameConfig != null else 1.2
-	if AudioBridge != null and GameConfig != null:
-		AudioBridge.request_world_cue("bucket_spill", drop_world_pos, GameConfig.audio_radius_bucket_spill, owner_id)
+	var ko_hit: bool = false
 	if flat_dist <= hit_radius:
 		var player: Node = _find_player_node(opener_peer_id)
 		if player != null and player.has_method("apply_trap_ko"):
+			ko_hit = true
+			if is_inside_tree():
+				if _is_peer_connected():
+					_rpc_clear_bucket_drop_fx.rpc()
+				else:
+					_rpc_clear_bucket_drop_fx()
+			if AudioBridge != null and GameConfig != null:
+				var ko_rad: float = GameConfig.audio_radius_spring_trigger
+				AudioBridge.request_world_cue("bucket_spill", Vector3(drop_world_pos.x, 1.35, drop_world_pos.z), ko_rad, owner_id)
 			player.apply_trap_ko("BUCKET", owner_id)
+	if not ko_hit and AudioBridge != null and GameConfig != null:
+		var impact_delay: float = GameConfig.bucket_fall_impact_delay if GameConfig != null else 0.10
+		var ground_wait: float = maxf(0.18 - impact_delay, 0.0)
+		var ground_pos := Vector3(drop_world_pos.x, 0.25, drop_world_pos.z)
+		if ground_wait <= 0.005 or not is_inside_tree() or Engine.is_editor_hint():
+			AudioBridge.request_world_cue("bucket_spill", ground_pos, GameConfig.audio_radius_bucket_spill, owner_id)
+		else:
+			get_tree().create_timer(ground_wait).timeout.connect(func():
+				if AudioBridge != null and GameConfig != null:
+					AudioBridge.request_world_cue("bucket_spill", ground_pos, GameConfig.audio_radius_bucket_spill, owner_id)
+			)
 
 
 static func _get_splash_mesh() -> CylinderMesh:
@@ -497,6 +516,7 @@ func _rpc_play_bucket_drop_fx(drop_local_pos: Vector3) -> void:
 	fx_root.name = "BucketDropFX"
 	add_child(fx_root)
 	var falling: Node3D = PICKUP_SCRIPT.build_item_visual("BUCKET")
+	falling.name = "FallingBucket"
 	falling.position = drop_local_pos
 	fx_root.add_child(falling)
 	var tw := fx_root.create_tween()
@@ -515,9 +535,19 @@ func _rpc_play_bucket_drop_fx(drop_local_pos: Vector3) -> void:
 		var stw := fx_root.create_tween()
 		stw.tween_property(splash, "scale", Vector3(hit_r * 3.5, 1.0, hit_r * 3.5), 0.22).set_ease(Tween.EASE_OUT)
 		stw.tween_property(splash, "scale", Vector3(0.01, 1.0, 0.01), 0.33).set_ease(Tween.EASE_IN)
-		stw.parallel().tween_property(falling, "position:y", -0.20, 0.33)
+		if is_instance_valid(falling):
+			stw.parallel().tween_property(falling, "position:y", -0.20, 0.33)
 		stw.tween_callback(fx_root.queue_free)
 	)
+
+
+@rpc("authority", "call_local", "reliable")
+func _rpc_clear_bucket_drop_fx() -> void:
+	var fx_root: Node = get_node_or_null("BucketDropFX")
+	if fx_root != null and is_instance_valid(fx_root):
+		var falling: Node = fx_root.get_node_or_null("FallingBucket")
+		if falling != null and is_instance_valid(falling):
+			falling.queue_free()
 
 
 @rpc("authority", "call_local", "reliable")

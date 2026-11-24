@@ -27,6 +27,60 @@ const DEFAULT_CUE_ASSET_PATHS: Dictionary = {
 	"bomb_hiss": [
 		"res://Assets/SFX/Bomb/BombFuse.wav",
 	],
+	"bomb_explode": [
+		"res://Assets/SFX/Bomb/BombExplosion.wav",
+	],
+	"player_ko": [
+		"res://Assets/SFX/KO/TomScreamKO.wav",
+	],
+	"loot_sound": [
+		"res://Assets/SFX/Interact Sound/loot sound.wav",
+	],
+	"bucket_arm": [
+		"res://Assets/SFX/water bucket/BucketArm.wav",
+	],
+	"bucket_spill": [
+		"res://Assets/SFX/water bucket/BucketTrigger.wav",
+	],
+	"bomb_arm": [
+		"res://Assets/SFX/Bomb/BombArm.wav",
+	],
+	"spring_arm": [
+		"res://Assets/SFX/Spring/SpringArm.wav",
+	],
+	"tripwire_arm": [
+		"res://Assets/SFX/Tripwire/TripwirePolePlace.wav",
+	],
+	"tripwire_snap": [
+		"res://Assets/SFX/Spring/SpringArm.wav",
+	],
+	"dart_gun_equip": [
+		"res://Assets/SFX/DartGun/DartGunEquip.wav",
+	],
+	"dart_fire": [
+		"res://Assets/SFX/DartGun/DartGunFire.wav",
+	],
+	"player_jump": [
+		"res://Assets/SFX/Player/PlayerJump.wav",
+	],
+	"footstep_walk": [
+		"res://Assets/SFX/Player/ConcreteFootstep_01.wav",
+		"res://Assets/SFX/Player/ConcreteFootstep_02.wav",
+		"res://Assets/SFX/Player/ConcreteFootstep_03.wav",
+		"res://Assets/SFX/Player/ConcreteFootstep_04.wav",
+	],
+	"footstep_sprint": [
+		"res://Assets/SFX/Player/ConcreteFootstep_01.wav",
+		"res://Assets/SFX/Player/ConcreteFootstep_02.wav",
+		"res://Assets/SFX/Player/ConcreteFootstep_03.wav",
+		"res://Assets/SFX/Player/ConcreteFootstep_04.wav",
+	],
+	"spring_trigger": [
+		"res://Assets/SFX/Spring/SpringTrigger_01.wav",
+		"res://Assets/SFX/Spring/SpringTrigger_02.wav",
+		"res://Assets/SFX/Spring/SpringTrigger_03.wav",
+		"res://Assets/SFX/Spring/SpringTrigger_04.wav",
+	],
 }
 
 const EXPLOSION_SMOKE_TEX: Texture2D = preload("res://Assets/Sprites/SmokeParticle.png")
@@ -107,7 +161,7 @@ func _rpc_emit_reliable_world_cue(cue_id: String, world_pos: Vector3, radius: fl
 
 
 ## Plays a 3D spatial cue locally and evaluates client-side raycast occlusion against Layer 1 (Environment).
-func play_world_cue(cue_id: String, world_pos: Vector3, radius: float, source_peer_id: int = 0) -> void:
+func play_world_cue(cue_id: String, world_pos: Vector3, radius: float, source_peer_id: int = 0, follow_node: Node3D = null) -> void:
 	if radius <= 0.0:
 		return
 
@@ -132,12 +186,93 @@ func play_world_cue(cue_id: String, world_pos: Vector3, radius: float, source_pe
 	_pool_cursor = (_pool_cursor + 1) % EMITTER_POOL_SIZE
 
 	emitter.set_meta("cue_id", resolved_cue)
-	emitter.global_position = world_pos
-	emitter.unit_size = 8.0 if resolved_cue == "bomb_hiss" else 4.0
+	emitter.follow_target = follow_node
+	emitter.global_position = follow_node.global_position if (follow_node != null and is_instance_valid(follow_node) and follow_node.is_inside_tree()) else world_pos
+	if resolved_cue == "player_ko":
+		var local_id: int = multiplayer.get_unique_id() if multiplayer.has_multiplayer_peer() else 1
+		var is_self_ko: bool = (source_peer_id != 0 and source_peer_id == local_id)
+		emitter.unit_size = 14.0
+		emitter.max_db = -3.0
+		emitter.base_volume_db = -22.0 if is_self_ko else -13.0
+		emitter.occluded_cutoff_hz = 7500.0
+		emitter.occluded_volume_drop_db = -0.5
+	elif resolved_cue == "bomb_explode" or resolved_cue == "dart_fire":
+		emitter.unit_size = 16.0
+		emitter.max_db = 0.0
+		emitter.base_volume_db = -8.0
+		emitter.occluded_cutoff_hz = 5500.0
+		emitter.occluded_volume_drop_db = -1.5
+	elif resolved_cue == "bomb_hiss":
+		emitter.unit_size = 8.0
+		emitter.max_db = 3.0
+		emitter.base_volume_db = 0.0
+		emitter.occluded_cutoff_hz = OCCLUSION_LOWPASS_HZ
+		emitter.occluded_volume_drop_db = OCCLUDED_VOLUME_DROP_DB
+	elif resolved_cue == "bucket_arm" or resolved_cue == "player_jump":
+		emitter.unit_size = 1.5
+		emitter.max_db = 2.0
+		emitter.base_volume_db = 0.0
+		emitter.occluded_cutoff_hz = OCCLUSION_LOWPASS_HZ
+		emitter.occluded_volume_drop_db = OCCLUDED_VOLUME_DROP_DB
+	elif resolved_cue == "bucket_spill":
+		var is_ko_splash: bool = radius >= 20.0
+		emitter.unit_size = 12.0 if is_ko_splash else 6.0
+		emitter.max_db = 2.0
+		emitter.base_volume_db = -2.0
+		emitter.occluded_cutoff_hz = 5500.0 if is_ko_splash else OCCLUSION_LOWPASS_HZ
+		emitter.occluded_volume_drop_db = -1.5 if is_ko_splash else OCCLUDED_VOLUME_DROP_DB
+	elif resolved_cue == "bomb_arm":
+		emitter.unit_size = 2.0
+		emitter.max_db = 4.0
+		emitter.base_volume_db = 2.0
+		emitter.occluded_cutoff_hz = 6000.0
+		emitter.occluded_volume_drop_db = -1.5
+	elif resolved_cue == "spring_arm":
+		emitter.unit_size = 2.5
+		emitter.max_db = 6.0
+		emitter.base_volume_db = 4.0
+		emitter.occluded_cutoff_hz = 6000.0
+		emitter.occluded_volume_drop_db = -1.5
+	elif resolved_cue == "tripwire_arm":
+		emitter.unit_size = 2.0
+		emitter.max_db = 3.0
+		emitter.base_volume_db = 0.0
+		emitter.occluded_cutoff_hz = OCCLUSION_LOWPASS_HZ
+		emitter.occluded_volume_drop_db = OCCLUDED_VOLUME_DROP_DB
+	elif resolved_cue == "tripwire_snap":
+		emitter.unit_size = 12.0
+		emitter.max_db = 4.0
+		emitter.base_volume_db = 2.5
+		emitter.occluded_cutoff_hz = 5500.0
+		emitter.occluded_volume_drop_db = -1.5
+	elif resolved_cue == "dart_gun_equip":
+		emitter.unit_size = 2.0
+		emitter.max_db = 2.0
+		emitter.base_volume_db = -2.0
+		emitter.occluded_cutoff_hz = OCCLUSION_LOWPASS_HZ
+		emitter.occluded_volume_drop_db = OCCLUDED_VOLUME_DROP_DB
+	elif resolved_cue == "spring_trigger":
+		emitter.unit_size = 12.0
+		emitter.max_db = 3.0
+		emitter.base_volume_db = -1.0
+		emitter.occluded_cutoff_hz = 5500.0
+		emitter.occluded_volume_drop_db = -1.5
+	elif resolved_cue == "footstep_walk" or resolved_cue == "footstep_sprint":
+		var is_sprint: bool = resolved_cue == "footstep_sprint"
+		emitter.unit_size = 4.0 if is_sprint else 1.5
+		emitter.max_db = -10.0
+		emitter.base_volume_db = -15.0 if is_sprint else -19.0
+		emitter.occluded_cutoff_hz = OCCLUSION_LOWPASS_HZ
+		emitter.occluded_volume_drop_db = OCCLUDED_VOLUME_DROP_DB
+	else:
+		emitter.unit_size = 4.0
+		emitter.max_db = 3.0
+		emitter.base_volume_db = 0.0
+		emitter.occluded_cutoff_hz = OCCLUSION_LOWPASS_HZ
+		emitter.occluded_volume_drop_db = OCCLUDED_VOLUME_DROP_DB
 	emitter.max_distance = maxf(radius, 0.5)
 	emitter.stream = stream
-	emitter.pitch_scale = randf_range(0.95, 1.05)
-	emitter.base_volume_db = 0.0
+	emitter.pitch_scale = randf_range(0.88, 1.12) if (resolved_cue == "footstep_walk" or resolved_cue == "footstep_sprint") else randf_range(0.95, 1.05)
 
 	# Client-side line-of-sight occlusion check against Layer 1 (solid walls & closed doors)
 	emitter.snap_occlusion_immediately()
@@ -181,6 +316,23 @@ func resolve_surface_cue(cue_id: String, world_pos: Vector3) -> String:
 	return cue_id
 
 
+## Plays a non-spatial 2D cue for a specific peer only (e.g. container item take/put UI feedback).
+func play_local_cue_for_peer(target_peer_id: int, cue_id: String) -> void:
+	if multiplayer.has_multiplayer_peer() and multiplayer.multiplayer_peer.get_connection_status() == MultiplayerPeer.CONNECTION_CONNECTED:
+		var local_id: int = multiplayer.get_unique_id()
+		if target_peer_id <= 0 or target_peer_id == local_id:
+			play_local_cue(cue_id)
+		else:
+			_rpc_play_local_cue.rpc_id(target_peer_id, cue_id)
+	else:
+		play_local_cue(cue_id)
+
+
+@rpc("authority", "call_local", "reliable")
+func _rpc_play_local_cue(cue_id: String) -> void:
+	play_local_cue(cue_id)
+
+
 ## Plays a non-spatial 2D cue for the local player only (e.g. +10s clock ding, 15s sniffle warning).
 func play_local_cue(cue_id: String) -> void:
 	_record_cue(cue_id, Vector3.ZERO, 0.0, multiplayer.get_unique_id() if multiplayer.has_multiplayer_peer() else 1)
@@ -194,7 +346,7 @@ func play_local_cue(cue_id: String) -> void:
 	if stream == null:
 		return
 	_local_player.stream = stream
-	_local_player.pitch_scale = 1.0
+	_local_player.pitch_scale = randf_range(0.92, 1.08) if cue_id == "loot_sound" else 1.0
 	_local_player.play()
 
 
@@ -232,6 +384,16 @@ func _get_active_world_3d() -> World3D:
 
 
 func _get_stream_for_cue(cue_id: String) -> AudioStream:
+	if not _custom_sound_banks.has(cue_id) and DEFAULT_CUE_ASSET_PATHS.has(cue_id):
+		var streams: Array[AudioStream] = []
+		for path_var in DEFAULT_CUE_ASSET_PATHS[cue_id]:
+			var path: String = str(path_var)
+			if ResourceLoader.exists(path):
+				var s: AudioStream = load(path) as AudioStream
+				if s != null:
+					streams.append(s)
+		if not streams.is_empty():
+			register_cue_bank(cue_id, streams)
 	if _custom_sound_banks.has(cue_id):
 		var bank: Array = _custom_sound_banks[cue_id]
 		if not bank.is_empty():

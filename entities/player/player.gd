@@ -699,8 +699,11 @@ func select_jacket_slot(slot_index: int) -> bool:
 
 
 func cycle_jacket_slot(step: int) -> bool:
+	var prev_slot: int = active_jacket_slot
+	var prev_mode: int = right_hand_mode
 	var ok: bool = _inv().cycle_jacket_slot(step)
 	if ok:
+		var changed: bool = (active_jacket_slot != prev_slot or right_hand_mode != prev_mode)
 		cancel_tripwire_placement()
 		_refresh_hand_and_back_sockets()
 		_update_hud_status()
@@ -827,7 +830,8 @@ func trigger_held_briefcase_spring_ko() -> void:
 	inv.briefcase_spring_unlatched = false
 	inv.briefcase_spring_owner_id = 0
 	if AudioBridge != null:
-		AudioBridge.request_world_cue("spring_trigger", _safe_global_pos(), 10.0, owner_id)
+		var spring_rad: float = GameConfig.audio_radius_spring_trigger if GameConfig != null else 38.0
+		AudioBridge.request_world_cue("spring_trigger", _safe_global_pos() + Vector3(0.0, 1.1, 0.0), spring_rad, owner_id)
 	var back_dir: Vector3 = global_transform.basis.z.normalized() if is_inside_tree() else Vector3(0.0, 0.0, 1.0)
 	apply_trap_ko("SPRING", owner_id, back_dir * 13.5 + Vector3(0.0, 6.0, 0.0))
 
@@ -964,7 +968,7 @@ func _rpc_server_briefcase_trap_action(action: String, slot_arg: int = 0, norm_p
 				inv.briefcase_staged_spring = true
 				inv.briefcase_spring_owner_id = peer_id
 				if AudioBridge != null and GameConfig != null:
-					AudioBridge.request_world_cue("trap_arm", _safe_global_pos(), GameConfig.audio_radius_trap_setup, peer_id)
+					AudioBridge.request_world_cue("spring_arm", _safe_global_pos() + Vector3(0.0, 1.1, 0.0), GameConfig.audio_radius_spring_arm, peer_id)
 		"STEAL_SPRING":
 			if inv.briefcase_spring_unlatched:
 				var placed: bool = false
@@ -988,7 +992,7 @@ func _rpc_server_briefcase_trap_action(action: String, slot_arg: int = 0, norm_p
 					inv.briefcase_staged_spring = true
 					inv.briefcase_spring_owner_id = peer_id
 					if AudioBridge != null and GameConfig != null:
-						AudioBridge.request_world_cue("trap_arm", _safe_global_pos(), GameConfig.audio_radius_trap_setup, peer_id)
+						AudioBridge.request_world_cue("spring_arm", _safe_global_pos() + Vector3(0.0, 1.1, 0.0), GameConfig.audio_radius_spring_arm, peer_id)
 		"PLANT_BOMB":
 			if slot_arg >= 0 and slot_arg < inv.jacket_slots.size() and inv.jacket_slots[slot_arg] == "BOMB":
 				if not inv.briefcase_armed_bomb and not inv.briefcase_staged_bomb and not inv.briefcase_live_bomb_lit:
@@ -1000,7 +1004,7 @@ func _rpc_server_briefcase_trap_action(action: String, slot_arg: int = 0, norm_p
 					else:
 						inv.set_briefcase_bomb_position(BRIEFCASE_BUILDER.DEFAULT_BOMB_NORM_POS)
 					if AudioBridge != null and GameConfig != null:
-						AudioBridge.request_world_cue("trap_arm", _safe_global_pos(), GameConfig.audio_radius_trap_setup, peer_id)
+						AudioBridge.request_world_cue("bomb_arm", _safe_global_pos() + Vector3(0.0, 1.1, 0.0), GameConfig.audio_radius_bomb_arm, peer_id)
 		"GRAB_LIT_BOMB":
 			if inv.briefcase_live_bomb_lit:
 				var rem: float = inv.briefcase_live_bomb_fuse_remaining
@@ -1291,6 +1295,14 @@ func _rpc_apply_ko_state(
 			right_hand_socket.visible = false
 		_sync_camera_to_ragdoll_head()
 		_sync_visual_rig_sockets_to_skeleton()
+		if AudioBridge != null:
+			var ko_rad: float = GameConfig.audio_radius_player_ko if GameConfig != null else 42.0
+			var follow_head: Node3D = null
+			if _ragdoll_ctrl != null:
+				follow_head = _ragdoll_ctrl.physical_bones.get("spine.006", null) as Node3D
+			if follow_head == null:
+				follow_head = head if head != null else self
+			AudioBridge.play_world_cue("player_ko", _safe_global_pos() + Vector3(0.0, 1.2, 0.0), ko_rad, name.to_int(), follow_head)
 	else:
 		if _ragdoll_ctrl != null:
 			_ragdoll_ctrl.stop_ragdoll()
@@ -1646,6 +1658,8 @@ func server_pickup_world_item(
 			res.get("dropped_briefcase_bomb_pos", BRIEFCASE_BUILDER.DEFAULT_BOMB_NORM_POS)
 		)
 
+	if AudioBridge != null:
+		AudioBridge.play_local_cue_for_peer(name.to_int(), "loot_sound")
 	_sync_inventory_state_to_peers()
 	return true
 
@@ -2000,8 +2014,6 @@ func _rpc_server_rig_bucket_on_door(door_path: NodePath, other_side: bool = fals
 	if bool(door_node.call("rig_water_bucket", name.to_int(), other_side)):
 		_inv().consume_active_jacket_slot("BUCKET")
 		_sync_inventory_state_to_peers()
-		if AudioBridge != null and door_node is Node3D:
-			AudioBridge.request_world_cue("trap_arm", (door_node as Node3D).global_position, 6.0, name.to_int())
 
 
 func deploy_tripwire_between(pole1_pos: Vector3, pole2_pos: Vector3) -> void:
@@ -2045,7 +2057,8 @@ func _rpc_server_deploy_tripwire(pole1_pos: Vector3, pole2_pos: Vector3) -> void
 	var trap_name: String = "Tripwire_%s_%d" % [name, _action_counter]
 	var mid_pos: Vector3 = (pole1_pos + pole2_pos) * 0.5
 	if AudioBridge != null:
-		AudioBridge.request_world_cue("trap_arm", mid_pos, 6.0, name.to_int())
+		var pole_rad: float = GameConfig.audio_radius_tripwire_arm if GameConfig != null else 4.0
+		AudioBridge.request_world_cue("tripwire_arm", pole2_pos + Vector3(0.0, 0.25, 0.0), pole_rad, name.to_int())
 	if _is_peer_connected():
 		_rpc_spawn_tripwire.rpc(trap_name, pole1_pos, pole2_pos, name.to_int())
 	else:
@@ -2242,7 +2255,7 @@ func _execute_dart_shot(ray_origin: Vector3, ray_dir: Vector3) -> bool:
 		_spawn_dart_muzzle_smoke(tp_muzzle["pos"] as Vector3, tp_muzzle["dir"] as Vector3, get_crt_body_visual_layer())
 	var shooter_id: int = name.to_int()
 	if AudioBridge != null:
-		var dart_rad: float = GameConfig.audio_radius_trap_setup if GameConfig != null else 5.0
+		var dart_rad: float = GameConfig.audio_radius_dart_fire if GameConfig != null else 48.0
 		AudioBridge.request_world_cue("dart_fire", ray_origin, dart_rad, shooter_id)
 	if not is_inside_tree() or get_world_3d() == null or get_world_3d().direct_space_state == null:
 		return false
@@ -2569,6 +2582,8 @@ func _update_lmb_trap_hold(delta: float) -> void:
 			hold_progress_bar.visible = false
 		return
 	var hold_req: float = GameConfig.trap_setup_hold_time if GameConfig != null else 0.80
+	if _lmb_trap_mode == "BUCKET":
+		hold_req *= 0.5
 	_lmb_trap_hold_elapsed += delta
 	if hold_progress_bar != null:
 		hold_progress_bar.visible = true
@@ -3466,6 +3481,9 @@ func _process(delta: float) -> void:
 		return
 
 	var aiming_dart_now: bool = _is_aiming_dart_gun()
+	if aiming_dart_now and not _was_aiming_dart_gun and AudioBridge != null:
+		var equip_rad: float = GameConfig.audio_radius_dart_gun_equip if GameConfig != null else 4.0
+		AudioBridge.request_world_cue("dart_gun_equip", _safe_global_pos() + Vector3(0.0, 1.35, 0.0), equip_rad, name.to_int())
 	if _was_aiming_dart_gun and not aiming_dart_now and not _dart_shot_pending_consume:
 		_dart_aim_cooldown = DART_AIM_COOLDOWN_DURATION
 	_was_aiming_dart_gun = aiming_dart_now
@@ -4617,6 +4635,9 @@ func _physics_process(delta: float) -> void:
 	)
 	if can_jump and (Input.is_action_just_pressed("jump") or Input.is_key_pressed(KEY_SPACE)):
 		velocity.y = GameConfig.jump_velocity if GameConfig != null else jump_velocity
+		if AudioBridge != null:
+			var jump_rad: float = GameConfig.audio_radius_jump if GameConfig != null else 4.0
+			AudioBridge.request_world_cue("player_jump", global_position, jump_rad, name.to_int())
 
 	var input_dir: Vector2 = Vector2.ZERO
 	if movement_allowed and (controls_captured or _can_walk_with_map()) and not aiming_dart:
@@ -4739,7 +4760,7 @@ func _tick_footsteps(delta: float) -> void:
 	if radius <= 0.0:
 		return
 
-	var interval: float = 0.32 if stance_state == (GameConfig.Stance.SPRINT if GameConfig != null else 1) else 0.48
+	var interval: float = 0.32 if stance_state == (GameConfig.Stance.SPRINT if GameConfig != null else 1) else 0.44
 	_footstep_timer += delta
 	if _footstep_timer >= interval:
 		_footstep_timer = 0.0

@@ -240,7 +240,7 @@ func evaluate_aim_from_hit(
 
 
 static func validate_floor_surface(hit_col: Object, hit_normal: Vector3, hit_distance: float) -> Dictionary:
-	var reach: float = GameConfig.interact_reach if GameConfig != null else 2.2
+	var reach: float = GameConfig.tripwire_place_reach if GameConfig != null else 3.00
 	if hit_distance > reach + 0.01:
 		return {"valid": false, "reason": InvalidReason.OUT_OF_REACH}
 
@@ -426,7 +426,7 @@ func _query_camera_aim() -> void:
 
 	var origin: Vector3 = cam.global_position
 	var fwd: Vector3 = -cam.global_transform.basis.z.normalized()
-	var reach: float = GameConfig.interact_reach if GameConfig != null else 2.2
+	var reach: float = GameConfig.tripwire_place_reach if GameConfig != null else 3.00
 	var ray_len: float = maxf(PREVIEW_RAY_LENGTH, reach + 2.0)
 	var mask: int = (GameConfig.LAYER_ENVIRONMENT | GameConfig.LAYER_INTERACTABLE) if GameConfig != null else 3
 	var exclude: Array[RID] = []
@@ -463,6 +463,10 @@ func _complete_active_step() -> void:
 		_hold_active = false
 		_hold_elapsed = 0.0
 		_require_lmb_release = true
+		if AudioBridge != null:
+			var pole_rad: float = GameConfig.audio_radius_tripwire_arm if GameConfig != null else 4.0
+			var owner_id: int = _owner_player.name.to_int() if (_owner_player != null and is_instance_valid(_owner_player)) else 0
+			AudioBridge.request_world_cue("tripwire_arm", first_pole_pos + Vector3(0.0, 0.25, 0.0), pole_rad, owner_id)
 		return
 
 	if current_step == Step.PLACING_SECOND_POLE:

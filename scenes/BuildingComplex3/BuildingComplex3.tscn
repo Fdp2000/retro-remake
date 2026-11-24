@@ -1302,7 +1302,7 @@ surface_material_override/0 = SubResource("StandardMaterial3D_3iwir")
 surface_material_override/1 = SubResource("StandardMaterial3D_3iwir")
 
 [node name="Floor_0_1" parent="Rooms/Room_3_2" unique_id=659673239 instance=ExtResource("floor")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0, 0.005)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0, 0)
 surface_material_override/0 = SubResource("StandardMaterial3D_3iwir")
 surface_material_override/1 = SubResource("StandardMaterial3D_3iwir")
 
@@ -3786,5 +3786,5 @@ script = ExtResource("ladder_layout")
 
 [node name="DistantSkyline" parent="." unique_id=1621596081 instance=ExtResource("distant_skyline")]
 
-[editable path="SecondFloor"]
 [editable path="Rooms/Room_2_1/SW_Rug"]
+[editable path="SecondFloor"]

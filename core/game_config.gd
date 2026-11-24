@@ -124,7 +124,7 @@ static func get_spy_role_badge_color(role: int) -> Color:
 @export_group("Speed Multipliers")
 @export var speed_mult_normal: float = 1.00
 @export var speed_mult_briefcase: float = 0.90
-@export var speed_mult_club_charge: float = 0.35
+@export var speed_mult_club_charge: float = 0.555556
 @export var speed_mult_locked: float = 0.00
 
 # ==========================================
@@ -178,6 +178,7 @@ static func get_spy_role_badge_color(role: int) -> Color:
 @export var tripwire_pole_hold_time: float = 0.40
 @export var tripwire_min_span: float = 0.40
 @export var tripwire_max_span: float = 2.50
+@export var tripwire_place_reach: float = 3.00
 @export var tripwire_height: float = 0.35
 @export var tripwire_ladder_safe_radius: float = 1.90
 @export var time_bomb_fuse_min: float = 2.9
@@ -188,7 +189,7 @@ static func get_spy_role_badge_color(role: int) -> Color:
 @export var time_bomb_throw_speed: float = 9.5
 @export var time_bomb_blast_radius: float = 5.7
 @export var time_bomb_self_catch_ignore_time: float = 0.25
-@export var dvd_reticle_speed_px: float = 320.0
+@export var dvd_reticle_speed_px: float = 384.0
 
 # ==========================================
 # Doc 5: Club Combat QTE & 15s Ragdoll KO [TUNABLE]
@@ -197,7 +198,7 @@ static func get_spy_role_badge_color(role: int) -> Color:
 @export var club_quick_tap_threshold: float = 0.20
 @export var club_feint_cooldown: float = 0.40
 @export var club_whiff_recovery_time: float = 0.60
-@export var club_charge_fill_duration: float = 3.20
+@export var club_charge_fill_duration: float = 2.71
 @export var club_green_zone_width: float = 0.09
 @export var club_green_zone_min_start: float = 0.55
 @export var club_green_zone_max_start: float = 0.75
@@ -216,9 +217,10 @@ static func get_spy_role_badge_color(role: int) -> Color:
 # Doc 6: Spatial Audio Radii, Deception & CRT Replay [TUNABLE]
 # ==========================================
 @export_group("Audio Radii & Deception")
-@export var audio_radius_walk: float = 3.0
+@export var audio_radius_walk: float = 4.0
 @export var audio_radius_sprint: float = 14.0
 @export var audio_radius_crouch: float = 0.0
+@export var audio_radius_jump: float = 4.0
 @export var audio_radius_jump_land: float = 5.0
 @export var audio_radius_door_fast: float = 8.0
 @export var audio_radius_door_bash: float = 14.0
@@ -226,11 +228,20 @@ static func get_spy_role_badge_color(role: int) -> Color:
 @export var audio_radius_bucket_spill: float = 12.0
 @export var audio_radius_drawer_fast: float = 10.0
 @export var audio_radius_trap_setup: float = 5.0
+@export var audio_radius_bucket_arm: float = 4.0
+@export var audio_radius_bomb_arm: float = 3.0
+@export var audio_radius_spring_arm: float = 3.0
+@export var audio_radius_tripwire_arm: float = 3.0
+@export var audio_radius_tripwire_snap: float = 38.0
+@export var audio_radius_dart_gun_equip: float = 4.0
+@export var audio_radius_dart_fire: float = 48.0
+@export var audio_radius_spring_trigger: float = 38.0
 @export var audio_radius_bomb_fuse: float = 15.0
-@export var audio_radius_bomb_explosion: float = 20.0
+@export var audio_radius_bomb_explosion: float = 48.0
 @export var audio_radius_proximity_voice: float = 24.0
 @export var audio_radius_bluff: float = 12.0
 @export var audio_radius_sneeze: float = 22.0
+@export var audio_radius_player_ko: float = 42.0
 
 @export var bluff_mode: int = BluffMode.MAP_PROJECTOR
 @export var show_enemy_room_blip: bool = false
@@ -679,7 +690,7 @@ func compute_final_move_speed(stance: int, has_briefcase: bool, is_charging_club
 	var action_mult: float = lerpf(speed_mult_normal, speed_mult_club_charge, clampf(club_charge_progress, 0.0, 1.0)) if is_charging_club else speed_mult_normal
 	var final_speed: float = base_speed * hand_mult * action_mult
 	if is_charging_club:
-		final_speed = maxf(final_speed, walk_speed * speed_mult_club_charge * hand_mult)
+		final_speed = maxf(final_speed, crouch_speed * hand_mult)
 	return final_speed
 
 

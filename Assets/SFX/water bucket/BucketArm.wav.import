@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://u11v2183718j"
+path="res://.godot/imported/BucketArm.wav-ff9a4f7f747d22468df741d3dc9021c9.sample"
+
+[deps]
+
+source_file="res://Assets/SFX/water bucket/BucketArm.wav"
+dest_files=["res://.godot/imported/BucketArm.wav-ff9a4f7f747d22468df741d3dc9021c9.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2

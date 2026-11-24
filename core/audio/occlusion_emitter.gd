@@ -14,6 +14,7 @@ extends AudioStreamPlayer3D
 @export var parent_bus: StringName = &"SFX"
 @export var use_dedicated_lowpass_bus: bool = true
 @export var always_evaluate_occlusion: bool = false
+var follow_target: Node3D = null
 
 var _dedicated_bus_name: StringName = &""
 var _lowpass_effect: AudioEffectLowPassFilter = null
@@ -96,6 +97,10 @@ func _physics_process(delta: float) -> void:
 func _process(delta: float) -> void:
 	if Engine.is_editor_hint():
 		return
+	if not playing:
+		follow_target = null
+	if playing and follow_target != null and is_instance_valid(follow_target) and follow_target.is_inside_tree():
+		global_position = follow_target.global_position
 	if not (playing or always_evaluate_occlusion):
 		return
 

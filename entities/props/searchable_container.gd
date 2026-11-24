@@ -808,7 +808,8 @@ func _trigger_spring_trap_ko(_peer_id: int, player: Node) -> void:
 	drawer_visual_ratio = 0.0
 	_opened_effects_applied = false
 	if AudioBridge != null:
-		AudioBridge.request_world_cue("spring_trigger", _safe_global_pos(), 10.0, owner_id)
+		var spring_rad: float = GameConfig.audio_radius_spring_trigger if GameConfig != null else 38.0
+		AudioBridge.request_world_cue("spring_trigger", _safe_global_pos() + Vector3(0.0, 0.85, 0.0), spring_rad, owner_id)
 	if player != null and player.has_method("apply_trap_ko"):
 		var spring_dir: Vector3 = global_transform.basis.z.normalized() if is_inside_tree() else Vector3(0.0, 0.0, 1.0)
 		var spring_kick: Vector3 = spring_dir * 13.5 + Vector3(0.0, 6.0, 0.0)
@@ -1040,7 +1041,7 @@ func rearm_unlatched_spring_on_lip(peer_id: int) -> bool:
 	staged_spring_on_lip = true
 	spring_owner_peer_id = peer_id
 	if AudioBridge != null and GameConfig != null:
-		AudioBridge.request_world_cue("trap_arm", _safe_global_pos(), GameConfig.audio_radius_trap_setup, peer_id)
+		AudioBridge.request_world_cue("spring_arm", _safe_global_pos() + Vector3(0.0, 0.85, 0.0), GameConfig.audio_radius_spring_arm, peer_id)
 	_sync_back_to_briefcase_pickup()
 	_sync_state_to_peers()
 	return true
@@ -1077,6 +1078,8 @@ func loot_item_to_player(
 			item_positions.erase(upper)
 			_has_player_modified_layout = true
 			_ensure_item_positions()
+			if AudioBridge != null:
+				AudioBridge.play_local_cue_for_peer(peer_id, "loot_sound")
 			_sync_back_to_briefcase_pickup()
 			_sync_state_to_peers()
 			return true
@@ -1096,6 +1099,8 @@ func loot_item_to_player(
 						item_positions[prev_obj] = prev_pos as Vector2
 				_has_player_modified_layout = true
 				_ensure_item_positions()
+				if AudioBridge != null:
+					AudioBridge.play_local_cue_for_peer(peer_id, "loot_sound")
 				_sync_back_to_briefcase_pickup()
 				_sync_state_to_peers()
 				return true
@@ -1133,6 +1138,8 @@ func loot_item_to_player(
 					item_positions.erase(upper)
 				_has_player_modified_layout = true
 				_ensure_item_positions()
+				if AudioBridge != null:
+					AudioBridge.play_local_cue_for_peer(peer_id, "loot_sound")
 				_sync_back_to_briefcase_pickup()
 				_sync_state_to_peers()
 				return true
@@ -1181,6 +1188,7 @@ func loot_item_to_player(
 			_ensure_item_positions()
 			if AudioBridge != null:
 				AudioBridge.request_world_cue("paper_rustle", _safe_global_pos(), 4.0, peer_id)
+				AudioBridge.play_local_cue_for_peer(peer_id, "loot_sound")
 			_sync_back_to_briefcase_pickup()
 			_sync_state_to_peers()
 			return true
@@ -1193,6 +1201,8 @@ func loot_item_to_player(
 		item_positions.erase(upper)
 	_has_player_modified_layout = true
 	_ensure_item_positions()
+	if AudioBridge != null:
+		AudioBridge.play_local_cue_for_peer(peer_id, "loot_sound")
 	_sync_back_to_briefcase_pickup()
 	_sync_state_to_peers()
 	return true
@@ -1233,6 +1243,7 @@ func deposit_left_hand_item(peer_id: int, player_override: Node = null, norm_pos
 	_ensure_item_positions()
 	if AudioBridge != null:
 		AudioBridge.request_world_cue("paper_rustle", _safe_global_pos(), 4.0, peer_id)
+		AudioBridge.play_local_cue_for_peer(peer_id, "loot_sound")
 	_sync_back_to_briefcase_pickup()
 	_sync_state_to_peers()
 	return true
@@ -1261,6 +1272,7 @@ func deposit_briefcase_item(peer_id: int, obj_id: String, player_override: Node 
 	_ensure_item_positions()
 	if AudioBridge != null:
 		AudioBridge.request_world_cue("paper_rustle", _safe_global_pos(), 4.0, peer_id)
+		AudioBridge.play_local_cue_for_peer(peer_id, "loot_sound")
 	_sync_state_to_peers()
 	return true
 
@@ -1300,6 +1312,7 @@ func deposit_jacket_item(
 	_ensure_item_positions()
 	if AudioBridge != null:
 		AudioBridge.request_world_cue("paper_rustle", _safe_global_pos(), 4.0, peer_id)
+		AudioBridge.play_local_cue_for_peer(peer_id, "loot_sound")
 	_sync_state_to_peers()
 	return true
 
@@ -1368,7 +1381,7 @@ func plant_trap_from_jacket(
 		staged_spring_on_lip = true
 		spring_owner_peer_id = peer_id
 		if AudioBridge != null and GameConfig != null:
-			AudioBridge.request_world_cue("trap_arm", _safe_global_pos(), GameConfig.audio_radius_trap_setup, peer_id)
+			AudioBridge.request_world_cue("spring_arm", _safe_global_pos() + Vector3(0.0, 0.85, 0.0), GameConfig.audio_radius_spring_arm, peer_id)
 		_sync_back_to_briefcase_pickup()
 		_sync_state_to_peers()
 		return true
@@ -1383,7 +1396,7 @@ func plant_trap_from_jacket(
 			bomb_norm_pos = BRIEFCASE_BUILDER.DEFAULT_BOMB_NORM_POS
 		_has_player_modified_layout = true
 		if AudioBridge != null and GameConfig != null:
-			AudioBridge.request_world_cue("trap_arm", _safe_global_pos(), GameConfig.audio_radius_trap_setup, peer_id)
+			AudioBridge.request_world_cue("bomb_arm", _safe_global_pos() + Vector3(0.0, 0.85, 0.0), GameConfig.audio_radius_bomb_arm, peer_id)
 		_sync_back_to_briefcase_pickup()
 		_sync_state_to_peers()
 		return true
@@ -1559,7 +1572,7 @@ func _update_interior_glint_visibility(ratio: float) -> void:
 
 func _apply_briefcase_lid_ratio(ratio: float) -> void:
 	var clamped: float = clampf(ratio, 0.0, 1.0)
-	BRIEFCASE_BUILDER.set_lid_open_ratio(_briefcase_lid_pivot, clamped, _briefcase_interior_light)
+	BRIEFCASE_BUILDER.set_lid_open_ratio(_briefcase_lid_pivot, clamped)
 	if _contents_root != null and is_instance_valid(_contents_root):
 		_contents_root.visible = (clamped > 0.03)
 	_update_interior_glint_visibility(clamped)
@@ -1606,8 +1619,6 @@ func _animate_tray_to_ratio(ratio: float, slow: bool) -> void:
 			var target_rot_x: float = deg_to_rad(BRIEFCASE_BUILDER.OPEN_LID_ANGLE_DEG * clamped_ratio)
 			if _contents_root != null and clamped_ratio > 0.03:
 				_contents_root.visible = true
-			if _briefcase_interior_light != null:
-				_briefcase_interior_light.visible = clamped_ratio > 0.04
 			_lid_tween = create_tween()
 			_lid_tween.tween_property(_briefcase_lid_pivot, "rotation:x", target_rot_x, base_dur).set_trans(trans_type).set_ease(ease_type)
 			if clamped_ratio <= 0.03:
@@ -2034,7 +2045,7 @@ func _ensure_3d_tray_structure() -> void:
 		if is_briefcase_container:
 			var rig: Dictionary = BRIEFCASE_BUILDER.build_briefcase_rig(_tray_drawer_node)
 			_briefcase_lid_pivot = rig.get("lid_pivot") as Node3D
-			_briefcase_interior_light = rig.get("interior_light") as OmniLight3D
+			_briefcase_interior_light = null
 		else:
 			if not has_custom_mesh:
 				var geom := Node3D.new()
