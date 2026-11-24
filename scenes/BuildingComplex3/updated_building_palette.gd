@@ -12,39 +12,15 @@ const WALL_TEXTURES := {
 	"wall_red": preload("res://Assets/Models/Import/Interiors_A/texture/Updated_Textures/Wall/Texture_Wall_Red.png"),
 	"wall_yellow": preload("res://Assets/Models/Import/Interiors_A/texture/Updated_Textures/Wall/Texture_Wall_Yellow.png"),
 }
-# Hue of the painted area in each texture, in the same order as the shader samplers.
-const WALL_HUES := [0.495, 0.284, 0.670, 0.023, 0.173]
+@export_range(0, 4) var wall_texture_offset := 0
 
-var _updated_materials: Dictionary[String, ShaderMaterial] = {}
-
-
-func _surface_tint(room: Node, _category: String) -> Color:
-	return room.get("wall_color")
+var _wall_material: ShaderMaterial
+var _plain_materials: Dictionary[String, StandardMaterial3D] = {}
 
 
-func _apply_palette(branch: Node, colors: PackedColorArray, category: String) -> void:
+func _apply_palette(branch: Node, _colors: PackedColorArray, category: String) -> void:
 	var is_wall := category == "wall"
-	if not _updated_materials.has(category):
-		var material := ShaderMaterial.new()
-		material.shader = UPDATED_PALETTE_SHADER
-		material.set_shader_parameter("is_wall", is_wall)
-		material.set_shader_parameter("is_ceiling", category == "ceiling")
-		if is_wall:
-			for parameter in WALL_TEXTURES:
-				material.set_shader_parameter(parameter, WALL_TEXTURES[parameter])
-		else:
-			var texture := FLOOR_TEXTURE if category == "floor" else CEILING_TEXTURE
-			material.set_shader_parameter("surface_texture", texture)
-		_updated_materials[category] = material
-
-	var material := _updated_materials[category]
-	material.set_shader_parameter("room_colors", colors)
-	material.set_shader_parameter("building_inverse", global_transform.affine_inverse())
-	if is_wall:
-		var variants := PackedInt32Array()
-		for color in colors:
-			variants.append(_wall_variant(color.h))
-		material.set_shader_parameter("wall_variants", variants)
+	var material: Material = _wall_texture_material() if is_wall else _plain_material(category)
 
 	for child in branch.find_children("*", "MeshInstance3D", true, false):
 		var tile := child as MeshInstance3D
@@ -56,13 +32,26 @@ func _apply_palette(branch: Node, colors: PackedColorArray, category: String) ->
 			tile.set_surface_override_material(surface, material)
 
 
-func _wall_variant(hue: float) -> int:
-	var nearest := 0
-	var nearest_distance := INF
-	for index in range(WALL_HUES.size()):
-		var difference := absf(hue - WALL_HUES[index])
-		var distance := minf(difference, 1.0 - difference)
-		if distance < nearest_distance:
-			nearest = index
-			nearest_distance = distance
-	return nearest
+func _plain_material(category: String) -> StandardMaterial3D:
+	if not _plain_materials.has(category):
+		var material := StandardMaterial3D.new()
+		material.albedo_texture = FLOOR_TEXTURE if category == "floor" else CEILING_TEXTURE
+		material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		_plain_materials[category] = material
+	return _plain_materials[category]
+
+
+func _wall_texture_material() -> ShaderMaterial:
+	if _wall_material == null:
+		_wall_material = ShaderMaterial.new()
+		_wall_material.shader = UPDATED_PALETTE_SHADER
+		for parameter in WALL_TEXTURES:
+			_wall_material.set_shader_parameter(parameter, WALL_TEXTURES[parameter])
+
+	_wall_material.set_shader_parameter("building_inverse", global_transform.affine_inverse())
+	var variants := PackedInt32Array()
+	for row in range(4):
+		for column in range(4):
+			variants.append((row * 2 + column + wall_texture_offset) % WALL_TEXTURES.size())
+	_wall_material.set_shader_parameter("wall_variants", variants)
+	return _wall_material
