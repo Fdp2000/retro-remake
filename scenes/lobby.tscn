@@ -4,6 +4,13 @@
 [ext_resource type="Texture2D" path="res://scenes/lobby_interior.jpg" id="2_interior"]
 [ext_resource type="Script" uid="uid://netvd6p344t5" path="res://scenes/lobby.gd" id="1_lobby"]
 
+[ext_resource type="Texture2D" path="res://Assets/Sprites/GameTitle.png" id="4_game_title"]
+
+[sub_resource type="AtlasTexture" id="GameTitleArtwork"]
+atlas = ExtResource("4_game_title")
+region = Rect2(60, 624, 3388, 1116)
+filter_clip = true
+
 [sub_resource type="StyleBoxFlat" id="Console"]
 content_margin_left = 26.0
 content_margin_top = 22.0
@@ -210,11 +217,14 @@ size_flags_vertical = 4
 layout_mode = 2
 theme_override_constants/separation = 12
 
-[node name="TitleLabel" type="Label" parent="MarginContainer/MatchmakingContainer/MatchmakingPanel" unique_id=117329815]
+[node name="TitleArtwork" type="TextureRect" parent="MarginContainer/MatchmakingContainer/MatchmakingPanel" unique_id=117329815]
+custom_minimum_size = Vector2(0, 148)
 layout_mode = 2
-theme_override_font_sizes/font_size = 29
-text = "Dead Drop Double-Cross"
-horizontal_alignment = 0
+mouse_filter = 2
+accessibility_name = "Dead Drop Double-Cross"
+texture = SubResource("GameTitleArtwork")
+expand_mode = 1
+stretch_mode = 5
 
 [node name="HSeparator" type="HSeparator" parent="MarginContainer/MatchmakingContainer/MatchmakingPanel" unique_id=1324713429]
 layout_mode = 2
