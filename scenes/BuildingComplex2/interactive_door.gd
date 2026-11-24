@@ -195,6 +195,24 @@ func rig_water_bucket(owner_peer_id: int, other_side: bool = false) -> bool:
 	return true
 
 
+func set_prearmed_water_bucket(armed: bool, side_sign: float = 1.0) -> void:
+	_ensure_bucket_visual()
+	is_open = false
+	_open_fraction = 0.0
+	rotation.y = _closed_rotation
+	has_rigged_bucket = armed
+	bucket_owner_peer_id = 0
+	bucket_side_sign = 1.0 if side_sign >= 0.0 else -1.0
+	if _bucket_visual != null:
+		_bucket_visual.visible = has_rigged_bucket
+		var hcol: CollisionShape3D = _bucket_visual.get_node_or_null("BucketHitbox/CollisionShape3D") as CollisionShape3D
+		if hcol != null:
+			hcol.disabled = not has_rigged_bucket
+	_update_bucket_visual_transform()
+	if has_rigged_bucket:
+		rotation.y = _closed_rotation + _get_bucket_ajar_rad()
+
+
 func get_bucket_world_position() -> Vector3:
 	if _bucket_visual != null and is_instance_valid(_bucket_visual):
 		return _bucket_visual.global_position if _bucket_visual.is_inside_tree() else _bucket_visual.position

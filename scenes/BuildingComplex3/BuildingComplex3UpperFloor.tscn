@@ -36,6 +36,7 @@
 [ext_resource type="PackedScene" uid="uid://b8hkj7f7hwdyf" path="res://Assets/Models/Prefabs/shelf_c.tscn" id="furn_shelf_c"]
 [ext_resource type="PackedScene" uid="uid://bx216dt6npeg" path="res://Assets/Models/Prefabs/sofa_a.tscn" id="furn_sofa_a"]
 [ext_resource type="PackedScene" uid="uid://el2ftbhiveae" path="res://Assets/Models/Prefabs/table_a.tscn" id="furn_table_a"]
+[ext_resource type="Script" path="res://scenes/BuildingComplex3/player_spawn_overview.gd" id="player_spawn_overview"]
 [ext_resource type="Script" uid="uid://3w2au6iklilk" path="res://scenes/BuildingComplex2/room_palette.gd" id="room_palette"]
 [ext_resource type="PackedScene" uid="uid://1081g1d8f2ni" path="res://Assets/Models/Import/Interiors_A/Scenes/Walls/wall_3m.tscn" id="wall"]
 [ext_resource type="PackedScene" path="res://scenes/BuildingComplex3/RaisedWindowWall.tscn" id="window"]
@@ -590,6 +591,11 @@ transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 3.9260578, 1.1920929e-07, -3
 
 [node name="NE_RecordsStack" parent="Rooms/Room_1_4" unique_id=1822861596 instance=ExtResource("furn_books_a")]
 transform = Transform3D(-0.1391731, 0, 0.99026805, 0, 1, 0, -0.99026805, 0, -0.1391731, 3.9360561, 0.99956, -3.5097122)
+
+[node name="MatchPlayerSpawnPoints" type="Node3D" parent="Rooms/Room_1_4" unique_id=1950000605]
+
+[node name="PlayerSpawn_3" type="Marker3D" parent="Rooms/Room_1_4/MatchPlayerSpawnPoints" unique_id=1950000606]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0, 0)
 
 [node name="Room_2_1" type="Node3D" parent="Rooms" unique_id=1529245482]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -13.5, 0, -4.5)
@@ -1199,6 +1205,11 @@ transform = Transform3D(-0.20791169, 0, 0.9781476, 0, 1, 0, -0.9781476, 0, -0.20
 
 [node name="NE_ReferenceShelf" parent="Rooms/Room_3_1" unique_id=747623371 instance=ExtResource("furn_shelf_a")]
 transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 4.1821365, 0, -2.7)
+
+[node name="MatchPlayerSpawnPoints" type="Node3D" parent="Rooms/Room_3_1" unique_id=1950000607]
+
+[node name="PlayerSpawn_4" type="Marker3D" parent="Rooms/Room_3_1/MatchPlayerSpawnPoints" unique_id=1950000608]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
 
 [node name="Room_3_2" type="Node3D" parent="Rooms" unique_id=1703180197]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.5, 0, 4.5)
@@ -2555,3 +2566,6 @@ mesh = SubResource("CornerSealMesh")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 18.075, 2, 9.075)
 cast_shadow = 2
 mesh = SubResource("CornerSealMesh")
+
+[node name="PlayerSpawnOverview" type="Node3D" parent="." unique_id=1950000505]
+script = ExtResource("player_spawn_overview")

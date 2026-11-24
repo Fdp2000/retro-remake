@@ -227,6 +227,17 @@ func rig_water_bucket(owner_peer_id: int, other_side: bool = false) -> bool:
 	return true
 
 
+func set_prearmed_water_bucket(armed: bool, side_sign: float = 1.0) -> void:
+	_ensure_nodes()
+	is_open = false
+	open_fraction = 0.0
+	current_target_angle_rad = 0.0
+	has_rigged_bucket = armed
+	bucket_owner_peer_id = 0
+	bucket_side_sign = 1.0 if side_sign >= 0.0 else -1.0
+	_apply_closed_visuals()
+
+
 func get_bucket_world_position() -> Vector3:
 	if _bucket_visual != null and is_instance_valid(_bucket_visual):
 		return _bucket_visual.global_position if _bucket_visual.is_inside_tree() else _bucket_visual.position
