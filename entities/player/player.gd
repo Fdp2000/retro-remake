@@ -14,6 +14,8 @@ enum SpyRole {
 
 const INTERACTIVE_LADDER := preload("res://scenes/BuildingComplex3/interactive_ladder.gd")
 const LADDER_CLIMB_SPEED := 2.4
+const LADDER_AUTO_MOUNT_DEPTH := 1.14
+const LADDER_LOOK_DEAD_ZONE := 0.10
 const LADDER_LANDING_CLEARANCE := 0.06
 
 const COLOR_SPY_WHITE: Color = Color(0.92, 0.92, 0.92)
@@ -160,6 +162,8 @@ var gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity", 9
 var _requested_ladder: INTERACTIVE_LADDER
 var _active_ladder: INTERACTIVE_LADDER
 var _ladder_side := 1.0
+var _ladder_level_forward := 1
+var _last_dismounted_ladder: INTERACTIVE_LADDER
 
 var _target_position: Vector3 = Vector3.ZERO
 var _target_yaw: float = 0.0
@@ -2718,8 +2722,7 @@ func _tick_active_interact_hold(delta: float) -> void:
 
 func _process_interaction_raycast() -> void:
 	if is_instance_valid(_active_ladder):
-		prompt_label.text = "[W] Climb Up   [S] Climb Down"
-		prompt_label.visible = true
+		prompt_label.hide()
 		return
 
 	var is_interactable: bool = false
@@ -2756,7 +2759,7 @@ func _process_interaction_raycast() -> void:
 			elif tw_active_step2:
 				p_text += "  |  [RMB] Cancel Tripwire"
 			prompt_label.text = p_text
-			prompt_label.visible = true
+			prompt_label.visible = not p_text.is_empty()
 		elif right_hand_item_id == "TRIPWIRE" and _tripwire_ctrl != null:
 			var tw_prompt: String = _tripwire_ctrl.get_prompt_text()
 			prompt_label.text = tw_prompt
@@ -3503,11 +3506,37 @@ func request_ladder_mount(ladder: INTERACTIVE_LADDER) -> void:
 		_requested_ladder = ladder
 
 
+func _try_auto_mount_ladder(direction: Vector3) -> bool:
+	if direction.is_zero_approx():
+		_last_dismounted_ladder = null
+		return false
+	if is_instance_valid(_last_dismounted_ladder):
+		var offset := _last_dismounted_ladder.to_local(global_position)
+		if Vector2(offset.x, offset.z).length() > INTERACTIVE_LADDER.LANDING_OFFSET + 0.35:
+			_last_dismounted_ladder = null
+
+	for node in get_tree().get_nodes_in_group("interactive_ladders"):
+		var ladder := node as INTERACTIVE_LADDER
+		if ladder == null or ladder == _last_dismounted_ladder or not ladder.can_mount_from(global_position):
+			continue
+		var local := ladder.to_local(global_position)
+		var side := ladder.approach_side(global_position)
+		if absf(local.x) > INTERACTIVE_LADDER.SHAFT_WIDTH * 0.5 + 0.20 or local.z * side > LADDER_AUTO_MOUNT_DEPTH:
+			continue
+		var inward := -ladder.global_transform.basis.z.normalized() * side
+		if inward.dot(direction) < 0.55:
+			continue
+		_try_mount_ladder(ladder)
+		if is_instance_valid(_active_ladder):
+			return true
+	return false
+
+
 func _try_mount_ladder(ladder: INTERACTIVE_LADDER) -> void:
 	if not ladder.can_mount_from(global_position):
 		return
 	var lock_stance: int = GameConfig.Stance.DRAWER_LOCK if GameConfig != null else 3
-	if stance_state == lock_stance or Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
+	if stance_state == lock_stance or (Input.mouse_mode != Input.MOUSE_MODE_CAPTURED and not _can_walk_with_map()):
 		return
 	var lower := ladder.lower_landing_y
 	var upper := ladder.upper_landing_y
@@ -3522,6 +3551,7 @@ func _try_mount_ladder(ladder: INTERACTIVE_LADDER) -> void:
 		return
 	_active_ladder = ladder
 	_ladder_side = side
+	_ladder_level_forward = 1 if landing == lower else -1
 	global_position = mount
 	velocity = Vector3.ZERO
 	_footstep_timer = 0.0
@@ -3555,12 +3585,17 @@ func _can_walk_with_map() -> bool:
 func _move_on_ladder(delta: float) -> void:
 	if Input.mouse_mode != Input.MOUSE_MODE_CAPTURED and not _can_walk_with_map():
 		return
-	var up := Input.is_action_pressed("move_forward") or Input.is_physical_key_pressed(KEY_W)
-	var down := Input.is_action_pressed("move_back") or Input.is_physical_key_pressed(KEY_S)
-	var direction := int(up) - int(down)
-	if direction == 0:
+	var forward := Input.is_action_pressed("move_forward") or Input.is_physical_key_pressed(KEY_W)
+	var backward := Input.is_action_pressed("move_back") or Input.is_physical_key_pressed(KEY_S)
+	var toward_look := int(forward) - int(backward)
+	if toward_look == 0:
 		return
 
+	# A level gaze continues toward the other landing from the point of entry.
+	var look_direction := _ladder_level_forward
+	if absf(head_pitch) >= LADDER_LOOK_DEAD_ZONE:
+		look_direction = 1 if head_pitch > 0.0 else -1
+	var direction := toward_look * look_direction
 	var ladder := _active_ladder
 	var landing := ladder.upper_landing_y if direction > 0 else ladder.lower_landing_y
 	var end_height := landing + LADDER_LANDING_CLEARANCE
@@ -3570,6 +3605,7 @@ func _move_on_ladder(delta: float) -> void:
 		var exit := ladder.exit_point(end_height, _ladder_side)
 		if not test_move(global_transform, exit - global_position):
 			global_position = exit
+			_last_dismounted_ladder = ladder
 			_release_ladder()
 			_was_on_floor = false
 	if not _is_peer_connected():
@@ -3674,6 +3710,9 @@ func _physics_process(delta: float) -> void:
 
 	var active_speed: float = get_current_move_speed()
 	var direction: Vector3 = (transform.basis * Vector3(input_dir.x, 0.0, input_dir.y)).normalized()
+	if _try_auto_mount_ladder(direction if active_speed > 0.0 else Vector3.ZERO):
+		_move_on_ladder(delta)
+		return
 	if direction != Vector3.ZERO and active_speed > 0.0:
 		velocity.x = direction.x * active_speed
 		velocity.z = direction.z * active_speed
