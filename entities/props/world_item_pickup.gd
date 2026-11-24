@@ -299,34 +299,7 @@ static func _attach_live_bomb_fuse_fx(_wrapper: Node3D, model: Node3D) -> void:
 	fuse_tip.add_child(smoke)
 
 
-static var _glint_star_texture: ImageTexture = null
-
-
-static func _get_glint_star_texture() -> ImageTexture:
-	if _glint_star_texture == null:
-		var img := Image.create(15, 15, false, Image.FORMAT_RGBA8)
-		var c: int = 7
-		for y in range(15):
-			for x in range(15):
-				var dx: int = absi(x - c)
-				var dy: int = absi(y - c)
-				var alpha: float = 0.0
-				if dx == 0 and dy == 0:
-					alpha = 1.0
-				elif (dx == 0 and dy <= 6) or (dy == 0 and dx <= 6):
-					alpha = 1.0 - float(maxi(dx, dy)) * 0.11
-				elif (dx <= 1 and dy <= 3) or (dy <= 1 and dx <= 3):
-					alpha = 0.78
-				elif dx + dy <= 3:
-					alpha = 0.85
-				elif dx == dy and dx <= 3:
-					alpha = 0.48
-				if alpha > 0.0:
-					img.set_pixel(x, y, Color(1.0, 1.0, 1.0, clampf(alpha, 0.0, 1.0)))
-				else:
-					img.set_pixel(x, y, Color(1.0, 1.0, 1.0, 0.0))
-		_glint_star_texture = ImageTexture.create_from_image(img)
-	return _glint_star_texture
+const ARTIFACT_PARTICLE_TEXTURE: Texture2D = preload("res://Assets/Sprites/ArtifactParticle.png")
 
 
 static func create_objective_glint_particles(in_drawer: bool = false, item_id_hint: String = "", footprint_xz: Vector2 = Vector2.ZERO) -> CPUParticles3D:
@@ -384,8 +357,7 @@ static func create_objective_glint_particles(in_drawer: bool = false, item_id_hi
 	spark_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	spark_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	spark_mat.vertex_color_use_as_albedo = true
-	spark_mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
-	spark_mat.albedo_texture = _get_glint_star_texture()
+	spark_mat.albedo_texture = ARTIFACT_PARTICLE_TEXTURE
 	spark_mat.albedo_color = Color(1.0, 0.92, 0.50, 0.95) if is_high_priority else Color(1.0, 0.96, 0.78, 0.90)
 
 	if in_drawer:

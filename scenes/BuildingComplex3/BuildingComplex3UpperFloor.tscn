@@ -93,6 +93,7 @@ size = Vector3(0.25, 4.2, 0.25)
 
 [node name="SecondFloor" type="Node3D" unique_id=2101441047]
 script = ExtResource("building_palette")
+wall_texture_offset = 1
 metadata/layout = "3 x 4 equal 9 x 9 metre rooms; 36 x 27 metres"
 metadata/room_size = Vector2(9, 9)
 metadata/grid_size = Vector2i(4, 3)
