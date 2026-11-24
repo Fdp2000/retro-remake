@@ -702,6 +702,9 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.7, 1.88, -4.28)
 [node name="SW_Rug" parent="Rooms/Room_2_1" unique_id=1984463716 instance=ExtResource("furn_carpet_a")]
 transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, -2.8019466, 0.015, 1.586)
 
+[node name="CollisionShape3D" parent="Rooms/Room_2_1/SW_Rug/StaticBody3D" index="0"]
+disabled = true
+
 [node name="SW_SideTable" parent="Rooms/Room_2_1" unique_id=845344307 instance=ExtResource("furn_table_a")]
 transform = Transform3D(-4.4e-08, 0, 1, 0, 1, 0, -1, 0, -4.4e-08, -2.5, 0.0584265, 1.9549294)
 
@@ -3784,3 +3787,4 @@ script = ExtResource("ladder_layout")
 [node name="DistantSkyline" parent="." unique_id=1621596081 instance=ExtResource("distant_skyline")]
 
 [editable path="SecondFloor"]
+[editable path="Rooms/Room_2_1/SW_Rug"]
