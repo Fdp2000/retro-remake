@@ -1,0 +1,12 @@
+[gd_scene format=3 uid="uid://dvhcpeg4vvm8o"]
+
+[ext_resource type="PackedScene" uid="uid://c3i5515otw1u1" path="res://Assets/Models/Samleobjekter/Plans.glb" id="1_epk13"]
+[ext_resource type="Texture2D" uid="uid://lecerpp4vtf3" path="res://Assets/Models/Samleobjekter/Texture_Plans.png" id="2_rusjo"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_iuh0a"]
+albedo_texture = ExtResource("2_rusjo")
+
+[node name="Plans2" unique_id=1925306548 instance=ExtResource("1_epk13")]
+
+[node name="Plans" parent="." index="0" unique_id=1567355263]
+material_override = SubResource("StandardMaterial3D_iuh0a")

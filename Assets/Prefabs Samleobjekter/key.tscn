@@ -1,0 +1,12 @@
+[gd_scene format=3 uid="uid://cm5p6vmv7s1sk"]
+
+[ext_resource type="PackedScene" uid="uid://4wbwli2yfj2u" path="res://Assets/Models/Samleobjekter/Key.glb" id="1_siach"]
+[ext_resource type="Texture2D" uid="uid://b4kdmw1akoh0y" path="res://Assets/Models/Samleobjekter/Texture_Key.png" id="2_seesk"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_uekvv"]
+albedo_texture = ExtResource("2_seesk")
+
+[node name="Key2" unique_id=1180799459 instance=ExtResource("1_siach")]
+
+[node name="Key" parent="." index="0" unique_id=1493898183]
+material_override = SubResource("StandardMaterial3D_uekvv")

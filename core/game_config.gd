@@ -179,8 +179,8 @@ static func get_spy_role_badge_color(role: int) -> Color:
 @export var tripwire_max_span: float = 2.50
 @export var tripwire_height: float = 0.35
 @export var tripwire_ladder_safe_radius: float = 1.90
-@export var time_bomb_fuse_min: float = 3.0
-@export var time_bomb_fuse_max: float = 3.6
+@export var time_bomb_fuse_min: float = 2.9
+@export var time_bomb_fuse_max: float = 3.5
 @export var debug_long_bomb_fuse: bool = false
 @export var debug_long_bomb_fuse_seconds: float = 8.0
 @export var time_bomb_throw_distance: float = 9.0
@@ -272,6 +272,8 @@ static func get_spy_role_badge_color(role: int) -> Color:
 @export var spawner_floor_buckets_count: int = 6
 @export var spawner_floor_buckets_min: int = 4
 @export var spawner_floor_buckets_max: int = 6
+@export var spawner_floor_traps_min: int = 2
+@export var spawner_floor_traps_max: int = 4
 @export var spawner_cover_props_count: int = 6
 @export var spawner_active_preset_players: int = 2
 @export var spawner_auto_preset_by_player_count: bool = true
@@ -301,6 +303,8 @@ const PLAYER_COUNT_SPAWNER_PRESETS: Dictionary = {
 		"dart_gun_max": 4,
 		"floor_buckets_min": 4,
 		"floor_buckets_max": 6,
+		"floor_traps_min": 2,
+		"floor_traps_max": 4,
 		"cover_props_count": 6
 	},
 	3: {
@@ -324,6 +328,8 @@ const PLAYER_COUNT_SPAWNER_PRESETS: Dictionary = {
 		"dart_gun_max": 5,
 		"floor_buckets_min": 6,
 		"floor_buckets_max": 8,
+		"floor_traps_min": 3,
+		"floor_traps_max": 6,
 		"cover_props_count": 6
 	},
 	4: {
@@ -347,6 +353,8 @@ const PLAYER_COUNT_SPAWNER_PRESETS: Dictionary = {
 		"dart_gun_max": 6,
 		"floor_buckets_min": 8,
 		"floor_buckets_max": 10,
+		"floor_traps_min": 4,
+		"floor_traps_max": 8,
 		"cover_props_count": 6
 	}
 }
@@ -423,6 +431,8 @@ func get_spawner_config_dict() -> Dictionary:
 		"dart_gun_max": spawner_dart_gun_max,
 		"floor_buckets_min": spawner_floor_buckets_min,
 		"floor_buckets_max": spawner_floor_buckets_max,
+		"floor_traps_min": spawner_floor_traps_min,
+		"floor_traps_max": spawner_floor_traps_max,
 		"cover_props_count": spawner_cover_props_count
 	}
 
@@ -517,6 +527,13 @@ func apply_spawner_config_dict(cfg_dict: Dictionary) -> void:
 		spawner_floor_buckets_max = maxi(spawner_floor_buckets_max, spawner_floor_buckets_min)
 	spawner_floor_buckets_count = spawner_floor_buckets_max
 
+	if cfg_dict.has("floor_traps_min"):
+		spawner_floor_traps_min = maxi(int(cfg_dict["floor_traps_min"]), 0)
+	if cfg_dict.has("floor_traps_max"):
+		spawner_floor_traps_max = maxi(int(cfg_dict["floor_traps_max"]), spawner_floor_traps_min)
+	else:
+		spawner_floor_traps_max = maxi(spawner_floor_traps_max, spawner_floor_traps_min)
+
 	if cfg_dict.has("cover_props_count"):
 		spawner_cover_props_count = maxi(int(cfg_dict["cover_props_count"]), 0)
 
@@ -542,6 +559,8 @@ func apply_spawner_config_dict(cfg_dict: Dictionary) -> void:
 		"dart_gun_max": spawner_dart_gun_max,
 		"floor_buckets_min": spawner_floor_buckets_min,
 		"floor_buckets_max": spawner_floor_buckets_max,
+		"floor_traps_min": spawner_floor_traps_min,
+		"floor_traps_max": spawner_floor_traps_max,
 		"cover_props_count": spawner_cover_props_count
 	}
 
