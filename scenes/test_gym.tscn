@@ -28,8 +28,31 @@ script = ExtResource("1_cppg0")
 environment = SubResource("Environment_63yqs")
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=1645396586]
-transform = Transform3D(0.70710677, -0.29883623, 0.6408564, 0, 0.9063078, 0.42261827, -0.70710677, -0.29883623, 0.6408564, 0, 10, 0)
+transform = Transform3D(0.4226183, -0.3830222, 0.8213938, 0, 0.9063078, 0.4226183, -0.9063078, -0.1786062, 0.3830222, 29.0018492, 12, 9.0237844)
+light_energy = 0.9
 shadow_enabled = true
+directional_shadow_mode = 2
+
+[node name="SunSouth" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.9510565, 0.1772449, -0.2531319, 0, 0.819152, 0.5735764, 0.309017, -0.5455036, 0.7790599, -9.8885438, 12, 25.9338085)
+light_energy = 0.23
+shadow_enabled = true
+directional_shadow_mode = 0
+sky_mode = 1
+
+[node name="SunWest" type="DirectionalLight3D" parent="."]
+transform = Transform3D(-0.4226183, 0.6064383, -0.6735179, 0, 0.7431448, 0.6691306, 0.9063078, 0.2827868, -0.3140666, -29.0018492, 12, -18.0237844)
+light_energy = 0.18
+shadow_enabled = true
+directional_shadow_mode = 0
+sky_mode = 1
+
+[node name="SunNorth" type="DirectionalLight3D" parent="."]
+transform = Transform3D(-0.9271839, -0.3068598, 0.2148655, 0, 0.5735764, 0.819152, -0.3746066, 0.7595045, -0.5318108, 11.987411, 12, -34.1698833)
+light_energy = 0.19
+shadow_enabled = true
+directional_shadow_mode = 0
+sky_mode = 1
 
 [node name="Players" type="Node3D" parent="." unique_id=69997764]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.5, 0, -4.5)
