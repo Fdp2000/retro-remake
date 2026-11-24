@@ -35,8 +35,10 @@ const RAGDOLL_CTRL_SCRIPT = preload("res://entities/player/spy_ragdoll_controlle
 const TRIPWIRE_SCRIPT = preload("res://entities/traps/tripwire_trap.gd")
 const TRIPWIRE_PLACEMENT_SCRIPT = preload("res://entities/player/tripwire_placement_controller.gd")
 const THROWN_BOMB_SCRIPT = preload("res://entities/traps/thrown_time_bomb.gd")
+const DART_SMOKE_TEX: Texture2D = preload("res://Assets/Sprites/SmokeParticle.png")
 const TAP_RELEASE_THRESHOLD: float = 0.20
 const PELVIS_SYNC_INTERVAL: float = 0.20
+const DART_AIM_COOLDOWN_DURATION: float = 1.0
 
 # ==========================================
 # Replicated Properties (MultiplayerSynchronizer — Client Locomotion/Stance Authority)
@@ -202,6 +204,10 @@ var _tripwire_ctrl: TripwirePlacementController = null
 var _crt_body_visual_layer: int = 1
 var _camera_tween: Tween = null
 var _bonus_toast_timer: float = 0.0
+var _dart_aim_cooldown: float = 0.0
+var _was_aiming_dart_gun: bool = false
+var _dart_shot_pending_consume: bool = false
+var _dart_shot_pending_timer: float = 0.0
 var ko_remaining_seconds: float = 0.0
 var is_clock_eliminated: bool = false
 var wakeup_immunity_remaining: float = 0.0
@@ -1018,8 +1024,12 @@ func enter_container_view(container: Node) -> void:
 	_lmb_trap_hold_active = false
 	_lmb_trap_hold_elapsed = 0.0
 	cancel_tripwire_placement()
+	_was_aiming_dart_gun = false
+	_dart_shot_pending_consume = false
+	_dart_shot_pending_timer = 0.0
 	if _dvd_reticle_ui != null:
 		_dvd_reticle_ui.set_active(false)
+		_dvd_reticle_ui.set_aim_cooldown(0.0, DART_AIM_COOLDOWN_DURATION, Vector2.ZERO)
 	if _club_qte_ui != null:
 		_club_qte_ui.cancel_charge()
 	if _watch_bluff_ui != null and _watch_bluff_ui.is_map_open:
@@ -1105,8 +1115,13 @@ func apply_trap_ko(_reason: String, _attacker_peer_id: int = 0, custom_impulse: 
 	_lmb_trap_hold_active = false
 	_lmb_trap_hold_elapsed = 0.0
 	cancel_tripwire_placement()
+	_was_aiming_dart_gun = false
+	_dart_aim_cooldown = 0.0
+	_dart_shot_pending_consume = false
+	_dart_shot_pending_timer = 0.0
 	if _dvd_reticle_ui != null:
 		_dvd_reticle_ui.set_active(false)
+		_dvd_reticle_ui.set_aim_cooldown(0.0, DART_AIM_COOLDOWN_DURATION, Vector2.ZERO)
 	if _club_qte_ui != null:
 		_club_qte_ui.cancel_charge()
 	if _watch_bluff_ui != null and _watch_bluff_ui.is_map_open:
@@ -1454,8 +1469,13 @@ func reset_for_rematch(spawn_local_pos: Vector3, spawn_yaw: float = 0.0) -> void
 	elif stance_state == (GameConfig.Stance.DRAWER_LOCK if GameConfig != null else 3):
 		exit_container_view()
 
+	_was_aiming_dart_gun = false
+	_dart_aim_cooldown = 0.0
+	_dart_shot_pending_consume = false
+	_dart_shot_pending_timer = 0.0
 	if _dvd_reticle_ui != null:
 		_dvd_reticle_ui.set_active(false)
+		_dvd_reticle_ui.set_aim_cooldown(0.0, DART_AIM_COOLDOWN_DURATION, Vector2.ZERO)
 	if _club_qte_ui != null:
 		_club_qte_ui.cancel_charge()
 	if _watch_bluff_ui != null and _watch_bluff_ui.is_map_open:
@@ -2070,6 +2090,16 @@ func fire_dart_gun(custom_origin: Vector3 = Vector3.ZERO, custom_dir: Vector3 = 
 	ray_dir = ray_dir.normalized()
 	if _dvd_reticle_ui != null:
 		_dvd_reticle_ui.set_active(false)
+	_dart_shot_pending_consume = true
+	_dart_shot_pending_timer = 0.50
+	_was_aiming_dart_gun = false
+	_dart_aim_cooldown = 0.0
+	if _dvd_reticle_ui != null:
+		_dvd_reticle_ui.set_aim_cooldown(0.0, DART_AIM_COOLDOWN_DURATION, Vector2.ZERO)
+	if not _is_peer_connected() or is_multiplayer_authority():
+		var fp_muzzle: Dictionary = _get_dart_gun_muzzle_pose(false, ray_origin + ray_dir * 0.45, ray_dir)
+		var fp_layer: int = GameConfig.VISUAL_LAYER_LOCAL_FP_BODY if GameConfig != null else (1 << 14)
+		_spawn_dart_muzzle_smoke(fp_muzzle["pos"] as Vector3, fp_muzzle["dir"] as Vector3, fp_layer)
 	_trigger_vm_right_action("DART_RECOIL")
 	if _ragdoll_ctrl != null:
 		_ragdoll_ctrl.trigger_right_hand_action("DART_RECOIL")
@@ -2089,10 +2119,122 @@ func _rpc_server_fire_dart_gun(ray_origin: Vector3, ray_dir: Vector3) -> void:
 	_execute_dart_shot(ray_origin, ray_dir)
 
 
+@rpc("any_peer", "call_local", "unreliable")
+func _rpc_spawn_dart_muzzle_smoke(muzzle_pos: Vector3, muzzle_dir: Vector3) -> void:
+	if _is_peer_connected():
+		var sender_id: int = multiplayer.get_remote_sender_id()
+		if sender_id != 0 and sender_id != 1:
+			return
+	_spawn_dart_muzzle_smoke(muzzle_pos, muzzle_dir, get_crt_body_visual_layer())
+
+
+func _get_dart_gun_muzzle_pose(is_third_person: bool, fallback_pos: Vector3, fallback_dir: Vector3) -> Dictionary:
+	var dir_norm: Vector3 = fallback_dir.normalized() if fallback_dir.length_squared() > 0.0001 else Vector3.FORWARD
+	var mesh_node: Node3D = null
+	if is_third_person:
+		var tp_r_socket: Marker3D = tp_right_hand_socket if tp_right_hand_socket != null else get_node_or_null("VisualRig/ThirdPersonRightHandSocket") as Marker3D
+		if tp_r_socket != null:
+			mesh_node = tp_r_socket.get_node_or_null("ThirdPersonRightHeldMesh") as Node3D
+	else:
+		var r_socket: Marker3D = right_hand_socket if right_hand_socket != null else get_node_or_null("Head/Camera3D/RightHandSocket") as Marker3D
+		if r_socket != null:
+			mesh_node = r_socket.get_node_or_null("RightHeldMesh") as Node3D
+	if mesh_node != null and mesh_node.is_inside_tree():
+		var muzzle: Node3D = mesh_node.get_node_or_null("MuzzleTip") as Node3D
+		var target_node: Node3D = muzzle if muzzle != null and muzzle.is_inside_tree() else mesh_node
+		var fwd: Vector3 = (-target_node.global_transform.basis.z).normalized()
+		if fwd.length_squared() < 0.0001:
+			fwd = dir_norm
+		return {"pos": target_node.global_position, "dir": fwd}
+	return {"pos": fallback_pos, "dir": dir_norm}
+
+
+static var _dart_smoke_mat: StandardMaterial3D = null
+
+
+func _get_dart_smoke_material() -> StandardMaterial3D:
+	if _dart_smoke_mat == null:
+		_dart_smoke_mat = StandardMaterial3D.new()
+		_dart_smoke_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		_dart_smoke_mat.disable_receive_shadows = true
+		_dart_smoke_mat.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+		_dart_smoke_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		_dart_smoke_mat.vertex_color_use_as_albedo = true
+		_dart_smoke_mat.albedo_texture = DART_SMOKE_TEX
+	return _dart_smoke_mat
+
+
+func _spawn_dart_muzzle_smoke(muzzle_pos: Vector3, muzzle_dir: Vector3, visual_layer: int) -> void:
+	if Engine.is_editor_hint() or DisplayServer.get_name() == "headless":
+		return
+	if not is_inside_tree() or get_tree() == null:
+		return
+	var host: Node = get_tree().current_scene if get_tree().current_scene != null else get_tree().root
+	if host == null:
+		return
+
+	var dir_norm: Vector3 = muzzle_dir.normalized() if muzzle_dir.length_squared() > 0.0001 else Vector3.FORWARD
+	var smoke := CPUParticles3D.new()
+	smoke.name = "DartMuzzleSmoke"
+	smoke.layers = visual_layer if visual_layer > 0 else 1
+	smoke.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	smoke.one_shot = true
+	smoke.explosiveness = 0.92
+	smoke.amount = 10
+	smoke.lifetime = 0.36
+	smoke.local_coords = false
+	smoke.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE
+	smoke.emission_sphere_radius = 0.015
+	smoke.direction = dir_norm
+	smoke.spread = 24.0
+	smoke.gravity = Vector3(0.0, 0.45, 0.0)
+	smoke.initial_velocity_min = 0.9
+	smoke.initial_velocity_max = 2.0
+	smoke.damping_min = 3.2
+	smoke.damping_max = 4.6
+	smoke.angle_min = -180.0
+	smoke.angle_max = 180.0
+	smoke.scale_amount_min = 0.55
+	smoke.scale_amount_max = 0.95
+
+	var scale_curve := Curve.new()
+	scale_curve.add_point(Vector2(0.0, 0.45))
+	scale_curve.add_point(Vector2(0.4, 1.0))
+	scale_curve.add_point(Vector2(1.0, 1.55))
+	smoke.scale_amount_curve = scale_curve
+
+	var smoke_grad := Gradient.new()
+	smoke_grad.set_offset(0, 0.0)
+	smoke_grad.set_color(0, Color(0.95, 0.95, 0.98, 0.78))
+	smoke_grad.set_offset(1, 1.0)
+	smoke_grad.set_color(1, Color(0.65, 0.65, 0.70, 0.0))
+	smoke_grad.add_point(0.35, Color(0.82, 0.82, 0.86, 0.45))
+	smoke.color_ramp = smoke_grad
+
+	var smoke_mesh := QuadMesh.new()
+	smoke_mesh.size = Vector2(0.14, 0.14)
+	smoke_mesh.material = _get_dart_smoke_material()
+	smoke.mesh = smoke_mesh
+
+	host.add_child(smoke)
+	smoke.global_position = muzzle_pos
+	smoke.emitting = true
+
+	get_tree().create_timer(0.55).timeout.connect(func() -> void:
+		if is_instance_valid(smoke):
+			smoke.queue_free()
+	)
+
+
 func _execute_dart_shot(ray_origin: Vector3, ray_dir: Vector3) -> bool:
+	var tp_muzzle: Dictionary = _get_dart_gun_muzzle_pose(true, ray_origin + ray_dir * 0.45, ray_dir)
 	if _inv().consume_active_jacket_slot("DART_GUN") == "NONE":
 		return false
 	_sync_inventory_state_to_peers()
+	if _is_peer_connected():
+		_rpc_spawn_dart_muzzle_smoke.rpc(tp_muzzle["pos"] as Vector3, tp_muzzle["dir"] as Vector3)
+	else:
+		_spawn_dart_muzzle_smoke(tp_muzzle["pos"] as Vector3, tp_muzzle["dir"] as Vector3, get_crt_body_visual_layer())
 	var shooter_id: int = name.to_int()
 	if AudioBridge != null:
 		var dart_rad: float = GameConfig.audio_radius_trap_setup if GameConfig != null else 5.0
@@ -3218,9 +3360,32 @@ func _is_aiming_dart_gun() -> bool:
 		right_hand_item_id == "DART_GUN"
 		and stance_state != ko_val
 		and stance_state != lock_val
+		and _dart_aim_cooldown <= 0.0
+		and not _dart_shot_pending_consume
 		and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
 		and Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT)
 	)
+
+
+func _get_dart_gun_cooldown_screen_pos() -> Vector2:
+	var vp_size: Vector2 = get_viewport().get_visible_rect().size if is_inside_tree() and get_viewport() != null else Vector2(1280.0, 720.0)
+	if vp_size.x < 100.0 or vp_size.y < 100.0:
+		vp_size = Vector2(1280.0, 720.0)
+	var fallback_pos := Vector2(vp_size.x * 0.68, vp_size.y * 0.64)
+	if camera == null or not camera.is_inside_tree():
+		return fallback_pos
+	var r_socket: Marker3D = right_hand_socket if right_hand_socket != null else get_node_or_null("Head/Camera3D/RightHandSocket") as Marker3D
+	var target_node: Node3D = null
+	if r_socket != null:
+		target_node = r_socket.get_node_or_null("RightHeldMesh") as Node3D
+		if target_node == null:
+			target_node = r_socket
+	if target_node == null or not target_node.is_inside_tree():
+		return fallback_pos
+	var gun_world: Vector3 = target_node.global_position
+	if camera.is_position_behind(gun_world):
+		return fallback_pos
+	return camera.unproject_position(gun_world) + Vector2(-72.0, -34.0)
 
 
 func _is_peer_connected() -> bool:
@@ -3239,6 +3404,13 @@ func _process(delta: float) -> void:
 		_club_feint_cooldown = maxf(_club_feint_cooldown - delta, 0.0)
 	if _club_whiff_recovery > 0.0:
 		_club_whiff_recovery = maxf(_club_whiff_recovery - delta, 0.0)
+	if _dart_aim_cooldown > 0.0:
+		_dart_aim_cooldown = maxf(_dart_aim_cooldown - delta, 0.0)
+	if _dart_shot_pending_consume:
+		_dart_shot_pending_timer = maxf(_dart_shot_pending_timer - delta, 0.0)
+		if right_hand_item_id != "DART_GUN" or _dart_shot_pending_timer <= 0.0:
+			_dart_shot_pending_consume = false
+			_dart_shot_pending_timer = 0.0
 	if club_overcharge_stumble_remaining > 0.0:
 		club_overcharge_stumble_remaining = maxf(club_overcharge_stumble_remaining - delta, 0.0)
 	if _club_charge_exit_lerp_active:
@@ -3264,8 +3436,10 @@ func _process(delta: float) -> void:
 	if stance_state == ko_stance:
 		_reset_interact_hold()
 		cancel_tripwire_placement()
+		_was_aiming_dart_gun = false
 		if _dvd_reticle_ui != null:
 			_dvd_reticle_ui.set_active(false)
+			_dvd_reticle_ui.set_aim_cooldown(0.0, DART_AIM_COOLDOWN_DURATION, Vector2.ZERO)
 		_sync_camera_to_ragdoll_head()
 		return
 
@@ -3277,15 +3451,28 @@ func _process(delta: float) -> void:
 	if stance_state == lock_stance:
 		prompt_label.visible = false
 		cancel_tripwire_placement()
+		_was_aiming_dart_gun = false
 		if _dvd_reticle_ui != null:
 			_dvd_reticle_ui.set_active(false)
+			_dvd_reticle_ui.set_aim_cooldown(0.0, DART_AIM_COOLDOWN_DURATION, Vector2.ZERO)
 		if not _active_3d_slides.is_empty():
 			_step_active_3d_slides(delta)
 		_tick_drawer_open_input(delta)
 		return
 
+	var aiming_dart_now: bool = _is_aiming_dart_gun()
+	if _was_aiming_dart_gun and not aiming_dart_now and not _dart_shot_pending_consume:
+		_dart_aim_cooldown = DART_AIM_COOLDOWN_DURATION
+	_was_aiming_dart_gun = aiming_dart_now
+
 	if _dvd_reticle_ui != null:
-		_dvd_reticle_ui.set_active(_is_aiming_dart_gun())
+		_dvd_reticle_ui.set_active(aiming_dart_now)
+		var show_cd: bool = _dart_aim_cooldown > 0.0 and right_hand_item_id == "DART_GUN" and not _dart_shot_pending_consume
+		_dvd_reticle_ui.set_aim_cooldown(
+			_dart_aim_cooldown if show_cd else 0.0,
+			DART_AIM_COOLDOWN_DURATION,
+			_get_dart_gun_cooldown_screen_pos() if show_cd else Vector2.ZERO
+		)
 
 	if is_charging_club and _club_qte_ui != null:
 		if _club_qte_ui.update_charge(delta) == "OVERCHARGED":

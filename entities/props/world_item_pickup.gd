@@ -25,6 +25,7 @@ const TRIPWIRE_SCENE: PackedScene = preload("res://Assets/Prefab_Traps/tripwire.
 const BUCKET_SCENE: PackedScene = preload("res://Assets/Prefab_Traps/bucket.tscn")
 const DART_GUN_SCENE: PackedScene = preload("res://Assets/Prefab_Traps/dart_gun.tscn")
 const SPRING_SCENE: PackedScene = preload("res://Assets/Prefab_Traps/spring.tscn")
+const CLUB_SCENE: PackedScene = preload("res://Assets/Prefab_Club/club.tscn")
 
 const ITEM_COLORS: Dictionary = {
 	"KEY": Color(0.95, 0.80, 0.15),       # Gold
@@ -114,6 +115,9 @@ static func get_display_name(id: String, briefcase_items: Array = []) -> String:
 	return base_name
 
 
+const DART_GUN_MUZZLE_LOCAL_POS: Vector3 = Vector3(0.0, 0.083, -0.176)
+
+
 const _MODEL_VISUAL_SPECS: Dictionary = {
 	"KEY": {"scene": KEY_SCENE, "scale": Vector3(1.15, 1.15, 1.15), "offset": Vector3(0.0, 0.0, -0.005), "rot": Vector3.ZERO, "floor_y": 0.025},
 	"MONEY": {"scene": MONEY_SCENE, "scale": Vector3(0.90, 0.90, 0.90), "offset": Vector3(0.0, -0.105, 0.0), "rot": Vector3.ZERO, "floor_y": 0.105},
@@ -124,7 +128,8 @@ const _MODEL_VISUAL_SPECS: Dictionary = {
 	"SPRING": {"scene": SPRING_SCENE, "scale": Vector3(1.15, 1.15, 1.15), "offset": Vector3(-0.005, -0.015, -0.003), "rot": Vector3.ZERO, "floor_y": 0.101},
 	"DART_GUN": {"scene": DART_GUN_SCENE, "scale": Vector3(0.85, 0.85, 0.85), "offset": Vector3(0.0, 0.021, 0.029), "rot": Vector3(0.0, PI * 0.5, 0.0), "floor_y": 0.106},
 	"BOMB": {"scene": BOMB_SCENE, "scale": Vector3(0.85, 0.85, 0.85), "offset": Vector3(0.001, -0.146, 0.001), "rot": Vector3.ZERO, "floor_y": 0.146},
-	"LIVE_BOMB": {"scene": BOMB_SCENE, "scale": Vector3(0.85, 0.85, 0.85), "offset": Vector3(0.001, -0.146, 0.001), "rot": Vector3.ZERO, "floor_y": 0.146}
+	"LIVE_BOMB": {"scene": BOMB_SCENE, "scale": Vector3(0.85, 0.85, 0.85), "offset": Vector3(0.001, -0.146, 0.001), "rot": Vector3.ZERO, "floor_y": 0.146},
+	"CLUB": {"scene": CLUB_SCENE, "scale": Vector3(0.68, 0.68, 0.68), "offset": Vector3(0.0, -0.202, 0.0), "rot": Vector3.ZERO, "floor_y": 0.330}
 }
 
 
@@ -159,24 +164,20 @@ static func build_item_visual(id: String) -> Node3D:
 		wrapper.add_child(model)
 		if upper == "LIVE_BOMB":
 			_attach_live_bomb_fuse_fx(wrapper, model)
+		elif upper == "DART_GUN":
+			var muzzle := Marker3D.new()
+			muzzle.name = "MuzzleTip"
+			muzzle.position = DART_GUN_MUZZLE_LOCAL_POS
+			wrapper.add_child(muzzle)
 		return wrapper
 
 	var mi := MeshInstance3D.new()
 	var mat := StandardMaterial3D.new()
 	mat.albedo_color = ITEM_COLORS.get(upper, Color(0.8, 0.8, 0.8))
 
-	match upper:
-		"CLUB":
-			var cyl := CylinderMesh.new()
-			cyl.top_radius = 0.06
-			cyl.bottom_radius = 0.03
-			cyl.height = 0.65
-			mi.mesh = cyl
-			mat.albedo_color = Color(0.48, 0.30, 0.14)
-		_:
-			var box := BoxMesh.new()
-			box.size = Vector3(0.22, 0.14, 0.22)
-			mi.mesh = box
+	var box := BoxMesh.new()
+	box.size = Vector3(0.22, 0.14, 0.22)
+	mi.mesh = box
 
 	if is_briefcase_item(upper):
 		mat.emission_enabled = true
