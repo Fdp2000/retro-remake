@@ -42,6 +42,8 @@ func _resolve_config(custom_config: Dictionary = {}) -> Dictionary:
 			"dart_gun_max": 4,
 			"floor_buckets_min": 3,
 			"floor_buckets_max": 5,
+			"floor_traps_min": 2,
+			"floor_traps_max": 4,
 			"cover_props_count": 6
 		}
 	for k in custom_config.keys():
@@ -76,6 +78,21 @@ func generate_spawn_manifest(match_seed: int, custom_config: Dictionary = {}) ->
 	var b_min: int = maxi(int(cfg.get("floor_buckets_min", 3)), 0)
 	var b_max: int = maxi(int(cfg.get("floor_buckets_max", b_min)), b_min)
 	var bucket_count: int = rng.randi_range(b_min, b_max)
+
+	var ft_min: int = maxi(int(cfg.get("floor_traps_min", 2)), 0)
+	var ft_max: int = maxi(int(cfg.get("floor_traps_max", ft_min)), ft_min)
+	var floor_traps_count: int = rng.randi_range(ft_min, ft_max)
+	var floor_trap_counts: Dictionary = {
+		"SPRING": 0,
+		"BOMB": 0,
+		"TRIPWIRE": 0,
+		"DART_GUN": 0
+	}
+	var floor_trap_items: Array[String] = []
+	for _ft_i in range(floor_traps_count):
+		var trap_id: String = DEFAULT_GADGETS[rng.randi_range(0, DEFAULT_GADGETS.size() - 1)]
+		floor_trap_items.append(trap_id)
+		floor_trap_counts[trap_id] = int(floor_trap_counts.get(trap_id, 0)) + 1
 
 	# 1. Core mandatory container items (4 Objectives + 1 Briefcase = 5 items)
 	var container_loot: Array[Array] = []
@@ -167,6 +184,9 @@ func generate_spawn_manifest(match_seed: int, custom_config: Dictionary = {}) ->
 		"isolate_briefcase_from_objectives": isolate_briefcase,
 		"cover_count": cover_count,
 		"floor_buckets_count": bucket_count,
+		"floor_traps_count": floor_traps_count,
+		"floor_trap_items": floor_trap_items,
+		"floor_trap_counts": floor_trap_counts,
 		"total_gadgets_count": selected_gadgets.size(),
 		"gadget_counts": gadget_counts,
 		"starting_prearmed_traps": 0,
@@ -216,6 +236,9 @@ func populate_level(
 			"small_drawers_spawned": 0,
 			"floor_buckets_spawned": 0,
 			"buckets_per_room": {},
+			"floor_traps_spawned": 0,
+			"floor_traps_per_room": {},
+			"floor_trap_counts": {},
 			"starting_prearmed_traps": 0,
 			"drawers_per_room": {},
 			"containers_per_room": {},
@@ -477,8 +500,23 @@ func populate_level(
 	var bucket_rooms: Array[Node3D] = _collect_sorted_rooms(level_root, skip_rooms, true)
 	var buckets_spawned: int = 0
 	var buckets_per_room: Dictionary = {}
+	var floor_traps_spawned: int = 0
+	var floor_traps_per_room: Dictionary = {}
+	var floor_trap_counts_spawned: Dictionary = {
+		"SPRING": 0,
+		"BOMB": 0,
+		"TRIPWIRE": 0,
+		"DART_GUN": 0
+	}
 	if not bucket_rooms.is_empty():
 		var bucket_target: int = int(manifest["floor_buckets_count"])
+		var floor_trap_items: Array = manifest.get("floor_trap_items", []) as Array
+		var surface_items: Array[String] = []
+		for _b_i in range(bucket_target):
+			surface_items.append("BUCKET")
+		for t_item in floor_trap_items:
+			surface_items.append(str(t_item))
+
 		var shuffled_rooms: Array[Node3D] = bucket_rooms.duplicate()
 		_shuffle_array(shuffled_rooms, rng)
 		var room_bucket_pools: Dictionary = {} # room_key -> Array[Marker3D]
@@ -489,35 +527,57 @@ func populate_level(
 			room_bucket_pools[r_k] = b_markers
 
 		var room_cursor: int = 0
-		for b_idx in range(bucket_target):
+		var trap_idx: int = 0
+		for item_idx in range(surface_items.size()):
+			var spawn_item_id: String = surface_items[item_idx]
 			var target_room: Node3D = shuffled_rooms[room_cursor % shuffled_rooms.size()]
-			room_cursor += 1
 			var r_k: String = _room_key(target_room)
 			var b_pool: Array = room_bucket_pools.get(r_k, [])
+			if b_pool.is_empty():
+				for probe_offset in range(1, shuffled_rooms.size()):
+					var probe_room: Node3D = shuffled_rooms[(room_cursor + probe_offset) % shuffled_rooms.size()]
+					var probe_key: String = _room_key(probe_room)
+					var probe_pool: Array = room_bucket_pools.get(probe_key, [])
+					if not probe_pool.is_empty():
+						target_room = probe_room
+						r_k = probe_key
+						b_pool = probe_pool
+						break
+			room_cursor += 1
 			var chosen_marker: Marker3D = null
 			if not b_pool.is_empty():
 				chosen_marker = b_pool.pop_front() as Marker3D
 
-			var bucket_pickup: Node = resolved_pickup_scene.instantiate()
-			bucket_pickup.name = "MatchFloorBucket_%d" % b_idx
-			bucket_pickup.set("item_id", "BUCKET")
-			spawn_root.add_child(bucket_pickup)
-			if bucket_pickup is Node3D:
+			var surface_pickup: Node = resolved_pickup_scene.instantiate()
+			if spawn_item_id == "BUCKET":
+				surface_pickup.name = "MatchFloorBucket_%d" % buckets_spawned
+			else:
+				surface_pickup.name = "MatchFloorTrap_%d" % trap_idx
+				trap_idx += 1
+			surface_pickup.set("item_id", spawn_item_id)
+			spawn_root.add_child(surface_pickup)
+			if surface_pickup is Node3D:
 				if chosen_marker != null:
 					if chosen_marker.is_inside_tree():
-						(bucket_pickup as Node3D).global_transform = chosen_marker.global_transform
+						(surface_pickup as Node3D).global_transform = chosen_marker.global_transform
 					else:
 						var floor_offset: Vector3 = Vector3.ZERO
 						var f_node: Node = target_room.get_parent().get_parent()
 						if f_node is Node3D and f_node.name == &"SecondFloor":
 							floor_offset = (f_node as Node3D).position
-						(bucket_pickup as Node3D).position = floor_offset + target_room.position + chosen_marker.position
+						(surface_pickup as Node3D).position = floor_offset + target_room.position + chosen_marker.position
 				else:
 					var jitter := Vector3(rng.randf_range(-1.2, 1.2), 0.0, rng.randf_range(-1.2, 1.2))
 					var base_pos: Vector3 = target_room.global_position if target_room.is_inside_tree() else target_room.position
-					(bucket_pickup as Node3D).global_position = Vector3(base_pos.x + jitter.x, maxf(base_pos.y, 0.0), base_pos.z + jitter.z)
-			buckets_per_room[r_k] = int(buckets_per_room.get(r_k, 0)) + 1
-			buckets_spawned += 1
+					(surface_pickup as Node3D).global_position = Vector3(base_pos.x + jitter.x, maxf(base_pos.y, 0.0), base_pos.z + jitter.z)
+
+			if spawn_item_id == "BUCKET":
+				buckets_per_room[r_k] = int(buckets_per_room.get(r_k, 0)) + 1
+				buckets_spawned += 1
+			else:
+				floor_traps_per_room[r_k] = int(floor_traps_per_room.get(r_k, 0)) + 1
+				floor_trap_counts_spawned[spawn_item_id] = int(floor_trap_counts_spawned.get(spawn_item_id, 0)) + 1
+				floor_traps_spawned += 1
 
 	return {
 		"seed": int(manifest["seed"]),
@@ -527,6 +587,9 @@ func populate_level(
 		"small_drawers_spawned": small_drawers_spawned,
 		"floor_buckets_spawned": buckets_spawned,
 		"buckets_per_room": buckets_per_room,
+		"floor_traps_spawned": floor_traps_spawned,
+		"floor_traps_per_room": floor_traps_per_room,
+		"floor_trap_counts": floor_trap_counts_spawned,
 		"starting_prearmed_traps": 0,
 		"drawers_per_room": drawers_per_room,
 		"containers_per_room": containers_per_room,

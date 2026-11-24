@@ -15,10 +15,10 @@ const OBJECTIVE_IDS: Array[String] = ["KEY", "MONEY", "PASSPORT", "PLANS"]
 const GADGET_IDS: Array[String] = ["BUCKET", "TRIPWIRE", "SPRING", "BOMB", "DART_GUN"]
 const BRIEFCASE_BUILDER = preload("res://entities/props/briefcase_visual_builder.gd")
 
-const KEY_SCENE: PackedScene = preload("res://Assets/Models/Samleobjekter/Key.glb")
-const MONEY_SCENE: PackedScene = preload("res://Assets/Models/Samleobjekter/Money.glb")
-const PASSPORT_SCENE: PackedScene = preload("res://Assets/Models/Samleobjekter/Passport.glb")
-const PLANS_SCENE: PackedScene = preload("res://Assets/Models/Samleobjekter/Plans.glb")
+const KEY_SCENE: PackedScene = preload("res://Assets/Prefabs Samleobjekter/key.tscn")
+const MONEY_SCENE: PackedScene = preload("res://Assets/Prefabs Samleobjekter/money.tscn")
+const PASSPORT_SCENE: PackedScene = preload("res://Assets/Prefabs Samleobjekter/passport.tscn")
+const PLANS_SCENE: PackedScene = preload("res://Assets/Prefabs Samleobjekter/plans.tscn")
 
 const BOMB_SCENE: PackedScene = preload("res://Assets/Prefab_Traps/bomb.tscn")
 const TRIPWIRE_SCENE: PackedScene = preload("res://Assets/Prefab_Traps/tripwire.tscn")

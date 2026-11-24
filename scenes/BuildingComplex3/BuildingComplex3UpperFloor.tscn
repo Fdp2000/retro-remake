@@ -1,4 +1,4 @@
-[gd_scene format=3 uid="uid://4vgovubnuvh"]
+﻿[gd_scene format=3 uid="uid://4vgovubnuvh"]
 
 [ext_resource type="Material" path="res://scenes/BuildingComplex2/ComplexClearGlass.tres" id="3_whg7k"]
 [ext_resource type="Shader" uid="uid://u2le7vmonyfk" path="res://scenes/BuildingComplex3/updated_room_palette.gdshader" id="4_dmn8s"]
@@ -10,6 +10,7 @@
 [ext_resource type="Texture2D" uid="uid://luvxynyr0pca" path="res://Assets/Models/Import/Interiors_A/texture/Updated_Textures/Wall/Texture_Wall_Red.png" id="35_ewrqa"]
 [ext_resource type="Texture2D" uid="uid://1e2r2oxcuyw5" path="res://Assets/Models/Import/Interiors_A/texture/Updated_Textures/Wall/Texture_Wall_Yellow.png" id="36_gl3hc"]
 [ext_resource type="Script" uid="uid://dyucfojwm7ba3" path="res://scenes/BuildingComplex3/updated_building_palette.gd" id="building_palette"]
+[ext_resource type="Script" path="res://scenes/BuildingComplex3/bucket_spawn_overview.gd" id="bucket_spawn_overview"]
 [ext_resource type="PackedScene" uid="uid://b5qju4mcr53wp" path="res://Assets/Models/Import/Interiors_A/Scenes/Floor/floor_3x_3.tscn" id="floor"]
 [ext_resource type="PackedScene" uid="uid://dqa5v6tsdgp3a" path="res://Assets/Models/Prefabs/AlexBook.tscn" id="furn_AlexBook"]
 [ext_resource type="PackedScene" uid="uid://8x6gy308v6f" path="res://Assets/Models/Prefabs/BetweenFrame.tscn" id="furn_BetweenFrame"]
@@ -93,6 +94,9 @@ size = Vector3(0.25, 4.2, 0.25)
 
 [node name="SecondFloor" type="Node3D" unique_id=2101441047]
 script = ExtResource("building_palette")
+
+[node name="BucketSpawnOverview" type="Node3D" parent="." unique_id=1950000501]
+script = ExtResource("bucket_spawn_overview")
 wall_texture_offset = 1
 metadata/layout = "3 x 4 equal 9 x 9 metre rooms; 36 x 27 metres"
 metadata/room_size = Vector2(9, 9)
@@ -120,6 +124,15 @@ transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -3.95, 0, 0)
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -3.95)
 
 [node name="MatchBucketSpawnPoints" type="Node3D" parent="Rooms/Room_1_1" unique_id=1950000200]
+
+[node name="BucketSpawn_2" type="Marker3D" parent="Rooms/Room_1_1/MatchBucketSpawnPoints" unique_id=1950000400]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.77, 1, 2.26)
+
+[node name="BucketSpawn_3" type="Marker3D" parent="Rooms/Room_1_1/MatchBucketSpawnPoints" unique_id=1950000401]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.76, 1, -2.58)
+
+[node name="BucketSpawn_4" type="Marker3D" parent="Rooms/Room_1_1/MatchBucketSpawnPoints" unique_id=1950000402]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.85, 1.08, -3.33)
 
 [node name="BucketSpawn_1" type="Marker3D" parent="Rooms/Room_1_1/MatchBucketSpawnPoints" unique_id=1950000201]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.474041, 1.08, -3.24259)
@@ -240,6 +253,12 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.1, 0, -3.81)
 metadata/drawer_size = "small"
 
 [node name="MatchBucketSpawnPoints" type="Node3D" parent="Rooms/Room_1_2" unique_id=1950000203]
+
+[node name="BucketSpawn_3" type="Marker3D" parent="Rooms/Room_1_2/MatchBucketSpawnPoints" unique_id=1950000403]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.56, 1, 2.73)
+
+[node name="BucketSpawn_4" type="Marker3D" parent="Rooms/Room_1_2/MatchBucketSpawnPoints" unique_id=1950000404]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.15, 0.728, -2.85)
 
 [node name="BucketSpawn_1" type="Marker3D" parent="Rooms/Room_1_2/MatchBucketSpawnPoints" unique_id=1950000204]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.45, 1, -2.73)
@@ -363,6 +382,15 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.15, 0, -3.95)
 
 [node name="MatchBucketSpawnPoints" type="Node3D" parent="Rooms/Room_1_3" unique_id=1950000206]
 
+[node name="BucketSpawn_1" type="Marker3D" parent="Rooms/Room_1_3/MatchBucketSpawnPoints" unique_id=1950000405]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.77, 1, 2.26)
+
+[node name="BucketSpawn_3" type="Marker3D" parent="Rooms/Room_1_3/MatchBucketSpawnPoints" unique_id=1950000406]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.57, 1, 3.12)
+
+[node name="BucketSpawn_4" type="Marker3D" parent="Rooms/Room_1_3/MatchBucketSpawnPoints" unique_id=1950000407]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.05, 1, -2.63)
+
 [node name="BucketSpawn_2" type="Marker3D" parent="Rooms/Room_1_3/MatchBucketSpawnPoints" unique_id=1950000208]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.15, 1, -2.63)
 
@@ -479,6 +507,12 @@ transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 3.95, 0, -0.2)
 
 [node name="MatchBucketSpawnPoints" type="Node3D" parent="Rooms/Room_1_4" unique_id=1950000209]
 
+[node name="BucketSpawn_3" type="Marker3D" parent="Rooms/Room_1_4/MatchBucketSpawnPoints" unique_id=1950000408]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.33, 1, 1.33)
+
+[node name="BucketSpawn_4" type="Marker3D" parent="Rooms/Room_1_4/MatchBucketSpawnPoints" unique_id=1950000409]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.85, 1.08, 3.66)
+
 [node name="BucketSpawn_1" type="Marker3D" parent="Rooms/Room_1_4/MatchBucketSpawnPoints" unique_id=1950000210]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.4663162, 1.08, 3.4499998)
 
@@ -579,6 +613,12 @@ metadata/office_use = "Staff lounge"
 [node name="MatchDrawerSpawnPoints" type="Node3D" parent="Rooms/Room_2_1" unique_id=969819318]
 
 [node name="MatchBucketSpawnPoints" type="Node3D" parent="Rooms/Room_2_1" unique_id=1950000212]
+
+[node name="BucketSpawn_3" type="Marker3D" parent="Rooms/Room_2_1/MatchBucketSpawnPoints" unique_id=1950000410]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.56, 1, -1.58)
+
+[node name="BucketSpawn_4" type="Marker3D" parent="Rooms/Room_2_1/MatchBucketSpawnPoints" unique_id=1950000411]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.85, 1, 2.73)
 
 [node name="BucketSpawn_1" type="Marker3D" parent="Rooms/Room_2_1/MatchBucketSpawnPoints" unique_id=1950000213]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.95, 1, 1.63)
@@ -706,6 +746,15 @@ metadata/drawer_size = "small"
 
 [node name="MatchBucketSpawnPoints" type="Node3D" parent="Rooms/Room_2_2" unique_id=1950000215]
 
+[node name="BucketSpawn_1" type="Marker3D" parent="Rooms/Room_2_2/MatchBucketSpawnPoints" unique_id=1950000412]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.76, 1, 2.58)
+
+[node name="BucketSpawn_3" type="Marker3D" parent="Rooms/Room_2_2/MatchBucketSpawnPoints" unique_id=1950000413]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.48, 1, 1.75)
+
+[node name="BucketSpawn_4" type="Marker3D" parent="Rooms/Room_2_2/MatchBucketSpawnPoints" unique_id=1950000414]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.76, 1, 3.15)
+
 [node name="BucketSpawn_2" type="Marker3D" parent="Rooms/Room_2_2/MatchBucketSpawnPoints" unique_id=1950000217]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.73, 1, -2.45)
 
@@ -815,6 +864,15 @@ metadata/office_use = "Design review office"
 [node name="MatchDrawerSpawnPoints" type="Node3D" parent="Rooms/Room_2_3" unique_id=1501794435]
 
 [node name="MatchBucketSpawnPoints" type="Node3D" parent="Rooms/Room_2_3" unique_id=1950000218]
+
+[node name="BucketSpawn_1" type="Marker3D" parent="Rooms/Room_2_3/MatchBucketSpawnPoints" unique_id=1950000415]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.73, 1, 2.56)
+
+[node name="BucketSpawn_3" type="Marker3D" parent="Rooms/Room_2_3/MatchBucketSpawnPoints" unique_id=1950000416]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.11, 1, 2.22)
+
+[node name="BucketSpawn_4" type="Marker3D" parent="Rooms/Room_2_3/MatchBucketSpawnPoints" unique_id=1950000417]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.63, 1, -2.26)
 
 [node name="BucketSpawn_2" type="Marker3D" parent="Rooms/Room_2_3/MatchBucketSpawnPoints" unique_id=1950000220]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.19, 1, -3.8)
@@ -935,6 +993,12 @@ transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -2.1, 0, 3.81)
 metadata/drawer_size = "small"
 
 [node name="MatchBucketSpawnPoints" type="Node3D" parent="Rooms/Room_2_4" unique_id=1950000221]
+
+[node name="BucketSpawn_3" type="Marker3D" parent="Rooms/Room_2_4/MatchBucketSpawnPoints" unique_id=1950000418]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.55, 1.08, -3.68)
+
+[node name="BucketSpawn_4" type="Marker3D" parent="Rooms/Room_2_4/MatchBucketSpawnPoints" unique_id=1950000419]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.02, 0.728, 2.85)
 
 [node name="BucketSpawn_1" type="Marker3D" parent="Rooms/Room_2_4/MatchBucketSpawnPoints" unique_id=1950000222]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.02, 1.375, 2.4)
@@ -1058,6 +1122,15 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.15, 0, -3.95)
 
 [node name="MatchBucketSpawnPoints" type="Node3D" parent="Rooms/Room_3_1" unique_id=1950000224]
 
+[node name="BucketSpawn_1" type="Marker3D" parent="Rooms/Room_3_1/MatchBucketSpawnPoints" unique_id=1950000420]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.12, 1, 2.26)
+
+[node name="BucketSpawn_3" type="Marker3D" parent="Rooms/Room_3_1/MatchBucketSpawnPoints" unique_id=1950000421]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.9, 1, 2.05)
+
+[node name="BucketSpawn_4" type="Marker3D" parent="Rooms/Room_3_1/MatchBucketSpawnPoints" unique_id=1950000422]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.12, 1, 1.75)
+
 [node name="BucketSpawn_2" type="Marker3D" parent="Rooms/Room_3_1/MatchBucketSpawnPoints" unique_id=1950000226]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.9, 1, 2.95)
 
@@ -1159,6 +1232,12 @@ transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 3.93
 metadata/drawer_size = "small"
 
 [node name="MatchBucketSpawnPoints" type="Node3D" parent="Rooms/Room_3_2" unique_id=1950000227]
+
+[node name="BucketSpawn_3" type="Marker3D" parent="Rooms/Room_3_2/MatchBucketSpawnPoints" unique_id=1950000423]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.94, 1.08, 2.85)
+
+[node name="BucketSpawn_4" type="Marker3D" parent="Rooms/Room_3_2/MatchBucketSpawnPoints" unique_id=1950000424]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.15, 1, -3.03)
 
 [node name="BucketSpawn_1" type="Marker3D" parent="Rooms/Room_3_2/MatchBucketSpawnPoints" unique_id=1950000228]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.381505, 1.08, 1.6721845)
@@ -1273,6 +1352,18 @@ transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -3.95, 0, -2.15)
 
 [node name="MatchBucketSpawnPoints" type="Node3D" parent="Rooms/Room_3_3" unique_id=1950000230]
 
+[node name="BucketSpawn_1" type="Marker3D" parent="Rooms/Room_3_3/MatchBucketSpawnPoints" unique_id=1950000425]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.94, 1, -3.34)
+
+[node name="BucketSpawn_2" type="Marker3D" parent="Rooms/Room_3_3/MatchBucketSpawnPoints" unique_id=1950000426]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.94, 1, -2.55)
+
+[node name="BucketSpawn_3" type="Marker3D" parent="Rooms/Room_3_3/MatchBucketSpawnPoints" unique_id=1950000427]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.8, 0, 2.8)
+
+[node name="BucketSpawn_4" type="Marker3D" parent="Rooms/Room_3_3/MatchBucketSpawnPoints" unique_id=1950000428]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.6, 0, 2.6)
+
 [node name="Floor_0_0" parent="Rooms/Room_3_3" unique_id=1937123683 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0, -3)
 surface_material_override/0 = SubResource("ShaderMaterial_rri1y")
@@ -1367,6 +1458,12 @@ metadata/office_use = "Executive conference room"
 transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -3.95, 0, 2.25)
 
 [node name="MatchBucketSpawnPoints" type="Node3D" parent="Rooms/Room_3_4" unique_id=1950000233]
+
+[node name="BucketSpawn_3" type="Marker3D" parent="Rooms/Room_3_4/MatchBucketSpawnPoints" unique_id=1950000429]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.58, 1, 3.92)
+
+[node name="BucketSpawn_4" type="Marker3D" parent="Rooms/Room_3_4/MatchBucketSpawnPoints" unique_id=1950000430]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.15, 1, -2.91)
 
 [node name="BucketSpawn_1" type="Marker3D" parent="Rooms/Room_3_4/MatchBucketSpawnPoints" unique_id=1950000234]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.1499996, 1, -2.6714492)

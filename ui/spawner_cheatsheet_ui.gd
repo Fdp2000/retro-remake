@@ -46,6 +46,9 @@ var _dart_gun_max_spin: SpinBox = null
 var _floor_buckets_min_spin: SpinBox = null
 var _floor_buckets_max_spin: SpinBox = null
 
+var _floor_traps_min_spin: SpinBox = null
+var _floor_traps_max_spin: SpinBox = null
+
 var _summary_box: RichTextLabel = null
 var _apply_reroll_btn: Button = null
 var _reset_defaults_btn: Button = null
@@ -247,6 +250,14 @@ func _build_layout() -> void:
 	_floor_buckets_min_spin = floor_bucket_row["min"]
 	_floor_buckets_max_spin = floor_bucket_row["max"]
 
+	controls_vbox.add_child(HSeparator.new())
+
+	# Section 5: Random Surface Traps in Spawnpoints (Bomb, Spring, Dart Gun, Tripwire)
+	_add_section_header(controls_vbox, "5. Random Surface Traps (Bomb, Spring, Dart Gun, Tripwire)")
+	var floor_traps_row := _create_min_max_row(controls_vbox, "Other Traps in Spawnpoints (Min / Max):", 0, 24, 2, 4)
+	_floor_traps_min_spin = floor_traps_row["min"]
+	_floor_traps_max_spin = floor_traps_row["max"]
+
 	# Right Column: Live Preview & Active Map Summary
 	var right_vbox := VBoxContainer.new()
 	right_vbox.custom_minimum_size = Vector2(325.0, 0.0)
@@ -422,6 +433,10 @@ func refresh_from_config() -> void:
 
 	_floor_buckets_min_spin.value = GameConfig.spawner_floor_buckets_min
 	_floor_buckets_max_spin.value = GameConfig.spawner_floor_buckets_max
+	if _floor_traps_min_spin != null:
+		_floor_traps_min_spin.value = GameConfig.spawner_floor_traps_min
+	if _floor_traps_max_spin != null:
+		_floor_traps_max_spin.value = GameConfig.spawner_floor_traps_max
 	_updating_ui = false
 	_refresh_live_summary()
 
@@ -455,7 +470,9 @@ func collect_ui_config_dict() -> Dictionary:
 		"dart_gun_min": int(_dart_gun_min_spin.value),
 		"dart_gun_max": int(_dart_gun_max_spin.value),
 		"floor_buckets_min": int(_floor_buckets_min_spin.value),
-		"floor_buckets_max": int(_floor_buckets_max_spin.value)
+		"floor_buckets_max": int(_floor_buckets_max_spin.value),
+		"floor_traps_min": int(_floor_traps_min_spin.value) if _floor_traps_min_spin != null else 2,
+		"floor_traps_max": int(_floor_traps_max_spin.value) if _floor_traps_max_spin != null else 4
 	}
 
 
@@ -519,6 +536,7 @@ func _refresh_live_summary() -> void:
 	lines.append("• Briefcase Isolation: [b]%s[/b]" % ("Never with Objective" if bool(cfg.get("isolate_briefcase_from_objectives", true)) else "Unrestricted"))
 	lines.append("• Target Drawer Gadgets: [b]%d – %d[/b]" % [int(cfg.get("min_total_gadgets", 11)), int(cfg.get("max_total_gadgets", 14))])
 	lines.append("• Target Water Buckets (Both Floors): [b]%d – %d[/b]" % [int(cfg.get("floor_buckets_min", 4)), int(cfg.get("floor_buckets_max", 6))])
+	lines.append("• Target Surface Traps (Other than Bucket): [b]%d – %d[/b]" % [int(cfg.get("floor_traps_min", 2)), int(cfg.get("floor_traps_max", 4))])
 
 	if not _last_populate_summary.is_empty():
 		lines.append("")
@@ -530,6 +548,14 @@ func _refresh_live_summary() -> void:
 		])
 		lines.append("• Drawer Props Placed: [b]%d[/b]" % int(_last_populate_summary.get("drawers_spawned", 0)))
 		lines.append("• Water Buckets Spawned: [b]%d[/b]" % int(_last_populate_summary.get("floor_buckets_spawned", 0)))
+		var ft_counts: Dictionary = _last_populate_summary.get("floor_trap_counts", {})
+		lines.append("• Surface Traps Spawned: [b]%d[/b] (Spring=%d | Bomb=%d | Tripwire=%d | Dart=%d)" % [
+			int(_last_populate_summary.get("floor_traps_spawned", 0)),
+			int(ft_counts.get("SPRING", 0)),
+			int(ft_counts.get("BOMB", 0)),
+			int(ft_counts.get("TRIPWIRE", 0)),
+			int(ft_counts.get("DART_GUN", 0))
+		])
 		var manifest: Dictionary = _last_populate_summary.get("manifest", {})
 		var g_counts: Dictionary = manifest.get("gadget_counts", {})
 		if not g_counts.is_empty():
@@ -542,21 +568,26 @@ func _refresh_live_summary() -> void:
 		var per_room_containers: Dictionary = _last_populate_summary.get("containers_per_room", {})
 		var per_room: Dictionary = _last_populate_summary.get("drawers_per_room", {})
 		var per_room_buckets: Dictionary = _last_populate_summary.get("buckets_per_room", {})
-		if not per_room.is_empty() or not per_room_buckets.is_empty():
+		var per_room_traps: Dictionary = _last_populate_summary.get("floor_traps_per_room", {})
+		if not per_room.is_empty() or not per_room_buckets.is_empty() or not per_room_traps.is_empty():
 			lines.append("")
-			lines.append("[b]Containers & Buckets Per Room:[/b]")
+			lines.append("[b]Containers, Buckets & Surface Traps Per Room:[/b]")
 			var room_key_set: Dictionary = {}
 			for rk in per_room.keys():
 				room_key_set[rk] = true
 			for bk in per_room_buckets.keys():
 				room_key_set[bk] = true
+			for tk in per_room_traps.keys():
+				room_key_set[tk] = true
 			var r_keys: Array = room_key_set.keys()
 			r_keys.sort()
 			for r_name in r_keys:
 				var c_cnt: int = int(per_room_containers.get(r_name, per_room.get(r_name, 0)))
 				var d_cnt: int = int(per_room.get(r_name, 0))
 				var b_cnt: int = int(per_room_buckets.get(r_name, 0))
+				var t_cnt: int = int(per_room_traps.get(r_name, 0))
 				var b_tag: String = " | [color=#72d6ff]%d bucket(s)[/color]" % b_cnt if b_cnt > 0 else ""
-				lines.append("  - %s: [b]%d[/b] container(s) (%d prop(s))%s" % [str(r_name), c_cnt, d_cnt, b_tag])
+				var t_tag: String = " | [color=#ffae66]%d trap(s)[/color]" % t_cnt if t_cnt > 0 else ""
+				lines.append("  - %s: [b]%d[/b] container(s) (%d prop(s))%s%s" % [str(r_name), c_cnt, d_cnt, b_tag, t_tag])
 
 	_summary_box.text = "\n".join(lines)
