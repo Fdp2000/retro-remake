@@ -1,0 +1,12 @@
+[gd_scene format=3 uid="uid://behvgk0848p04"]
+
+[ext_resource type="PackedScene" uid="uid://bmc1mpsg5ti5e" path="res://Assets/Models/Samleobjekter/Money.glb" id="1_d5gge"]
+[ext_resource type="Texture2D" uid="uid://crettomnkp44p" path="res://Assets/Models/Samleobjekter/Texture_Money.png" id="2_fj4ls"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_1ypmg"]
+albedo_texture = ExtResource("2_fj4ls")
+
+[node name="Money2" unique_id=989270433 instance=ExtResource("1_d5gge")]
+
+[node name="Money" parent="." index="0" unique_id=1634003381]
+material_override = SubResource("StandardMaterial3D_1ypmg")
