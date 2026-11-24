@@ -30,6 +30,18 @@ func _ready() -> void:
 		_build_layout.call_deferred(layout_seed if layout_seed != 0 else seeder.randi())
 
 
+func _is_upper_floor_enabled() -> bool:
+	if MatchManager != null and not MatchManager.active_spawner_config.is_empty():
+		var cfg: Dictionary = MatchManager.active_spawner_config
+		if cfg.has("enable_upper_floor"):
+			return bool(cfg["enable_upper_floor"])
+		if cfg.has("active_preset_players"):
+			return int(cfg["active_preset_players"]) > 2
+	if GameConfig != null:
+		return GameConfig.spawner_enable_upper_floor
+	return true
+
+
 func _build_layout(seed_value: int) -> void:
 	if _layout_built:
 		return
@@ -38,10 +50,18 @@ func _build_layout(seed_value: int) -> void:
 	rng.seed = seed_value
 	var grid_size: Vector2i = building.get_meta("grid_size")
 	var lower_doors := DOOR_LAYOUT.randomize_floor(building, grid_size, rng, min_doors_per_floor, max_doors_per_floor, reserved_lower_boundary)
-	var upper_doors := DOOR_LAYOUT.randomize_floor(building.get_node("SecondFloor") as Node3D, grid_size, rng, min_doors_per_floor, max_doors_per_floor)
-	var ladders := _spawn_ladders(rng)
-	print("BuildingComplex3: seed %d opened %d downstairs doors, %d upstairs doors, and %d ladder shafts." % [
-		seed_value, lower_doors, upper_doors, ladders
+	var upper_doors := 0
+	var ladders := 0
+	var upper_floor := building.get_node_or_null("SecondFloor") as Node3D
+	if _is_upper_floor_enabled():
+		if upper_floor != null:
+			upper_doors = DOOR_LAYOUT.randomize_floor(upper_floor, grid_size, rng, min_doors_per_floor, max_doors_per_floor)
+		ladders = _spawn_ladders(rng)
+	elif upper_floor != null:
+		building.remove_child(upper_floor)
+		upper_floor.queue_free()
+	print("BuildingComplex3: seed %d opened %d downstairs doors, %d upstairs doors, and %d ladder shafts (upper_floor=%s)." % [
+		seed_value, lower_doors, upper_doors, ladders, str(_is_upper_floor_enabled())
 	])
 
 

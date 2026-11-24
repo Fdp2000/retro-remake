@@ -49,6 +49,14 @@ var _floor_buckets_max_spin: SpinBox = null
 var _floor_traps_min_spin: SpinBox = null
 var _floor_traps_max_spin: SpinBox = null
 
+var _prearmed_buckets_min_spin: SpinBox = null
+var _prearmed_buckets_max_spin: SpinBox = null
+var _prearmed_springs_min_spin: SpinBox = null
+var _prearmed_springs_max_spin: SpinBox = null
+var _prearmed_bombs_min_spin: SpinBox = null
+var _prearmed_bombs_max_spin: SpinBox = null
+var _exclude_spawn_doors_check: CheckBox = null
+
 var _summary_box: RichTextLabel = null
 var _apply_reroll_btn: Button = null
 var _reset_defaults_btn: Button = null
@@ -258,6 +266,31 @@ func _build_layout() -> void:
 	_floor_traps_min_spin = floor_traps_row["min"]
 	_floor_traps_max_spin = floor_traps_row["max"]
 
+	controls_vbox.add_child(HSeparator.new())
+
+	# Section 6: Pre-Armed Traps at Match Start (Doors & Drawers)
+	_add_section_header(controls_vbox, "6. Pre-Armed Traps at Match Start (Doors & Drawers)")
+	var prearmed_buckets_row := _create_min_max_row(controls_vbox, "Door Water Buckets (Min / Max):", 0, 24, 1, 2)
+	_prearmed_buckets_min_spin = prearmed_buckets_row["min"]
+	_prearmed_buckets_max_spin = prearmed_buckets_row["max"]
+
+	var prearmed_springs_row := _create_min_max_row(controls_vbox, "Drawer Spring Traps (Min / Max):", 0, 24, 1, 2)
+	_prearmed_springs_min_spin = prearmed_springs_row["min"]
+	_prearmed_springs_max_spin = prearmed_springs_row["max"]
+
+	var prearmed_bombs_row := _create_min_max_row(controls_vbox, "Drawer Time Bombs (Min / Max):", 0, 24, 1, 2)
+	_prearmed_bombs_min_spin = prearmed_bombs_row["min"]
+	_prearmed_bombs_max_spin = prearmed_bombs_row["max"]
+
+	var exclude_doors_row := HBoxContainer.new()
+	exclude_doors_row.add_theme_constant_override("separation", 8)
+	controls_vbox.add_child(exclude_doors_row)
+	_exclude_spawn_doors_check = CheckBox.new()
+	_exclude_spawn_doors_check.text = "Disable Pre-Armed Buckets on Spawn Room Doors"
+	_exclude_spawn_doors_check.button_pressed = true
+	_exclude_spawn_doors_check.toggled.connect(func(_v: bool) -> void: _on_any_control_changed())
+	exclude_doors_row.add_child(_exclude_spawn_doors_check)
+
 	# Right Column: Live Preview & Active Map Summary
 	var right_vbox := VBoxContainer.new()
 	right_vbox.custom_minimum_size = Vector2(325.0, 0.0)
@@ -437,6 +470,20 @@ func refresh_from_config() -> void:
 		_floor_traps_min_spin.value = GameConfig.spawner_floor_traps_min
 	if _floor_traps_max_spin != null:
 		_floor_traps_max_spin.value = GameConfig.spawner_floor_traps_max
+	if _prearmed_buckets_min_spin != null:
+		_prearmed_buckets_min_spin.value = GameConfig.spawner_prearmed_buckets_min
+	if _prearmed_buckets_max_spin != null:
+		_prearmed_buckets_max_spin.value = GameConfig.spawner_prearmed_buckets_max
+	if _prearmed_springs_min_spin != null:
+		_prearmed_springs_min_spin.value = GameConfig.spawner_prearmed_springs_min
+	if _prearmed_springs_max_spin != null:
+		_prearmed_springs_max_spin.value = GameConfig.spawner_prearmed_springs_max
+	if _prearmed_bombs_min_spin != null:
+		_prearmed_bombs_min_spin.value = GameConfig.spawner_prearmed_bombs_min
+	if _prearmed_bombs_max_spin != null:
+		_prearmed_bombs_max_spin.value = GameConfig.spawner_prearmed_bombs_max
+	if _exclude_spawn_doors_check != null:
+		_exclude_spawn_doors_check.button_pressed = GameConfig.spawner_exclude_spawn_room_doors_from_buckets
 	_updating_ui = false
 	_refresh_live_summary()
 
@@ -449,6 +496,7 @@ func collect_ui_config_dict() -> Dictionary:
 	return {
 		"active_preset_players": GameConfig.spawner_active_preset_players if GameConfig != null else 2,
 		"auto_preset_by_player_count": _auto_preset_check.button_pressed if _auto_preset_check != null else true,
+		"enable_upper_floor": (GameConfig.spawner_active_preset_players > 2) if GameConfig != null else false,
 		"starting_clock_seconds": float(_starting_clock_spin.value) if _starting_clock_spin != null else 180.0,
 		"drawer_first_search_bonus_seconds": float(_first_search_bonus_spin.value) if _first_search_bonus_spin != null else 10.0,
 		"min_containers": min_c,
@@ -472,7 +520,14 @@ func collect_ui_config_dict() -> Dictionary:
 		"floor_buckets_min": int(_floor_buckets_min_spin.value),
 		"floor_buckets_max": int(_floor_buckets_max_spin.value),
 		"floor_traps_min": int(_floor_traps_min_spin.value) if _floor_traps_min_spin != null else 2,
-		"floor_traps_max": int(_floor_traps_max_spin.value) if _floor_traps_max_spin != null else 4
+		"floor_traps_max": int(_floor_traps_max_spin.value) if _floor_traps_max_spin != null else 4,
+		"prearmed_buckets_min": int(_prearmed_buckets_min_spin.value) if _prearmed_buckets_min_spin != null else 1,
+		"prearmed_buckets_max": int(_prearmed_buckets_max_spin.value) if _prearmed_buckets_max_spin != null else 2,
+		"prearmed_springs_min": int(_prearmed_springs_min_spin.value) if _prearmed_springs_min_spin != null else 1,
+		"prearmed_springs_max": int(_prearmed_springs_max_spin.value) if _prearmed_springs_max_spin != null else 2,
+		"prearmed_bombs_min": int(_prearmed_bombs_min_spin.value) if _prearmed_bombs_min_spin != null else 1,
+		"prearmed_bombs_max": int(_prearmed_bombs_max_spin.value) if _prearmed_bombs_max_spin != null else 2,
+		"exclude_spawn_room_doors_from_buckets": _exclude_spawn_doors_check.button_pressed if _exclude_spawn_doors_check != null else true
 	}
 
 
@@ -518,25 +573,54 @@ func _refresh_live_summary() -> void:
 	var cfg: Dictionary = collect_ui_config_dict()
 	var active_p: int = int(cfg.get("active_preset_players", 2))
 	var auto_p: bool = bool(cfg.get("auto_preset_by_player_count", true))
+	var include_upper: bool = bool(cfg.get("enable_upper_floor", active_p > 2))
 	var start_sec: int = int(cfg.get("starting_clock_seconds", 180.0))
 	var bonus_sec: int = int(cfg.get("drawer_first_search_bonus_seconds", 10.0))
 	var allow_spawns: bool = bool(cfg.get("allow_drawers_in_spawn_rooms", true))
 	var spawn_cap: int = int(cfg.get("max_drawers_in_spawn_room", 1)) if allow_spawns else 0
-	var contested_rooms: int = 20
-	var max_room_cap: int = contested_rooms * int(cfg.get("max_drawers_per_room", 2)) + 4 * spawn_cap
+	var contested_rooms: int = 20 if include_upper else 10
+	var spawn_rooms_count: int = 4 if include_upper else 2
+	var total_rooms: int = contested_rooms + spawn_rooms_count
+	var max_room_cap: int = contested_rooms * int(cfg.get("max_drawers_per_room", 2)) + spawn_rooms_count * spawn_cap
 
 	var lines: Array[String] = []
 	lines.append("[b][color=#8cf2a8]Current Rules Summary (%d-Player Preset)[/color][/b]" % active_p)
 	lines.append("• Preset Mode: [b]%d-Player Ruleset[/b] (%s)" % [active_p, "Auto by Player Count" if auto_p else "Manual Override"])
+	lines.append("• Map Floors: [b]%s[/b]" % ("Both Floors Active (Ground + Upper Floor with Ladders)" if include_upper else "Ground Floor Only (Upper Floor & Ladders Removed for 2P)"))
 	lines.append("• Starting Clock / Player: [b]%02d:%02d[/b] (%ds)  |  First Search: [b]+%ds[/b]" % [start_sec / 60, start_sec % 60, start_sec, bonus_sec])
-	lines.append("• Map Rooms: [b]24 total[/b] (20 Contested [max %d/room] + 4 Corner Spawn)" % int(cfg.get("max_drawers_per_room", 2)))
-	lines.append("• Spawn Rooms (4 Corners): [b]%s[/b]" % ("Max %d/room" % spawn_cap if spawn_cap > 0 else "0 drawers"))
+	lines.append("• Map Rooms: [b]%d total[/b] (%d Contested [max %d/room] + %d %s)" % [
+		total_rooms,
+		contested_rooms,
+		int(cfg.get("max_drawers_per_room", 2)),
+		spawn_rooms_count,
+		"Corner Spawn" if include_upper else "Ground Corner Spawn"
+	])
+	lines.append("• Spawn Rooms (%d %s): [b]%s[/b]" % [
+		spawn_rooms_count,
+		"Corners" if include_upper else "Ground Corners",
+		"Max %d/room" % spawn_cap if spawn_cap > 0 else "0 drawers"
+	])
 	lines.append("• Total Room Prop Capacity: [b]%d drawer props[/b]" % max_room_cap)
-	lines.append("• Target Searchable Containers: [b]%d – %d[/b] (5 core + gadgets + empty)" % [int(cfg.get("min_containers", 24)), int(cfg.get("max_containers", 32))])
+	lines.append("• Target Searchable Containers: [b]%d – %d[/b] (5 core + gadgets + empty)" % [int(cfg.get("min_containers", 16)), int(cfg.get("max_containers", 22))])
 	lines.append("• Briefcase Isolation: [b]%s[/b]" % ("Never with Objective" if bool(cfg.get("isolate_briefcase_from_objectives", true)) else "Unrestricted"))
-	lines.append("• Target Drawer Gadgets: [b]%d – %d[/b]" % [int(cfg.get("min_total_gadgets", 11)), int(cfg.get("max_total_gadgets", 14))])
-	lines.append("• Target Water Buckets (Both Floors): [b]%d – %d[/b]" % [int(cfg.get("floor_buckets_min", 4)), int(cfg.get("floor_buckets_max", 6))])
+	lines.append("• Target Drawer Gadgets: [b]%d – %d[/b]" % [int(cfg.get("min_total_gadgets", 8)), int(cfg.get("max_total_gadgets", 11))])
+	lines.append("• Target Water Buckets (%s): [b]%d – %d[/b]" % [
+		"Both Floors" if include_upper else "Ground Floor",
+		int(cfg.get("floor_buckets_min", 3)),
+		int(cfg.get("floor_buckets_max", 5))
+	])
 	lines.append("• Target Surface Traps (Other than Bucket): [b]%d – %d[/b]" % [int(cfg.get("floor_traps_min", 2)), int(cfg.get("floor_traps_max", 4))])
+	lines.append("• Pre-Armed Door Buckets: [b]%d – %d[/b] (%s)" % [
+		int(cfg.get("prearmed_buckets_min", 1)),
+		int(cfg.get("prearmed_buckets_max", 2)),
+		"Spawn Room Doors Excluded" if bool(cfg.get("exclude_spawn_room_doors_from_buckets", true)) else "All Doors Eligible"
+	])
+	lines.append("• Pre-Armed Drawer Traps: Springs [b]%d – %d[/b] | Bombs [b]%d – %d[/b]" % [
+		int(cfg.get("prearmed_springs_min", 1)),
+		int(cfg.get("prearmed_springs_max", 2)),
+		int(cfg.get("prearmed_bombs_min", 1)),
+		int(cfg.get("prearmed_bombs_max", 2))
+	])
 
 	if not _last_populate_summary.is_empty():
 		lines.append("")
@@ -556,6 +640,13 @@ func _refresh_live_summary() -> void:
 			int(ft_counts.get("TRIPWIRE", 0)),
 			int(ft_counts.get("DART_GUN", 0))
 		])
+		lines.append("• Pre-Armed Traps Spawned: [b]%d[/b] (Door Buckets=%d [%d spawn doors excluded] | Drawer Springs=%d | Drawer Bombs=%d)" % [
+			int(_last_populate_summary.get("starting_prearmed_traps", 0)),
+			int(_last_populate_summary.get("prearmed_buckets_spawned", 0)),
+			int(_last_populate_summary.get("excluded_spawn_doors_count", 0)),
+			int(_last_populate_summary.get("prearmed_springs_spawned", 0)),
+			int(_last_populate_summary.get("prearmed_bombs_spawned", 0))
+		])
 		var manifest: Dictionary = _last_populate_summary.get("manifest", {})
 		var g_counts: Dictionary = manifest.get("gadget_counts", {})
 		if not g_counts.is_empty():
@@ -569,6 +660,7 @@ func _refresh_live_summary() -> void:
 		var per_room: Dictionary = _last_populate_summary.get("drawers_per_room", {})
 		var per_room_buckets: Dictionary = _last_populate_summary.get("buckets_per_room", {})
 		var per_room_traps: Dictionary = _last_populate_summary.get("floor_traps_per_room", {})
+		var per_room_prearmed: Dictionary = _last_populate_summary.get("prearmed_traps_per_room", {})
 		if not per_room.is_empty() or not per_room_buckets.is_empty() or not per_room_traps.is_empty():
 			lines.append("")
 			lines.append("[b]Containers, Buckets & Surface Traps Per Room:[/b]")
@@ -586,8 +678,10 @@ func _refresh_live_summary() -> void:
 				var d_cnt: int = int(per_room.get(r_name, 0))
 				var b_cnt: int = int(per_room_buckets.get(r_name, 0))
 				var t_cnt: int = int(per_room_traps.get(r_name, 0))
+				var pa_cnt: int = int(per_room_prearmed.get(r_name, 0))
 				var b_tag: String = " | [color=#72d6ff]%d bucket(s)[/color]" % b_cnt if b_cnt > 0 else ""
 				var t_tag: String = " | [color=#ffae66]%d trap(s)[/color]" % t_cnt if t_cnt > 0 else ""
-				lines.append("  - %s: [b]%d[/b] container(s) (%d prop(s))%s%s" % [str(r_name), c_cnt, d_cnt, b_tag, t_tag])
+				var pa_tag: String = " | [color=#ff6e7a]%d pre-armed[/color]" % pa_cnt if pa_cnt > 0 else ""
+				lines.append("  - %s: [b]%d[/b] container(s) (%d prop(s))%s%s%s" % [str(r_name), c_cnt, d_cnt, b_tag, t_tag, pa_tag])
 
 	_summary_box.text = "\n".join(lines)

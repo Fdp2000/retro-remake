@@ -19,10 +19,10 @@ const SPAWN_POINTS: Dictionary = {
 	4: Vector3(3.0, 1.0, 1.8)
 }
 const FULL_MATCH_SPAWN_POINTS: Dictionary = {
-	1: Vector3(-12.0, 1.0, -9.0), # Room_1_1 (NW Corner — Spy Green)
-	2: Vector3(13.5, 1.0, 6.8),   # Room_3_4 (SE Corner — Spy Purple)
-	3: Vector3(15.0, 1.0, -9.0),  # Room_1_4 (NE Corner — Spy Blue)
-	4: Vector3(-12.0, 1.0, 9.0)   # Room_3_1 (SW Corner — Spy Red)
+	1: Vector3(-12.0, 0.012, -9.0), # Ground Room_1_1 (NW Corner)
+	2: Vector3(15.0, 0.012, 9.0),   # Ground Room_3_4 (SE Corner)
+	3: Vector3(15.0, 3.232, -9.0),  # Upper Room_1_4 (NE Corner)
+	4: Vector3(-12.0, 3.232, 9.0)   # Upper Room_3_1 (SW Corner)
 }
 const FULL_MATCH_SPAWN_YAWS: Dictionary = {
 	1: PI,
@@ -52,6 +52,8 @@ var _esc_cheatsheet_button: Button = null
 var _esc_rematch_button: Button = null
 var _esc_switch_mode_button: Button = null
 var _esc_debug_bomb_fuse_button: Button = null
+var active_player_spawn_indices: Dictionary = {} # slot (1..4) -> spawn_index (0..3)
+var _cached_player_spawn_transforms: Array[Transform3D] = []
 
 
 func _ready() -> void:
@@ -374,19 +376,138 @@ func _spawn_test_props() -> void:
 	small_drawer.position = Vector3(-0.3, 0.0, -6.5)
 
 
+func _is_upper_floor_enabled() -> bool:
+	if MatchManager != null and not MatchManager.active_spawner_config.is_empty():
+		var cfg: Dictionary = MatchManager.active_spawner_config
+		if cfg.has("enable_upper_floor"):
+			return bool(cfg["enable_upper_floor"])
+		if cfg.has("active_preset_players"):
+			return int(cfg["active_preset_players"]) > 2
+	if GameConfig != null:
+		if GameConfig.spawner_auto_preset_by_player_count and not expected_peers.is_empty():
+			return expected_peers.size() > 2
+		return GameConfig.spawner_enable_upper_floor
+	return true
+
+
+func _collect_building_player_spawn_transforms() -> Array[Transform3D]:
+	var result: Array[Transform3D] = []
+	var building: Node = get_node_or_null("BuildingComplex3")
+	if building == null:
+		building = get_node_or_null("BuildingComplex2")
+	if building == null:
+		return result
+
+	var markers: Array[Dictionary] = []
+	var room_paths: Array[String] = ["Rooms"]
+	if _is_upper_floor_enabled():
+		room_paths.append("SecondFloor/Rooms")
+	for room_path in room_paths:
+		var room_root: Node = building.get_node_or_null(room_path)
+		if room_root == null:
+			continue
+		for room in room_root.get_children():
+			var pts: Node = room.get_node_or_null("MatchPlayerSpawnPoints")
+			if pts == null:
+				continue
+			for child in pts.get_children():
+				if child is Marker3D:
+					markers.append({
+						"sort_key": "%s/%s/%s" % [room_path, String(room.name), String(child.name)],
+						"marker": child as Marker3D
+					})
+
+	markers.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		return str(a["sort_key"]) < str(b["sort_key"])
+	)
+
+	var p_root: Node3D = players_container if players_container != null else get_node_or_null("Players") as Node3D
+	var inv_players_xform: Transform3D = Transform3D.IDENTITY
+	if p_root != null:
+		inv_players_xform = p_root.global_transform.affine_inverse() if p_root.is_inside_tree() else Transform3D(Basis.IDENTITY, -p_root.position)
+
+	for entry in markers:
+		var marker: Marker3D = entry["marker"] as Marker3D
+		if marker != null and marker.is_inside_tree():
+			result.append(inv_players_xform * marker.global_transform)
+	return result
+
+
+func _assign_random_player_spawns(seed_value: int) -> void:
+	_cached_player_spawn_transforms = _collect_building_player_spawn_transforms()
+	var count: int = _cached_player_spawn_transforms.size()
+	if count <= 0:
+		count = FULL_MATCH_SPAWN_POINTS.size()
+
+	var indices: Array[int] = []
+	for i in range(count):
+		indices.append(i)
+
+	var rng := RandomNumberGenerator.new()
+	if seed_value != 0:
+		rng.seed = seed_value ^ 0x53504157
+	else:
+		rng.randomize()
+
+	for i in range(indices.size() - 1, 0, -1):
+		var j: int = rng.randi_range(0, i)
+		var tmp: int = indices[i]
+		indices[i] = indices[j]
+		indices[j] = tmp
+
+	active_player_spawn_indices.clear()
+	for slot in range(1, 5):
+		active_player_spawn_indices[slot] = indices[(slot - 1) % count]
+
+
 func _resolve_spawn_point(slot: int) -> Vector3:
 	if not is_inside_tree() or is_sandbox_mode:
 		return SPAWN_POINTS.get(slot, Vector3.ZERO)
+	if _cached_player_spawn_transforms.is_empty():
+		_cached_player_spawn_transforms = _collect_building_player_spawn_transforms()
+	if active_player_spawn_indices.is_empty():
+		var fallback_seed: int = MatchManager.match_seed if (MatchManager != null and MatchManager.match_seed != 0) else 0
+		_assign_random_player_spawns(fallback_seed)
+	var idx: int = int(active_player_spawn_indices.get(slot, slot - 1))
+	if idx >= 0 and idx < _cached_player_spawn_transforms.size():
+		return _cached_player_spawn_transforms[idx].origin
 	return FULL_MATCH_SPAWN_POINTS.get(slot, SPAWN_POINTS.get(slot, Vector3.ZERO))
 
 
 func _resolve_spawn_yaw(slot: int) -> float:
 	if not is_inside_tree() or is_sandbox_mode:
 		return 0.0
+	if _cached_player_spawn_transforms.is_empty():
+		_cached_player_spawn_transforms = _collect_building_player_spawn_transforms()
+	if active_player_spawn_indices.is_empty():
+		var fallback_seed: int = MatchManager.match_seed if (MatchManager != null and MatchManager.match_seed != 0) else 0
+		_assign_random_player_spawns(fallback_seed)
+	var idx: int = int(active_player_spawn_indices.get(slot, slot - 1))
+	if idx >= 0 and idx < _cached_player_spawn_transforms.size():
+		return _cached_player_spawn_transforms[idx].basis.get_euler().y
 	return float(FULL_MATCH_SPAWN_YAWS.get(slot, 0.0))
 
 
 func _on_match_started(seed_value: int) -> void:
+	_assign_random_player_spawns(seed_value)
+	if not is_sandbox_mode:
+		var p_root: Node = players_container if players_container != null else get_node_or_null("Players")
+		if p_root != null:
+			for child in p_root.get_children():
+				var pid: int = child.name.to_int()
+				var slot: int = int(child.get("spy_role"))
+				if slot <= 0 and MatchManager != null and MatchManager.has_method("get_peer_role"):
+					slot = MatchManager.get_peer_role(pid)
+				if slot <= 0:
+					slot = 1 if pid == 1 else 2
+				var sp_pos: Vector3 = _resolve_spawn_point(slot)
+				var sp_yaw: float = _resolve_spawn_yaw(slot)
+				if child.has_method("reset_for_rematch"):
+					child.call("reset_for_rematch", sp_pos, sp_yaw)
+				elif child is Node3D:
+					(child as Node3D).position = sp_pos
+					(child as Node3D).rotation.y = sp_yaw
+
 	var spawner := MATCH_SPAWNER_SCRIPT.new()
 	var active_cfg: Dictionary = MatchManager.active_spawner_config if (MatchManager != null and not MatchManager.active_spawner_config.is_empty()) else {}
 	var skip_rooms: Array[String] = []
@@ -671,6 +792,9 @@ func _spawn_all_players() -> void:
 		participants.size(),
 		"Sandbox" if is_sandbox_mode else "FullMatch"
 	])
+
+	if not is_sandbox_mode and active_player_spawn_indices.is_empty():
+		_assign_random_player_spawns(0)
 
 	for pid in participants:
 		var role: int = int(peer_roles.get(pid, 1 if pid == 1 else 2))

@@ -274,25 +274,34 @@ static func get_spy_role_badge_color(role: int) -> Color:
 @export var spawner_floor_buckets_max: int = 6
 @export var spawner_floor_traps_min: int = 2
 @export var spawner_floor_traps_max: int = 4
+@export var spawner_prearmed_buckets_min: int = 1
+@export var spawner_prearmed_buckets_max: int = 2
+@export var spawner_prearmed_springs_min: int = 1
+@export var spawner_prearmed_springs_max: int = 2
+@export var spawner_prearmed_bombs_min: int = 1
+@export var spawner_prearmed_bombs_max: int = 2
+@export var spawner_exclude_spawn_room_doors_from_buckets: bool = true
 @export var spawner_cover_props_count: int = 6
 @export var spawner_active_preset_players: int = 2
 @export var spawner_auto_preset_by_player_count: bool = true
+@export var spawner_enable_upper_floor: bool = false
 ## When false (default), launches a real seeded round (corner room spawns, no free pickup table in Room_2_2).
 ## When true, spawns the Room_2_2 dev test bench with all pickups/traps/drawers laid out for quick testing.
 @export var sandbox_gym_mode: bool = false
 
 const PLAYER_COUNT_SPAWNER_PRESETS: Dictionary = {
 	2: {
+		"enable_upper_floor": false,
 		"starting_clock_seconds": 180.0,
 		"drawer_first_search_bonus_seconds": 10.0,
-		"min_containers": 24,
-		"max_containers": 32,
+		"min_containers": 16,
+		"max_containers": 22,
 		"max_drawers_per_room": 2,
 		"allow_drawers_in_spawn_rooms": true,
 		"max_drawers_in_spawn_room": 1,
 		"isolate_briefcase_from_objectives": true,
-		"min_total_gadgets": 11,
-		"max_total_gadgets": 14,
+		"min_total_gadgets": 8,
+		"max_total_gadgets": 11,
 		"spring_min": 1,
 		"spring_max": 6,
 		"bomb_min": 1,
@@ -301,13 +310,21 @@ const PLAYER_COUNT_SPAWNER_PRESETS: Dictionary = {
 		"tripwire_max": 6,
 		"dart_gun_min": 0,
 		"dart_gun_max": 4,
-		"floor_buckets_min": 4,
-		"floor_buckets_max": 6,
+		"floor_buckets_min": 3,
+		"floor_buckets_max": 5,
 		"floor_traps_min": 2,
-		"floor_traps_max": 4,
+		"floor_traps_max": 3,
+		"prearmed_buckets_min": 1,
+		"prearmed_buckets_max": 2,
+		"prearmed_springs_min": 1,
+		"prearmed_springs_max": 2,
+		"prearmed_bombs_min": 1,
+		"prearmed_bombs_max": 2,
+		"exclude_spawn_room_doors_from_buckets": true,
 		"cover_props_count": 6
 	},
 	3: {
+		"enable_upper_floor": true,
 		"starting_clock_seconds": 210.0,
 		"drawer_first_search_bonus_seconds": 10.0,
 		"min_containers": 30,
@@ -330,9 +347,17 @@ const PLAYER_COUNT_SPAWNER_PRESETS: Dictionary = {
 		"floor_buckets_max": 8,
 		"floor_traps_min": 3,
 		"floor_traps_max": 6,
+		"prearmed_buckets_min": 2,
+		"prearmed_buckets_max": 3,
+		"prearmed_springs_min": 2,
+		"prearmed_springs_max": 3,
+		"prearmed_bombs_min": 1,
+		"prearmed_bombs_max": 3,
+		"exclude_spawn_room_doors_from_buckets": true,
 		"cover_props_count": 6
 	},
 	4: {
+		"enable_upper_floor": true,
 		"starting_clock_seconds": 240.0,
 		"drawer_first_search_bonus_seconds": 12.0,
 		"min_containers": 36,
@@ -355,6 +380,13 @@ const PLAYER_COUNT_SPAWNER_PRESETS: Dictionary = {
 		"floor_buckets_max": 10,
 		"floor_traps_min": 4,
 		"floor_traps_max": 8,
+		"prearmed_buckets_min": 2,
+		"prearmed_buckets_max": 4,
+		"prearmed_springs_min": 2,
+		"prearmed_springs_max": 4,
+		"prearmed_bombs_min": 2,
+		"prearmed_bombs_max": 4,
+		"exclude_spawn_room_doors_from_buckets": true,
 		"cover_props_count": 6
 	}
 }
@@ -409,6 +441,7 @@ func get_spawner_config_dict() -> Dictionary:
 	return {
 		"active_preset_players": spawner_active_preset_players,
 		"auto_preset_by_player_count": spawner_auto_preset_by_player_count,
+		"enable_upper_floor": spawner_enable_upper_floor,
 		"starting_clock_seconds": starting_clock_seconds,
 		"drawer_first_search_bonus_seconds": drawer_first_search_bonus_seconds,
 		"min_containers": spawner_min_containers,
@@ -433,6 +466,13 @@ func get_spawner_config_dict() -> Dictionary:
 		"floor_buckets_max": spawner_floor_buckets_max,
 		"floor_traps_min": spawner_floor_traps_min,
 		"floor_traps_max": spawner_floor_traps_max,
+		"prearmed_buckets_min": spawner_prearmed_buckets_min,
+		"prearmed_buckets_max": spawner_prearmed_buckets_max,
+		"prearmed_springs_min": spawner_prearmed_springs_min,
+		"prearmed_springs_max": spawner_prearmed_springs_max,
+		"prearmed_bombs_min": spawner_prearmed_bombs_min,
+		"prearmed_bombs_max": spawner_prearmed_bombs_max,
+		"exclude_spawn_room_doors_from_buckets": spawner_exclude_spawn_room_doors_from_buckets,
 		"cover_props_count": spawner_cover_props_count
 	}
 
@@ -456,6 +496,10 @@ func apply_spawner_config_dict(cfg_dict: Dictionary) -> void:
 		spawner_active_preset_players = clampi(int(cfg_dict["active_preset_players"]), 2, 4)
 	if cfg_dict.has("auto_preset_by_player_count"):
 		spawner_auto_preset_by_player_count = bool(cfg_dict["auto_preset_by_player_count"])
+	if cfg_dict.has("enable_upper_floor"):
+		spawner_enable_upper_floor = bool(cfg_dict["enable_upper_floor"])
+	else:
+		spawner_enable_upper_floor = spawner_active_preset_players > 2
 	if cfg_dict.has("starting_clock_seconds"):
 		starting_clock_seconds = clampf(float(cfg_dict["starting_clock_seconds"]), 30.0, 900.0)
 	if cfg_dict.has("drawer_first_search_bonus_seconds"):
@@ -534,11 +578,38 @@ func apply_spawner_config_dict(cfg_dict: Dictionary) -> void:
 	else:
 		spawner_floor_traps_max = maxi(spawner_floor_traps_max, spawner_floor_traps_min)
 
+	if cfg_dict.has("prearmed_buckets_min"):
+		spawner_prearmed_buckets_min = maxi(int(cfg_dict["prearmed_buckets_min"]), 0)
+	if cfg_dict.has("prearmed_buckets_max"):
+		spawner_prearmed_buckets_max = maxi(int(cfg_dict["prearmed_buckets_max"]), spawner_prearmed_buckets_min)
+	else:
+		spawner_prearmed_buckets_max = maxi(spawner_prearmed_buckets_max, spawner_prearmed_buckets_min)
+
+	if cfg_dict.has("prearmed_springs_min"):
+		spawner_prearmed_springs_min = maxi(int(cfg_dict["prearmed_springs_min"]), 0)
+	if cfg_dict.has("prearmed_springs_max"):
+		spawner_prearmed_springs_max = maxi(int(cfg_dict["prearmed_springs_max"]), spawner_prearmed_springs_min)
+	else:
+		spawner_prearmed_springs_max = maxi(spawner_prearmed_springs_max, spawner_prearmed_springs_min)
+
+	if cfg_dict.has("prearmed_bombs_min"):
+		spawner_prearmed_bombs_min = maxi(int(cfg_dict["prearmed_bombs_min"]), 0)
+	if cfg_dict.has("prearmed_bombs_max"):
+		spawner_prearmed_bombs_max = maxi(int(cfg_dict["prearmed_bombs_max"]), spawner_prearmed_bombs_min)
+	else:
+		spawner_prearmed_bombs_max = maxi(spawner_prearmed_bombs_max, spawner_prearmed_bombs_min)
+
+	if cfg_dict.has("exclude_spawn_room_doors_from_buckets"):
+		spawner_exclude_spawn_room_doors_from_buckets = bool(cfg_dict["exclude_spawn_room_doors_from_buckets"])
+
+	starting_prearmed_traps = spawner_prearmed_buckets_max + spawner_prearmed_springs_max + spawner_prearmed_bombs_max
+
 	if cfg_dict.has("cover_props_count"):
 		spawner_cover_props_count = maxi(int(cfg_dict["cover_props_count"]), 0)
 
 	var preset_key: int = clampi(spawner_active_preset_players, 2, 4)
 	_player_count_presets[preset_key] = {
+		"enable_upper_floor": spawner_enable_upper_floor,
 		"starting_clock_seconds": starting_clock_seconds,
 		"drawer_first_search_bonus_seconds": drawer_first_search_bonus_seconds,
 		"min_containers": spawner_min_containers,
@@ -561,6 +632,13 @@ func apply_spawner_config_dict(cfg_dict: Dictionary) -> void:
 		"floor_buckets_max": spawner_floor_buckets_max,
 		"floor_traps_min": spawner_floor_traps_min,
 		"floor_traps_max": spawner_floor_traps_max,
+		"prearmed_buckets_min": spawner_prearmed_buckets_min,
+		"prearmed_buckets_max": spawner_prearmed_buckets_max,
+		"prearmed_springs_min": spawner_prearmed_springs_min,
+		"prearmed_springs_max": spawner_prearmed_springs_max,
+		"prearmed_bombs_min": spawner_prearmed_bombs_min,
+		"prearmed_bombs_max": spawner_prearmed_bombs_max,
+		"exclude_spawn_room_doors_from_buckets": spawner_exclude_spawn_room_doors_from_buckets,
 		"cover_props_count": spawner_cover_props_count
 	}
 

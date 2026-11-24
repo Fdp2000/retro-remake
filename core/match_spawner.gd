@@ -44,6 +44,14 @@ func _resolve_config(custom_config: Dictionary = {}) -> Dictionary:
 			"floor_buckets_max": 5,
 			"floor_traps_min": 2,
 			"floor_traps_max": 4,
+			"prearmed_buckets_min": 1,
+			"prearmed_buckets_max": 2,
+			"prearmed_springs_min": 1,
+			"prearmed_springs_max": 2,
+			"prearmed_bombs_min": 1,
+			"prearmed_bombs_max": 2,
+			"exclude_spawn_room_doors_from_buckets": true,
+			"enable_upper_floor": false,
 			"cover_props_count": 6
 		}
 	for k in custom_config.keys():
@@ -78,6 +86,22 @@ func generate_spawn_manifest(match_seed: int, custom_config: Dictionary = {}) ->
 	var b_min: int = maxi(int(cfg.get("floor_buckets_min", 3)), 0)
 	var b_max: int = maxi(int(cfg.get("floor_buckets_max", b_min)), b_min)
 	var bucket_count: int = rng.randi_range(b_min, b_max)
+
+	var pb_min: int = maxi(int(cfg.get("prearmed_buckets_min", 1)), 0)
+	var pb_max: int = maxi(int(cfg.get("prearmed_buckets_max", pb_min)), pb_min)
+	var prearmed_buckets_count: int = rng.randi_range(pb_min, pb_max)
+
+	var ps_min: int = maxi(int(cfg.get("prearmed_springs_min", 1)), 0)
+	var ps_max: int = maxi(int(cfg.get("prearmed_springs_max", ps_min)), ps_min)
+	var prearmed_springs_count: int = rng.randi_range(ps_min, ps_max)
+
+	var pbm_min: int = maxi(int(cfg.get("prearmed_bombs_min", 1)), 0)
+	var pbm_max: int = maxi(int(cfg.get("prearmed_bombs_max", pbm_min)), pbm_min)
+	var prearmed_bombs_count: int = rng.randi_range(pbm_min, pbm_max)
+
+	var exclude_spawn_room_doors: bool = bool(cfg.get("exclude_spawn_room_doors_from_buckets", true))
+	var enable_upper_floor: bool = bool(cfg.get("enable_upper_floor", int(cfg.get("active_preset_players", 2)) > 2))
+	var starting_prearmed_traps: int = prearmed_buckets_count + prearmed_springs_count + prearmed_bombs_count
 
 	var ft_min: int = maxi(int(cfg.get("floor_traps_min", 2)), 0)
 	var ft_max: int = maxi(int(cfg.get("floor_traps_max", ft_min)), ft_min)
@@ -189,7 +213,12 @@ func generate_spawn_manifest(match_seed: int, custom_config: Dictionary = {}) ->
 		"floor_trap_counts": floor_trap_counts,
 		"total_gadgets_count": selected_gadgets.size(),
 		"gadget_counts": gadget_counts,
-		"starting_prearmed_traps": 0,
+		"starting_prearmed_traps": starting_prearmed_traps,
+		"prearmed_buckets_count": prearmed_buckets_count,
+		"prearmed_springs_count": prearmed_springs_count,
+		"prearmed_bombs_count": prearmed_bombs_count,
+		"exclude_spawn_room_doors_from_buckets": exclude_spawn_room_doors,
+		"enable_upper_floor": enable_upper_floor,
 		"container_loot_slots": container_loot,
 		"drawer_loot_slots": container_loot,
 		"slot_roles": slot_roles,
@@ -239,25 +268,43 @@ func populate_level(
 			"floor_traps_spawned": 0,
 			"floor_traps_per_room": {},
 			"floor_trap_counts": {},
+			"prearmed_buckets_spawned": 0,
+			"prearmed_springs_spawned": 0,
+			"prearmed_bombs_spawned": 0,
 			"starting_prearmed_traps": 0,
+			"excluded_spawn_doors_count": 0,
+			"eligible_doors_count": 0,
+			"prearmed_traps_per_room": {},
+			"prearmed_door_buckets_list": [],
 			"drawers_per_room": {},
 			"containers_per_room": {},
 			"manifest": manifest
 		}
 
 	var building := _get_building(level_root)
+	var include_upper_floor: bool = bool(manifest.get("enable_upper_floor", true))
+	if not include_upper_floor and building != null and not Engine.is_editor_hint():
+		var upper_floor_node := building.get_node_or_null("SecondFloor")
+		if upper_floor_node != null:
+			building.remove_child(upper_floor_node)
+			upper_floor_node.queue_free()
+
 	var f_spawner: Node = building.get_node_or_null("FurnitureSpawner") if building != null else null
 	var spawn_room_keys: Array[String] = SPAWN_ROOM_NAMES.duplicate()
 	if building != null and building.name == &"BuildingComplex3":
-		var grid_size: Vector2i = building.get_meta("grid_size")
-		spawn_room_keys = [
-			"Room_1_1",
-			"Room_%d_%d" % [grid_size.y, grid_size.x],
-			"Room_1_%d" % grid_size.x,
-			"Room_%d_1" % grid_size.y
-		]
+		var discovered_spawns := _discover_building_spawn_room_keys(building, include_upper_floor)
+		if not discovered_spawns.is_empty():
+			spawn_room_keys = discovered_spawns
+		else:
+			var grid_size: Vector2i = building.get_meta("grid_size")
+			spawn_room_keys = [
+				"Room_1_1",
+				"Room_%d_%d" % [grid_size.y, grid_size.x],
+				"Room_1_%d" % grid_size.x,
+				"Room_%d_1" % grid_size.y
+			]
 
-	for room in _collect_sorted_rooms(level_root, []):
+	for room in _collect_sorted_rooms(level_root, [], include_upper_floor):
 		var markers := _get_drawer_markers(room)
 		if markers == null:
 			continue
@@ -286,7 +333,7 @@ func populate_level(
 			if not (sp_room in effective_skip_rooms):
 				effective_skip_rooms.append(sp_room)
 
-	var rooms: Array[Node3D] = _collect_sorted_rooms(level_root, effective_skip_rooms)
+	var rooms: Array[Node3D] = _collect_sorted_rooms(level_root, effective_skip_rooms, include_upper_floor)
 	var max_per_room: int = maxi(int(manifest.get("max_drawers_per_room", 2)), 1)
 
 	var rng := RandomNumberGenerator.new()
@@ -427,10 +474,33 @@ func populate_level(
 	if bool(manifest.get("isolate_briefcase_from_objectives", true)) and used_container_count > 1:
 		_enforce_briefcase_isolated_from_objectives(container_loot, slot_rooms, used_container_count)
 
+	# Pre-arm random Spring & Bomb traps across spawned container slots
+	var prearmed_spring_slots: Dictionary = {}
+	var prearmed_bomb_slots: Dictionary = {}
+	var prearmed_traps_per_room: Dictionary = {}
+	var target_prearmed_springs: int = mini(int(manifest.get("prearmed_springs_count", 0)), used_container_count)
+	var target_prearmed_bombs: int = mini(int(manifest.get("prearmed_bombs_count", 0)), used_container_count)
+	if used_container_count > 0 and (target_prearmed_springs > 0 or target_prearmed_bombs > 0):
+		var slot_indices: Array[int] = []
+		for s_i in range(used_container_count):
+			slot_indices.append(s_i)
+		_shuffle_array(slot_indices, rng)
+		var cursor_idx: int = 0
+		for _s_k in range(target_prearmed_springs):
+			var chosen_s: int = slot_indices[cursor_idx % slot_indices.size()]
+			prearmed_spring_slots[chosen_s] = true
+			cursor_idx += 1
+		for _b_k in range(target_prearmed_bombs):
+			var chosen_b: int = slot_indices[cursor_idx % slot_indices.size()]
+			prearmed_bomb_slots[chosen_b] = true
+			cursor_idx += 1
+
 	var drawers_spawned: int = 0
 	var big_drawers_spawned: int = 0
 	var small_drawers_spawned: int = 0
 	var containers_spawned: int = 0
+	var prearmed_springs_spawned: int = 0
+	var prearmed_bombs_spawned: int = 0
 	var slot_cursor: int = 0
 
 	for i in range(selected_placements.size()):
@@ -438,6 +508,7 @@ func populate_level(
 			break
 		var placement: Dictionary = selected_placements[i]
 		var marker: Marker3D = placement["marker"] as Marker3D
+		var r_placement: String = str(placement["room"])
 		var is_big: bool = bool(placement["is_big"])
 		marker.set_meta("occupied_by_match_drawer", true)
 		for old_child in marker.get_children():
@@ -450,22 +521,43 @@ func populate_level(
 			drawer = resolved_drawer_scene.instantiate()
 			drawer.name = "MatchDrawer_%02d" % i
 			var left_items: Array[String] = _to_typed_items(container_loot[slot_cursor] as Array)
+			var left_spring: bool = bool(prearmed_spring_slots.get(slot_cursor, false))
+			var left_bomb: bool = bool(prearmed_bomb_slots.get(slot_cursor, false))
 			slot_cursor += 1
 			drawer.set("container_id", "Left Drawer")
 			drawer.set("stored_items", left_items)
-			drawer.set("armed_spring", false)
-			drawer.set("armed_bomb", false)
+			drawer.set("armed_spring", left_spring)
+			drawer.set("spring_owner_peer_id", 0)
+			drawer.set("armed_bomb", left_bomb)
+			drawer.set("bomb_owner_peer_id", 0)
 			drawer.set("container_seed", prop_seed)
+			if left_spring:
+				prearmed_springs_spawned += 1
+				prearmed_traps_per_room[r_placement] = int(prearmed_traps_per_room.get(r_placement, 0)) + 1
+			if left_bomb:
+				prearmed_bombs_spawned += 1
+				prearmed_traps_per_room[r_placement] = int(prearmed_traps_per_room.get(r_placement, 0)) + 1
 			var right_drawer: Node = drawer.get_node_or_null("RightUpperDrawer")
 			if right_drawer != null:
-				var right_items: Array[String] = _to_typed_items(container_loot[slot_cursor] as Array) if slot_cursor < used_container_count else ([] as Array[String])
-				if slot_cursor < used_container_count:
+				var has_right_slot: bool = slot_cursor < used_container_count
+				var right_items: Array[String] = _to_typed_items(container_loot[slot_cursor] as Array) if has_right_slot else ([] as Array[String])
+				var right_spring: bool = bool(prearmed_spring_slots.get(slot_cursor, false)) if has_right_slot else false
+				var right_bomb: bool = bool(prearmed_bomb_slots.get(slot_cursor, false)) if has_right_slot else false
+				if has_right_slot:
 					slot_cursor += 1
 				right_drawer.set("container_id", "Right Drawer")
 				right_drawer.set("stored_items", right_items)
-				right_drawer.set("armed_spring", false)
-				right_drawer.set("armed_bomb", false)
+				right_drawer.set("armed_spring", right_spring)
+				right_drawer.set("spring_owner_peer_id", 0)
+				right_drawer.set("armed_bomb", right_bomb)
+				right_drawer.set("bomb_owner_peer_id", 0)
 				right_drawer.set("container_seed", prop_seed + 17)
+				if right_spring:
+					prearmed_springs_spawned += 1
+					prearmed_traps_per_room[r_placement] = int(prearmed_traps_per_room.get(r_placement, 0)) + 1
+				if right_bomb:
+					prearmed_bombs_spawned += 1
+					prearmed_traps_per_room[r_placement] = int(prearmed_traps_per_room.get(r_placement, 0)) + 1
 				containers_spawned += 2
 			else:
 				containers_spawned += 1
@@ -474,12 +566,22 @@ func populate_level(
 			drawer = resolved_small_drawer_scene.instantiate()
 			drawer.name = "MatchDrawer_%02d" % i
 			var mid_items: Array[String] = _to_typed_items(container_loot[slot_cursor] as Array)
+			var mid_spring: bool = bool(prearmed_spring_slots.get(slot_cursor, false))
+			var mid_bomb: bool = bool(prearmed_bomb_slots.get(slot_cursor, false))
 			slot_cursor += 1
 			drawer.set("container_id", "Middle Drawer")
 			drawer.set("stored_items", mid_items)
-			drawer.set("armed_spring", false)
-			drawer.set("armed_bomb", false)
+			drawer.set("armed_spring", mid_spring)
+			drawer.set("spring_owner_peer_id", 0)
+			drawer.set("armed_bomb", mid_bomb)
+			drawer.set("bomb_owner_peer_id", 0)
 			drawer.set("container_seed", prop_seed)
+			if mid_spring:
+				prearmed_springs_spawned += 1
+				prearmed_traps_per_room[r_placement] = int(prearmed_traps_per_room.get(r_placement, 0)) + 1
+			if mid_bomb:
+				prearmed_bombs_spawned += 1
+				prearmed_traps_per_room[r_placement] = int(prearmed_traps_per_room.get(r_placement, 0)) + 1
 			small_drawers_spawned += 1
 			containers_spawned += 1
 
@@ -497,7 +599,7 @@ func populate_level(
 		else:
 			f_spawner.set("layout_seed", int(manifest["seed"]))
 
-	var bucket_rooms: Array[Node3D] = _collect_sorted_rooms(level_root, skip_rooms, true)
+	var bucket_rooms: Array[Node3D] = _collect_sorted_rooms(level_root, skip_rooms, include_upper_floor)
 	var buckets_spawned: int = 0
 	var buckets_per_room: Dictionary = {}
 	var floor_traps_spawned: int = 0
@@ -579,6 +681,54 @@ func populate_level(
 				floor_trap_counts_spawned[spawn_item_id] = int(floor_trap_counts_spawned.get(spawn_item_id, 0)) + 1
 				floor_traps_spawned += 1
 
+	# Pre-arm random Water Bucket traps on doors (excluding first doors from player spawn rooms)
+	var prearmed_buckets_spawned: int = 0
+	var excluded_spawn_doors_count: int = 0
+	var eligible_doors_count: int = 0
+	var prearmed_door_buckets_list: Array[String] = []
+	if building != null:
+		var ladder_layout: Node = building.get_node_or_null("LadderLayout")
+		if ladder_layout != null and ladder_layout.has_method("_build_layout") and not bool(ladder_layout.get("_layout_built")):
+			ladder_layout.call("_build_layout", int(manifest["seed"]))
+
+		var exclude_spawn_doors: bool = bool(manifest.get("exclude_spawn_room_doors_from_buckets", true))
+		var eligible_doors: Array[Dictionary] = []
+		var door_floors: Array[Dictionary] = [
+			{"path": "Doors", "upper": false, "prefix": "Ground/"}
+		]
+		if include_upper_floor:
+			door_floors.append({"path": "SecondFloor/Doors", "upper": true, "prefix": "Upper/"})
+		for floor_info in door_floors:
+			var doors_root: Node = building.get_node_or_null(str(floor_info["path"]))
+			if doors_root == null:
+				continue
+			var is_upper: bool = bool(floor_info["upper"])
+			var f_prefix: String = str(floor_info["prefix"])
+			var door_children: Array[Node3D] = []
+			for dc in doors_root.get_children():
+				if dc is Node3D and dc.has_method("set_prearmed_water_bucket"):
+					door_children.append(dc as Node3D)
+			door_children.sort_custom(func(a: Node3D, b: Node3D) -> bool: return String(a.name) < String(b.name))
+			for door_node in door_children:
+				door_node.call("set_prearmed_water_bucket", false, 1.0)
+				if exclude_spawn_doors and _is_door_touching_spawn_room(door_node, is_upper, building, spawn_room_keys):
+					excluded_spawn_doors_count += 1
+					continue
+				eligible_doors.append({"door": door_node, "label": f_prefix + String(door_node.name)})
+
+		eligible_doors_count = eligible_doors.size()
+		_shuffle_array(eligible_doors, rng)
+		var target_prearmed_buckets: int = mini(int(manifest.get("prearmed_buckets_count", 0)), eligible_doors.size())
+		for d_i in range(target_prearmed_buckets):
+			var d_rec: Dictionary = eligible_doors[d_i] as Dictionary
+			var d_node: Node3D = d_rec["door"] as Node3D
+			var side_sign: float = 1.0 if rng.randf() < 0.5 else -1.0
+			d_node.call("set_prearmed_water_bucket", true, side_sign)
+			prearmed_buckets_spawned += 1
+			prearmed_door_buckets_list.append(str(d_rec["label"]))
+
+	var total_prearmed_spawned: int = prearmed_buckets_spawned + prearmed_springs_spawned + prearmed_bombs_spawned
+
 	return {
 		"seed": int(manifest["seed"]),
 		"drawers_spawned": drawers_spawned,
@@ -590,7 +740,14 @@ func populate_level(
 		"floor_traps_spawned": floor_traps_spawned,
 		"floor_traps_per_room": floor_traps_per_room,
 		"floor_trap_counts": floor_trap_counts_spawned,
-		"starting_prearmed_traps": 0,
+		"prearmed_buckets_spawned": prearmed_buckets_spawned,
+		"prearmed_springs_spawned": prearmed_springs_spawned,
+		"prearmed_bombs_spawned": prearmed_bombs_spawned,
+		"starting_prearmed_traps": total_prearmed_spawned,
+		"excluded_spawn_doors_count": excluded_spawn_doors_count,
+		"eligible_doors_count": eligible_doors_count,
+		"prearmed_traps_per_room": prearmed_traps_per_room,
+		"prearmed_door_buckets_list": prearmed_door_buckets_list,
 		"drawers_per_room": drawers_per_room,
 		"containers_per_room": containers_per_room,
 		"manifest": manifest
@@ -662,6 +819,74 @@ func _compute_inward_facing_drawer_transform(marker: Marker3D) -> Transform3D:
 func _get_building(level_root: Node) -> Node:
 	var building := level_root.get_node_or_null("BuildingComplex3")
 	return building if building != null else level_root.get_node_or_null("BuildingComplex2")
+
+
+func _discover_building_spawn_room_keys(building: Node, include_upper_floor: bool = true) -> Array[String]:
+	var result: Array[String] = []
+	if building == null:
+		return result
+	var room_paths: Array[String] = ["Rooms"]
+	if include_upper_floor:
+		room_paths.append("SecondFloor/Rooms")
+	for room_path in room_paths:
+		var room_root := building.get_node_or_null(room_path)
+		if room_root == null:
+			continue
+		for child in room_root.get_children():
+			if not (child is Node3D):
+				continue
+			var pts := child.get_node_or_null("MatchPlayerSpawnPoints")
+			if pts == null:
+				continue
+			var has_marker := false
+			for m in pts.get_children():
+				if m is Marker3D:
+					has_marker = true
+					break
+			if has_marker:
+				result.append(_room_key(child as Node3D))
+	return result
+
+
+func _get_door_connected_room_keys(door: Node3D, is_upper_floor: bool) -> Array[String]:
+	var connected: Array[String] = []
+	var d_name: String = String(door.name)
+	var parts: PackedStringArray = d_name.split("_")
+	if parts.size() >= 3 and parts[1].is_valid_int() and parts[2].is_valid_int():
+		var boundary: int = parts[1].to_int()
+		var idx: int = parts[2].to_int()
+		var floor_prefix: String = "SecondFloor/" if is_upper_floor else ""
+		if parts[0] == "Vertical":
+			connected.append("%sRoom_%d_%d" % [floor_prefix, idx + 1, boundary])
+			connected.append("%sRoom_%d_%d" % [floor_prefix, idx + 1, boundary + 1])
+		elif parts[0] == "Horizontal":
+			connected.append("%sRoom_%d_%d" % [floor_prefix, boundary, idx + 1])
+			connected.append("%sRoom_%d_%d" % [floor_prefix, boundary + 1, idx + 1])
+	return connected
+
+
+func _is_door_touching_spawn_room(door: Node3D, is_upper_floor: bool, building: Node, spawn_room_keys: Array[String]) -> bool:
+	for r_key in _get_door_connected_room_keys(door, is_upper_floor):
+		if r_key in spawn_room_keys:
+			return true
+
+	# Geometric fallback against 9x9m spawn room boundaries
+	var room_path: String = "SecondFloor/Rooms" if is_upper_floor else "Rooms"
+	var room_root: Node = building.get_node_or_null(room_path)
+	if room_root == null:
+		return false
+	var door_pos: Vector3 = door.position
+	for child in room_root.get_children():
+		if not (child is Node3D):
+			continue
+		var r_node := child as Node3D
+		if not (_room_key(r_node) in spawn_room_keys):
+			continue
+		var dx: float = absf(door_pos.x - r_node.position.x)
+		var dz: float = absf(door_pos.z - r_node.position.z)
+		if dx <= 4.65 and dz <= 4.65:
+			return true
+	return false
 
 
 func _get_drawer_markers(room: Node3D) -> Node:
