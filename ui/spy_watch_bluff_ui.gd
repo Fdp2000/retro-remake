@@ -3,7 +3,7 @@ class_name SpyWatchBluffUI
 extends Control
 
 ## Wearable Spy Wristwatch / Smart Glasses Comms & Bluff HUD (Doc 6 §3).
-## Cycles 4 audio bluff cues ([C]), triggers self-bluffs ([B]), global radio PTT ([Hold V]),
+## Cycles 4 audio bluff cues ([C]), triggers self-bluffs ([B]),
 ## and opens the top-down Embassy Map Remote Projector ([Hold Tab]).
 
 const BLUFF_CUES: Array[Dictionary] = [
@@ -121,7 +121,6 @@ var _active_ink: RoomInk
 var _player: Node = null
 var _selected_cue_idx: int = 0
 var _status_lbl: Label = null
-var _radio_lbl: Label = null
 var _map_panel: PanelContainer = null
 var _floor_maps: BoxContainer = null
 var is_map_open: bool = false
@@ -201,12 +200,6 @@ func _build_layout() -> void:
 	_status_lbl.add_theme_font_size_override("font_size", 13)
 	hbox.add_child(_status_lbl)
 
-	_radio_lbl = Label.new()
-	_radio_lbl.text = ""
-	_radio_lbl.modulate = Color(0.20, 0.92, 0.95)
-	_radio_lbl.add_theme_font_size_override("font_size", 13)
-	hbox.add_child(_radio_lbl)
-
 	_map_shade = ColorRect.new()
 	_map_shade.color = Color(0.025, 0.05, 0.05, 0.36)
 	_map_shade.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -278,11 +271,6 @@ func get_selected_cue_label() -> String:
 	return str(BLUFF_CUES[_selected_cue_idx]["label"])
 
 
-func set_radio_active(active: bool) -> void:
-	if _radio_lbl != null:
-		_radio_lbl.text = "[RADIO TX]" if active else ""
-
-
 func set_map_open(opened: bool) -> void:
 	is_map_open = opened
 	if _map_panel == null:
@@ -298,7 +286,7 @@ func set_map_open(opened: bool) -> void:
 
 func _refresh_labels() -> void:
 	if _status_lbl != null:
-		_status_lbl.text = "WATCH [C]: %s | [B] Bluff | [Tab] Map | [V] Radio" % get_selected_cue_label()
+		_status_lbl.text = "WATCH [C]: %s | [B] Bluff | [Tab] Map" % get_selected_cue_label()
 
 
 func _rebuild_room_buttons() -> void:

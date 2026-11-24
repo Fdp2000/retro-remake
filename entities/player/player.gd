@@ -35,6 +35,8 @@ const RAGDOLL_CTRL_SCRIPT = preload("res://entities/player/spy_ragdoll_controlle
 const TRIPWIRE_SCRIPT = preload("res://entities/traps/tripwire_trap.gd")
 const TRIPWIRE_PLACEMENT_SCRIPT = preload("res://entities/player/tripwire_placement_controller.gd")
 const THROWN_BOMB_SCRIPT = preload("res://entities/traps/thrown_time_bomb.gd")
+const OCCLUSION_EMITTER_SCRIPT = preload("res://core/audio/occlusion_emitter.gd")
+const SURFACE_DETECTOR_SCRIPT = preload("res://core/audio/surface_detector.gd")
 const DART_SMOKE_TEX: Texture2D = preload("res://Assets/Sprites/SmokeParticle.png")
 const TAP_RELEASE_THRESHOLD: float = 0.20
 const PELVIS_SYNC_INTERVAL: float = 0.20
@@ -255,6 +257,8 @@ var _footstep_timer: float = 0.0
 var _was_on_floor: bool = true
 var _sens_toast_timer: float = 0.0
 var _drop_counter: int = 0
+var _surface_detector: Node = null
+var _proximity_voice_emitter: AudioStreamPlayer3D = null
 
 # First-person viewmodel procedural animation state
 const _VM_LEFT_BASE_POS: Vector3 = Vector3(-0.34, -0.26, -0.52)
@@ -472,6 +476,8 @@ func _ready() -> void:
 		set_process(false)
 		set_physics_process(false)
 		return
+
+	_ensure_audio_components()
 
 	if is_multiplayer_authority():
 		camera.current = true
@@ -1859,7 +1865,8 @@ func catch_live_bomb(fuse_sec: float, owner_id: int) -> void:
 	else:
 		set_live_bomb_timer(clamped, owner_id)
 	if AudioBridge != null:
-		AudioBridge.request_world_cue("bomb_hiss", _safe_global_pos(), 6.0, name.to_int())
+		var fuse_rad: float = GameConfig.audio_radius_bomb_fuse if GameConfig != null else 15.0
+		AudioBridge.request_world_cue("bomb_hiss", _safe_global_pos(), fuse_rad, name.to_int())
 
 
 func step_live_bomb_fuse(delta: float) -> bool:
@@ -4306,14 +4313,6 @@ func _unhandled_input(event: InputEvent) -> void:
 			Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if event.pressed else Input.MOUSE_MODE_CAPTURED
 		return
 
-	if event.is_action_pressed("spy_gadget_ptt") and not event.is_echo():
-		ensure_overlay_uis()
-		if _watch_bluff_ui != null:
-			_watch_bluff_ui.set_radio_active(true)
-	elif event.is_action_released("spy_gadget_ptt"):
-		if _watch_bluff_ui != null:
-			_watch_bluff_ui.set_radio_active(false)
-
 	if event.is_action_pressed("primary_action") and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		_try_begin_primary_action()
 	elif event.is_action_released("primary_action"):
@@ -4513,7 +4512,7 @@ func _move_on_ladder(delta: float) -> void:
 		if _footstep_timer >= 0.34:
 			_footstep_timer = 0.0
 			if AudioBridge != null and GameConfig != null:
-				AudioBridge.request_world_cue("footstep_walk", global_position, GameConfig.audio_radius_walk, name.to_int())
+				AudioBridge.request_world_cue("footstep_walk_metal", global_position, GameConfig.audio_radius_walk, name.to_int())
 	if absf(global_position.y - end_height) <= 0.005:
 		var exit := ladder.exit_point(end_height, _ladder_side)
 		if not test_move(global_transform, exit - global_position):
@@ -4542,6 +4541,7 @@ func _physics_process(delta: float) -> void:
 		elif is_multiplayer_authority():
 			_sync_camera_to_ragdoll_head()
 		_sync_visual_rig_sockets_to_skeleton()
+		_update_voice_eye_pop(delta)
 		return
 
 	if is_multiplayer_authority():
@@ -4576,6 +4576,7 @@ func _physics_process(delta: float) -> void:
 			_sync_visual_rig_sockets_to_skeleton()
 		elif head != null:
 			head.rotation.x = lerp_angle(head.rotation.x, head_pitch, 20.0 * delta)
+		_update_voice_eye_pop(delta)
 		return
 
 	var movement_allowed: bool = (
@@ -4683,10 +4684,52 @@ func _physics_process(delta: float) -> void:
 		_ragdoll_ctrl.update_locomotion_pose(delta, local_horiz_spd, pose_crouch, head_pitch, pose_charge, pose_left, pose_right, pose_climb, pose_climb_spd)
 		_sync_camera_to_ragdoll_head()
 		_sync_visual_rig_sockets_to_skeleton()
+		_update_voice_eye_pop(delta)
 
 	if stance_state == (GameConfig.Stance.SPRINT if GameConfig != null else 1) and door_bash_detector != null:
 		for body in door_bash_detector.get_overlapping_bodies():
 			_try_sprint_bash_target(body)
+
+
+func _ensure_audio_components() -> void:
+	if _surface_detector == null:
+		_surface_detector = SURFACE_DETECTOR_SCRIPT.new()
+		_surface_detector.name = "SurfaceDetector"
+		add_child(_surface_detector)
+
+	if _proximity_voice_emitter == null:
+		_proximity_voice_emitter = OCCLUSION_EMITTER_SCRIPT.new()
+		_proximity_voice_emitter.name = "ProximityVoiceEmitter"
+		_proximity_voice_emitter.parent_bus = &"Voice"
+		_proximity_voice_emitter.unit_size = 6.5
+		_proximity_voice_emitter.max_distance = GameConfig.audio_radius_proximity_voice if GameConfig != null else 24.0
+		_proximity_voice_emitter.panning_strength = 1.5
+		_proximity_voice_emitter.emission_angle_enabled = true
+		_proximity_voice_emitter.emission_angle_degrees = 75.0
+		_proximity_voice_emitter.emission_angle_filter_attenuation_db = -6.0
+		_proximity_voice_emitter.doppler_tracking = AudioStreamPlayer3D.DOPPLER_TRACKING_DISABLED
+		var attach_parent: Node = head if head != null else self
+		attach_parent.add_child(_proximity_voice_emitter)
+
+
+func get_proximity_voice_emitter() -> AudioStreamPlayer3D:
+	return _proximity_voice_emitter
+
+
+func _update_voice_eye_pop(delta: float) -> void:
+	if _ragdoll_ctrl == null:
+		return
+	var voice_level: float = 0.0
+	var vcm: Node = get_node_or_null("/root/VoiceChatManager")
+	if vcm != null and vcm.has_method("get_peer_voice_level"):
+		voice_level = float(vcm.call("get_peer_voice_level", name.to_int()))
+	_ragdoll_ctrl.update_voice_eye_pop(delta, voice_level)
+
+
+func get_current_surface() -> String:
+	if _surface_detector == null:
+		return "default"
+	return _surface_detector.detect_surface_below(self)
 
 
 func _tick_footsteps(delta: float) -> void:

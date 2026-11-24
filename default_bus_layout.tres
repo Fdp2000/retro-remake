@@ -1,9 +1,65 @@
 [gd_resource type="AudioBusLayout" format=3 uid="uid://chuv1ry7fg1w2"]
 
+[sub_resource type="AudioEffectReverb" id="AudioEffectReverb_small"]
+resource_name = "Reverb_SmallRoom"
+predelay_msec = 20.0
+predelay_feedback = 0.25
+room_size = 0.25
+damping = 0.35
+spread = 0.7
+hipass = 0.1
+dry = 0.55
+wet = 0.45
+
+[sub_resource type="AudioEffectReverb" id="AudioEffectReverb_large"]
+resource_name = "Reverb_LargeHall"
+predelay_msec = 45.0
+predelay_feedback = 0.35
+room_size = 0.78
+damping = 0.45
+hipass = 0.08
+dry = 0.65
+wet = 0.35
+
+[sub_resource type="AudioEffectLowPassFilter" id="AudioEffectLowPassFilter_occluded"]
+resource_name = "LowPassFilter"
+cutoff_hz = 20000.0
+db = 1
+
 [resource]
-bus/1/name = &"New Bus 5"
+bus/1/name = &"SFX"
 bus/1/solo = false
 bus/1/mute = false
 bus/1/bypass_fx = false
 bus/1/volume_db = 0.0
 bus/1/send = &"Master"
+bus/2/name = &"Voice"
+bus/2/solo = false
+bus/2/mute = false
+bus/2/bypass_fx = false
+bus/2/volume_db = 0.0
+bus/2/send = &"Master"
+bus/3/name = &"Reverb_SmallRoom"
+bus/3/solo = false
+bus/3/mute = false
+bus/3/bypass_fx = false
+bus/3/volume_db = 0.0
+bus/3/send = &"Master"
+bus/3/effect/0/effect = SubResource("AudioEffectReverb_small")
+bus/3/effect/0/enabled = true
+bus/4/name = &"Reverb_LargeHall"
+bus/4/solo = false
+bus/4/mute = false
+bus/4/bypass_fx = false
+bus/4/volume_db = 0.0
+bus/4/send = &"Master"
+bus/4/effect/0/effect = SubResource("AudioEffectReverb_large")
+bus/4/effect/0/enabled = true
+bus/5/name = &"Occluded_Bus"
+bus/5/solo = false
+bus/5/mute = false
+bus/5/bypass_fx = false
+bus/5/volume_db = 0.0
+bus/5/send = &"Master"
+bus/5/effect/0/effect = SubResource("AudioEffectLowPassFilter_occluded")
+bus/5/effect/0/enabled = true

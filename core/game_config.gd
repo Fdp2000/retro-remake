@@ -226,9 +226,9 @@ static func get_spy_role_badge_color(role: int) -> Color:
 @export var audio_radius_bucket_spill: float = 12.0
 @export var audio_radius_drawer_fast: float = 10.0
 @export var audio_radius_trap_setup: float = 5.0
-@export var audio_radius_bomb_fuse: float = 10.0
+@export var audio_radius_bomb_fuse: float = 15.0
 @export var audio_radius_bomb_explosion: float = 20.0
-@export var audio_radius_proximity_voice: float = 12.0
+@export var audio_radius_proximity_voice: float = 24.0
 @export var audio_radius_bluff: float = 12.0
 @export var audio_radius_sneeze: float = 22.0
 

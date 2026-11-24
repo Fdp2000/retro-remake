@@ -10,6 +10,8 @@ const AIRPORT_EXIT_SCENE: PackedScene = preload("res://entities/props/airport_ex
 const MATCH_SPAWNER_SCRIPT = preload("res://core/match_spawner.gd")
 const MATCH_END_UI_SCRIPT = preload("res://ui/match_end_overlay_ui.gd")
 const SPAWNER_CHEATSHEET_UI_SCRIPT = preload("res://ui/spawner_cheatsheet_ui.gd")
+const ACOUSTIC_ZONE_SCRIPT = preload("res://core/audio/acoustic_zone_3d.gd")
+const OCCLUSION_EMITTER_SCRIPT = preload("res://core/audio/occlusion_emitter.gd")
 const LOBBY_SCENE_PATH: String = "res://scenes/lobby.tscn"
 
 const SPAWN_POINTS: Dictionary = {
@@ -294,6 +296,7 @@ func _configure_level_props_for_mode(sandbox: bool) -> void:
 	if sandbox:
 		_spawn_test_pickups()
 		_spawn_test_props()
+		_spawn_audio_test_harness()
 	else:
 		var pickups_node: Node = get_node_or_null("TestPickups")
 		if pickups_node != null:
@@ -303,6 +306,10 @@ func _configure_level_props_for_mode(sandbox: bool) -> void:
 		if props_node != null:
 			remove_child(props_node)
 			props_node.queue_free()
+		var audio_node: Node = get_node_or_null("TestAudioGym")
+		if audio_node != null:
+			remove_child(audio_node)
+			audio_node.queue_free()
 
 
 func _spawn_test_pickups() -> void:
@@ -380,6 +387,153 @@ func _spawn_test_props() -> void:
 	small_drawer.set("stored_items", small_items)
 	props_root.add_child(small_drawer)
 	small_drawer.position = Vector3(-0.3, 0.0, -6.5)
+
+
+func _spawn_audio_test_harness() -> void:
+	if get_node_or_null("TestAudioGym") != null:
+		return
+	var audio_root := Node3D.new()
+	audio_root.name = "TestAudioGym"
+	add_child(audio_root)
+
+	var env_layer: int = GameConfig.LAYER_ENVIRONMENT if GameConfig != null else 1
+	var patch_specs: Array[Dictionary] = [
+		{"name": "Wood", "surface": "wood", "pos": Vector3(-6.5, 0.015, -4.5), "color": Color(0.55, 0.34, 0.18)},
+		{"name": "Tile", "surface": "tile", "pos": Vector3(-4.7, 0.015, -4.5), "color": Color(0.78, 0.80, 0.84)},
+		{"name": "Carpet", "surface": "carpet", "pos": Vector3(-2.9, 0.015, -4.5), "color": Color(0.58, 0.18, 0.22)},
+		{"name": "Metal", "surface": "metal", "pos": Vector3(-1.1, 0.015, -4.5), "color": Color(0.42, 0.46, 0.52)},
+	]
+	for spec in patch_specs:
+		var patch_body := StaticBody3D.new()
+		patch_body.name = "SurfacePatch_%s" % str(spec["name"])
+		patch_body.collision_layer = env_layer
+		patch_body.collision_mask = 0
+		patch_body.position = spec["pos"]
+		patch_body.set_meta("surface", str(spec["surface"]))
+		var phys_mat := PhysicsMaterial.new()
+		phys_mat.resource_name = str(spec["surface"])
+		patch_body.physics_material_override = phys_mat
+
+		var col := CollisionShape3D.new()
+		var box := BoxShape3D.new()
+		box.size = Vector3(1.5, 0.03, 1.5)
+		col.shape = box
+		patch_body.add_child(col)
+
+		var mesh_inst := MeshInstance3D.new()
+		var box_mesh := BoxMesh.new()
+		box_mesh.size = Vector3(1.5, 0.03, 1.5)
+		var mat := StandardMaterial3D.new()
+		mat.albedo_color = spec["color"]
+		mesh_inst.mesh = box_mesh
+		mesh_inst.material_override = mat
+		patch_body.add_child(mesh_inst)
+
+		var lbl := Label3D.new()
+		lbl.text = str(spec["name"]).to_upper()
+		lbl.position = Vector3(0.0, 0.45, 0.0)
+		lbl.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		lbl.font_size = 36
+		patch_body.add_child(lbl)
+
+		audio_root.add_child(patch_body)
+
+	var hall_zone: Area3D = ACOUSTIC_ZONE_SCRIPT.new()
+	hall_zone.name = "AcousticZone_LargeHall"
+	hall_zone.reverb_preset = ACOUSTIC_ZONE_SCRIPT.ReverbPreset.LARGE_HALL
+	hall_zone.zone_priority = 1
+	hall_zone.position = Vector3(-4.5, 1.5, -4.5)
+	var hall_col := CollisionShape3D.new()
+	var hall_shape := BoxShape3D.new()
+	hall_shape.size = Vector3(8.5, 3.0, 8.5)
+	hall_col.shape = hall_shape
+	hall_zone.add_child(hall_col)
+	audio_root.add_child(hall_zone)
+
+	# Test walled acoustic room with openable door & looping dummy emitter
+	var room_root := Node3D.new()
+	room_root.name = "TestAcousticRoom"
+	audio_root.add_child(room_root)
+
+	var wall_mat := StandardMaterial3D.new()
+	wall_mat.albedo_color = Color(0.68, 0.70, 0.74)
+
+	var wall_parts: Array[Dictionary] = [
+		{"name": "BackWall", "pos": Vector3(4.5, 1.35, -6.1), "size": Vector3(3.36, 2.7, 0.16)},
+		{"name": "LeftWall", "pos": Vector3(2.9, 1.35, -4.5), "size": Vector3(0.16, 2.7, 3.2)},
+		{"name": "RightWall", "pos": Vector3(6.1, 1.35, -4.5), "size": Vector3(0.16, 2.7, 3.2)},
+		{"name": "Ceiling", "pos": Vector3(4.5, 2.7, -4.5), "size": Vector3(3.36, 0.16, 3.36)},
+		{"name": "FrontWallLeft", "pos": Vector3(3.37, 1.35, -2.9), "size": Vector3(0.94, 2.7, 0.16)},
+		{"name": "FrontWallRight", "pos": Vector3(5.63, 1.35, -2.9), "size": Vector3(0.94, 2.7, 0.16)},
+		{"name": "FrontTransom", "pos": Vector3(4.5, 2.425, -2.9), "size": Vector3(1.32, 0.55, 0.16)},
+	]
+	for part in wall_parts:
+		var wall_body := StaticBody3D.new()
+		wall_body.name = str(part["name"])
+		wall_body.collision_layer = env_layer
+		wall_body.collision_mask = 0
+		wall_body.position = part["pos"]
+
+		var wcol := CollisionShape3D.new()
+		var wbox := BoxShape3D.new()
+		wbox.size = part["size"]
+		wcol.shape = wbox
+		wall_body.add_child(wcol)
+
+		var wmesh := MeshInstance3D.new()
+		var wbox_mesh := BoxMesh.new()
+		wbox_mesh.size = part["size"]
+		wmesh.mesh = wbox_mesh
+		wmesh.material_override = wall_mat
+		wall_body.add_child(wmesh)
+
+		room_root.add_child(wall_body)
+
+	var test_door := EMBASSY_DOOR_SCENE.instantiate() as Node3D
+	test_door.name = "TestAcousticDoor"
+	room_root.add_child(test_door)
+	test_door.position = Vector3(4.5, 0.0, -2.9)
+
+	var small_zone: Area3D = ACOUSTIC_ZONE_SCRIPT.new()
+	small_zone.name = "AcousticZone_SmallRoom"
+	small_zone.reverb_preset = ACOUSTIC_ZONE_SCRIPT.ReverbPreset.SMALL_ROOM
+	small_zone.zone_priority = 2
+	small_zone.position = Vector3(4.5, 1.25, -4.5)
+	var small_col := CollisionShape3D.new()
+	var small_shape := BoxShape3D.new()
+	small_shape.size = Vector3(3.0, 2.5, 3.0)
+	small_col.shape = small_shape
+	small_zone.add_child(small_col)
+	room_root.add_child(small_zone)
+
+	var dummy_emitter: AudioStreamPlayer3D = OCCLUSION_EMITTER_SCRIPT.new()
+	dummy_emitter.name = "OcclusionDummyEmitter"
+	dummy_emitter.position = Vector3(4.5, 1.35, -5.0)
+	dummy_emitter.max_distance = 16.0
+	dummy_emitter.unit_size = 4.0
+	dummy_emitter.parent_bus = &"SFX"
+	dummy_emitter.always_evaluate_occlusion = true
+
+	var emitter_vis := MeshInstance3D.new()
+	var sph := SphereMesh.new()
+	sph.radius = 0.16
+	sph.height = 0.32
+	var sph_mat := StandardMaterial3D.new()
+	sph_mat.albedo_color = Color(0.2, 0.85, 0.95)
+	sph_mat.emission_enabled = true
+	sph_mat.emission = Color(0.15, 0.65, 0.85)
+	emitter_vis.mesh = sph
+	emitter_vis.material_override = sph_mat
+	dummy_emitter.add_child(emitter_vis)
+
+	var emitter_lbl := Label3D.new()
+	emitter_lbl.text = "Occlusion Dummy Emitter"
+	emitter_lbl.position = Vector3(0.0, 0.35, 0.0)
+	emitter_lbl.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	emitter_lbl.font_size = 32
+	dummy_emitter.add_child(emitter_lbl)
+
+	room_root.add_child(dummy_emitter)
 
 
 func _is_upper_floor_enabled() -> bool:

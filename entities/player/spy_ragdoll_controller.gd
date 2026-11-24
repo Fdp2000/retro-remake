@@ -65,6 +65,7 @@ var _fp_body_mesh_inst: MeshInstance3D = null
 var _fp_hide_left_arm: bool = false
 var _fp_hide_right_arm: bool = false
 var _fp_applied_mask_key: String = ""
+var _voice_eye_level: float = 0.0
 
 static var _cached_arm_meshes: Dictionary = {}
 static var _cached_role_materials: Dictionary = {}
@@ -1027,6 +1028,39 @@ func _reset_and_fold_idle_on_skeleton(skel: Skeleton3D, head_pitch_rad: float, c
 
 	# Apply head pitch directly to spine.006 so the permanent head-bone camera pitches with mouse look
 	_rotate_bone_on_skeleton(skel, "spine.006", Vector3.RIGHT, -clampf(head_pitch_rad, deg_to_rad(-89.0), deg_to_rad(89.0)))
+
+
+func update_voice_eye_pop(delta: float, raw_voice_level: float) -> void:
+	if skeleton == null or not is_instance_valid(skeleton):
+		return
+	var eyes: MeshInstance3D = skeleton.get_node_or_null("Eyes") as MeshInstance3D
+	if eyes == null:
+		return
+
+	var target: float = clampf(raw_voice_level * 4.2, 0.0, 1.0)
+	var alpha: float = 1.0 - exp(-22.0 * maxf(delta, 0.001))
+	_voice_eye_level = lerpf(_voice_eye_level, target, alpha)
+
+	if _voice_eye_level <= 0.005:
+		eyes.scale = Vector3.ONE
+		eyes.position = Vector3.ZERO
+		return
+
+	var pop_scale := Vector3(
+		lerpf(1.0, 1.17, _voice_eye_level),
+		lerpf(1.0, 1.25, _voice_eye_level),
+		lerpf(1.0, 1.14, _voice_eye_level)
+	)
+	var eye_pivot := Vector3(0.0, 1.6, 0.0)
+	var head_up := Vector3.UP
+	var head_idx: int = skeleton.find_bone("spine.006")
+	if head_idx != -1:
+		var head_pose: Transform3D = skeleton.get_bone_global_pose(head_idx)
+		var eye_pose: Transform3D = head_pose * _head_eye_bone_local
+		eye_pivot = eye_pose.origin
+		head_up = eye_pose.basis.y.normalized()
+	eyes.scale = pop_scale
+	eyes.position = eye_pivot * (Vector3.ONE - pop_scale) + head_up * (0.035 * _voice_eye_level)
 
 
 func _rotate_bone_in_model_space(bone_name: String, model_axis: Vector3, angle_rad: float) -> void:
