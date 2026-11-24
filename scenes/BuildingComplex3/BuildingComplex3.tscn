@@ -39,7 +39,7 @@
 [ext_resource type="PackedScene" uid="uid://el2ftbhiveae" path="res://Assets/Models/Prefabs/table_a.tscn" id="furn_table_a"]
 [ext_resource type="Script" uid="uid://bclgtewxn8u1c" path="res://scenes/BuildingComplex3/ladder_layout.gd" id="ladder_layout"]
 [ext_resource type="Script" uid="uid://3w2au6iklilk" path="res://scenes/BuildingComplex2/room_palette.gd" id="room_palette"]
-[ext_resource type="PackedScene" uid="uid://ce78o3q5pygvo" path="res://scenes/BuildingComplex3/BuildingComplex3UpperFloor.tscn" id="second_floor"]
+[ext_resource type="PackedScene" path="res://scenes/BuildingComplex3/BuildingComplex3UpperFloor.tscn" id="second_floor"]
 [ext_resource type="PackedScene" uid="uid://1081g1d8f2ni" path="res://Assets/Models/Import/Interiors_A/Scenes/Walls/wall_3m.tscn" id="wall"]
 [ext_resource type="PackedScene" path="res://scenes/BuildingComplex3/RaisedWindowWall.tscn" id="window"]
 
@@ -77,6 +77,25 @@ shader_parameter/building_inverse = Projection(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 
 [sub_resource type="BoxMesh" id="CornerSealMesh"]
 material = SubResource("RoofSealMaterial")
 size = Vector3(0.25, 4.2, 0.25)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_u7qk0"]
+albedo_texture = ExtResource("5_ni5j5")
+metallic_specular = 0.0
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_urd15"]
+albedo_texture = ExtResource("30_5f0ec")
+metallic_specular = 0.0
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_634g0"]
+render_priority = 0
+shader = ExtResource("4_3kvc2")
+shader_parameter/wall_blue = ExtResource("32_3iwir")
+shader_parameter/wall_green = ExtResource("33_u7qk0")
+shader_parameter/wall_purple = ExtResource("34_urd15")
+shader_parameter/wall_red = ExtResource("35_634g0")
+shader_parameter/wall_yellow = ExtResource("36_xv2cl")
+shader_parameter/wall_variants = PackedInt32Array(0, 1, 2, 3, 2, 3, 4, 0, 4, 0, 1, 2, 1, 2, 3, 4)
+shader_parameter/building_inverse = Projection(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1)
 
 [node name="BuildingComplex3" type="Node3D" unique_id=2088144634]
 script = ExtResource("building_palette")
@@ -2580,7 +2599,1167 @@ mesh = SubResource("CornerSealMesh")
 [node name="SecondFloor" parent="." unique_id=1424987622 instance=ExtResource("second_floor")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3.22, 0)
 
+[node name="Floor_0_0" parent="SecondFloor/Rooms/Room_1_1" parent_id_path=PackedInt32Array(1424987622, 1706558036) index="3" unique_id=903647033]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_0_1" parent="SecondFloor/Rooms/Room_1_1" parent_id_path=PackedInt32Array(1424987622, 1706558036) index="4" unique_id=586078087]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_0_2" parent="SecondFloor/Rooms/Room_1_1" parent_id_path=PackedInt32Array(1424987622, 1706558036) index="5" unique_id=291776813]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_1_0" parent="SecondFloor/Rooms/Room_1_1" parent_id_path=PackedInt32Array(1424987622, 1706558036) index="6" unique_id=413756732]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_1_1" parent="SecondFloor/Rooms/Room_1_1" parent_id_path=PackedInt32Array(1424987622, 1706558036) index="7" unique_id=2130354998]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_1_2" parent="SecondFloor/Rooms/Room_1_1" parent_id_path=PackedInt32Array(1424987622, 1706558036) index="8" unique_id=283222599]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_2_0" parent="SecondFloor/Rooms/Room_1_1" parent_id_path=PackedInt32Array(1424987622, 1706558036) index="9" unique_id=1216049964]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_2_1" parent="SecondFloor/Rooms/Room_1_1" parent_id_path=PackedInt32Array(1424987622, 1706558036) index="10" unique_id=1060823460]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_2_2" parent="SecondFloor/Rooms/Room_1_1" parent_id_path=PackedInt32Array(1424987622, 1706558036) index="11" unique_id=237510326]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_0_0" parent="SecondFloor/Rooms/Room_1_2" parent_id_path=PackedInt32Array(1424987622, 1897514713) index="3" unique_id=135979510]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_0_1" parent="SecondFloor/Rooms/Room_1_2" parent_id_path=PackedInt32Array(1424987622, 1897514713) index="4" unique_id=896382131]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_0_2" parent="SecondFloor/Rooms/Room_1_2" parent_id_path=PackedInt32Array(1424987622, 1897514713) index="5" unique_id=1190247781]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_1_0" parent="SecondFloor/Rooms/Room_1_2" parent_id_path=PackedInt32Array(1424987622, 1897514713) index="6" unique_id=488599375]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_1_1" parent="SecondFloor/Rooms/Room_1_2" parent_id_path=PackedInt32Array(1424987622, 1897514713) index="7" unique_id=2055489207]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_1_2" parent="SecondFloor/Rooms/Room_1_2" parent_id_path=PackedInt32Array(1424987622, 1897514713) index="8" unique_id=1022305727]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_2_0" parent="SecondFloor/Rooms/Room_1_2" parent_id_path=PackedInt32Array(1424987622, 1897514713) index="9" unique_id=947731721]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_2_1" parent="SecondFloor/Rooms/Room_1_2" parent_id_path=PackedInt32Array(1424987622, 1897514713) index="10" unique_id=1634295547]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_2_2" parent="SecondFloor/Rooms/Room_1_2" parent_id_path=PackedInt32Array(1424987622, 1897514713) index="11" unique_id=986806412]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="BucketSpawn_2" parent="SecondFloor/Rooms/Room_1_3/MatchBucketSpawnPoints" parent_id_path=PackedInt32Array(1424987622, 1950000206) index="3" unique_id=1950000208]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.15, 1.0000002, -2.4764547)
+
+[node name="Floor_0_0" parent="SecondFloor/Rooms/Room_1_3" parent_id_path=PackedInt32Array(1424987622, 18041924) index="2" unique_id=205291101]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_0_1" parent="SecondFloor/Rooms/Room_1_3" parent_id_path=PackedInt32Array(1424987622, 18041924) index="3" unique_id=198236356]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_0_2" parent="SecondFloor/Rooms/Room_1_3" parent_id_path=PackedInt32Array(1424987622, 18041924) index="4" unique_id=644261855]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_1_0" parent="SecondFloor/Rooms/Room_1_3" parent_id_path=PackedInt32Array(1424987622, 18041924) index="5" unique_id=1025003461]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_1_1" parent="SecondFloor/Rooms/Room_1_3" parent_id_path=PackedInt32Array(1424987622, 18041924) index="6" unique_id=307625991]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_1_2" parent="SecondFloor/Rooms/Room_1_3" parent_id_path=PackedInt32Array(1424987622, 18041924) index="7" unique_id=2116033222]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_2_0" parent="SecondFloor/Rooms/Room_1_3" parent_id_path=PackedInt32Array(1424987622, 18041924) index="8" unique_id=1793337883]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_2_1" parent="SecondFloor/Rooms/Room_1_3" parent_id_path=PackedInt32Array(1424987622, 18041924) index="9" unique_id=1685467569]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_2_2" parent="SecondFloor/Rooms/Room_1_3" parent_id_path=PackedInt32Array(1424987622, 18041924) index="10" unique_id=2110945215]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="NW_MeetingTable" parent="SecondFloor/Rooms/Room_1_3" parent_id_path=PackedInt32Array(1424987622, 18041924) index="11" unique_id=2144004950]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.330419, 0, -2.6325321)
+
+[node name="NW_SouthChair" parent="SecondFloor/Rooms/Room_1_3" parent_id_path=PackedInt32Array(1424987622, 18041924) index="12" unique_id=200726934]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -3.3204193, 0, -1.4425316)
+
+[node name="NW_Agenda" parent="SecondFloor/Rooms/Room_1_3" parent_id_path=PackedInt32Array(1424987622, 18041924) index="13" unique_id=1757077360]
+transform = Transform3D(0.9659258, 0, 0.25881904, 0, 1, 0, -0.25881904, 0, 0.9659258, -3.9581883, 1.0000002, -2.62253)
+
+[node name="NW_WaterMug" parent="SecondFloor/Rooms/Room_1_3" parent_id_path=PackedInt32Array(1424987622, 18041924) index="14" unique_id=2100658727]
+transform = Transform3D(0.8660254, 0, -0.5, 0, 1, 0, 0.5, 0, 0.8660254, -2.7104192, 1.0000002, -2.6725311)
+
+[node name="Floor_0_0" parent="SecondFloor/Rooms/Room_1_4" parent_id_path=PackedInt32Array(1424987622, 589600688) index="3" unique_id=1133867954]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_0_1" parent="SecondFloor/Rooms/Room_1_4" parent_id_path=PackedInt32Array(1424987622, 589600688) index="4" unique_id=140414]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_0_2" parent="SecondFloor/Rooms/Room_1_4" parent_id_path=PackedInt32Array(1424987622, 589600688) index="5" unique_id=1023451285]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_1_0" parent="SecondFloor/Rooms/Room_1_4" parent_id_path=PackedInt32Array(1424987622, 589600688) index="6" unique_id=2128431796]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_1_1" parent="SecondFloor/Rooms/Room_1_4" parent_id_path=PackedInt32Array(1424987622, 589600688) index="7" unique_id=1013495226]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_1_2" parent="SecondFloor/Rooms/Room_1_4" parent_id_path=PackedInt32Array(1424987622, 589600688) index="8" unique_id=1432568690]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_2_0" parent="SecondFloor/Rooms/Room_1_4" parent_id_path=PackedInt32Array(1424987622, 589600688) index="9" unique_id=844681031]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_2_1" parent="SecondFloor/Rooms/Room_1_4" parent_id_path=PackedInt32Array(1424987622, 589600688) index="10" unique_id=1316807326]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_2_2" parent="SecondFloor/Rooms/Room_1_4" parent_id_path=PackedInt32Array(1424987622, 589600688) index="11" unique_id=186428535]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_0_0" parent="SecondFloor/Rooms/Room_2_1" parent_id_path=PackedInt32Array(1424987622, 1529245482) index="3" unique_id=621308735]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_0_1" parent="SecondFloor/Rooms/Room_2_1" parent_id_path=PackedInt32Array(1424987622, 1529245482) index="4" unique_id=1005589921]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_0_2" parent="SecondFloor/Rooms/Room_2_1" parent_id_path=PackedInt32Array(1424987622, 1529245482) index="5" unique_id=1444404135]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_1_0" parent="SecondFloor/Rooms/Room_2_1" parent_id_path=PackedInt32Array(1424987622, 1529245482) index="6" unique_id=319073609]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_1_1" parent="SecondFloor/Rooms/Room_2_1" parent_id_path=PackedInt32Array(1424987622, 1529245482) index="7" unique_id=1212201917]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_1_2" parent="SecondFloor/Rooms/Room_2_1" parent_id_path=PackedInt32Array(1424987622, 1529245482) index="8" unique_id=1314002176]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_2_0" parent="SecondFloor/Rooms/Room_2_1" parent_id_path=PackedInt32Array(1424987622, 1529245482) index="9" unique_id=2141900230]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_2_1" parent="SecondFloor/Rooms/Room_2_1" parent_id_path=PackedInt32Array(1424987622, 1529245482) index="10" unique_id=1685603839]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_2_2" parent="SecondFloor/Rooms/Room_2_1" parent_id_path=PackedInt32Array(1424987622, 1529245482) index="11" unique_id=720272095]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_0_0" parent="SecondFloor/Rooms/Room_2_2" parent_id_path=PackedInt32Array(1424987622, 653486936) index="2" unique_id=569495623]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_0_1" parent="SecondFloor/Rooms/Room_2_2" parent_id_path=PackedInt32Array(1424987622, 653486936) index="3" unique_id=844470170]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_0_2" parent="SecondFloor/Rooms/Room_2_2" parent_id_path=PackedInt32Array(1424987622, 653486936) index="4" unique_id=1667012311]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_1_0" parent="SecondFloor/Rooms/Room_2_2" parent_id_path=PackedInt32Array(1424987622, 653486936) index="5" unique_id=42043871]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_1_1" parent="SecondFloor/Rooms/Room_2_2" parent_id_path=PackedInt32Array(1424987622, 653486936) index="6" unique_id=1337554863]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_1_2" parent="SecondFloor/Rooms/Room_2_2" parent_id_path=PackedInt32Array(1424987622, 653486936) index="7" unique_id=1357527152]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_2_0" parent="SecondFloor/Rooms/Room_2_2" parent_id_path=PackedInt32Array(1424987622, 653486936) index="8" unique_id=460006397]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_2_1" parent="SecondFloor/Rooms/Room_2_2" parent_id_path=PackedInt32Array(1424987622, 653486936) index="9" unique_id=1373306487]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_2_2" parent="SecondFloor/Rooms/Room_2_2" parent_id_path=PackedInt32Array(1424987622, 653486936) index="10" unique_id=458402701]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_0_0" parent="SecondFloor/Rooms/Room_2_3" parent_id_path=PackedInt32Array(1424987622, 438356192) index="3" unique_id=532533233]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_0_1" parent="SecondFloor/Rooms/Room_2_3" parent_id_path=PackedInt32Array(1424987622, 438356192) index="4" unique_id=1254301801]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_0_2" parent="SecondFloor/Rooms/Room_2_3" parent_id_path=PackedInt32Array(1424987622, 438356192) index="5" unique_id=1021052217]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_1_0" parent="SecondFloor/Rooms/Room_2_3" parent_id_path=PackedInt32Array(1424987622, 438356192) index="6" unique_id=1702851378]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_1_1" parent="SecondFloor/Rooms/Room_2_3" parent_id_path=PackedInt32Array(1424987622, 438356192) index="7" unique_id=548911095]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_1_2" parent="SecondFloor/Rooms/Room_2_3" parent_id_path=PackedInt32Array(1424987622, 438356192) index="8" unique_id=535869832]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_2_0" parent="SecondFloor/Rooms/Room_2_3" parent_id_path=PackedInt32Array(1424987622, 438356192) index="9" unique_id=542520288]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_2_1" parent="SecondFloor/Rooms/Room_2_3" parent_id_path=PackedInt32Array(1424987622, 438356192) index="10" unique_id=1781047421]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_2_2" parent="SecondFloor/Rooms/Room_2_3" parent_id_path=PackedInt32Array(1424987622, 438356192) index="11" unique_id=60851372]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_0_0" parent="SecondFloor/Rooms/Room_2_4" parent_id_path=PackedInt32Array(1424987622, 571233728) index="2" unique_id=1925227782]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_0_1" parent="SecondFloor/Rooms/Room_2_4" parent_id_path=PackedInt32Array(1424987622, 571233728) index="3" unique_id=2049095047]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_0_2" parent="SecondFloor/Rooms/Room_2_4" parent_id_path=PackedInt32Array(1424987622, 571233728) index="4" unique_id=1167993129]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_1_0" parent="SecondFloor/Rooms/Room_2_4" parent_id_path=PackedInt32Array(1424987622, 571233728) index="5" unique_id=450234282]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_1_1" parent="SecondFloor/Rooms/Room_2_4" parent_id_path=PackedInt32Array(1424987622, 571233728) index="6" unique_id=798842702]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_1_2" parent="SecondFloor/Rooms/Room_2_4" parent_id_path=PackedInt32Array(1424987622, 571233728) index="7" unique_id=516295762]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_2_0" parent="SecondFloor/Rooms/Room_2_4" parent_id_path=PackedInt32Array(1424987622, 571233728) index="8" unique_id=797122160]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_2_1" parent="SecondFloor/Rooms/Room_2_4" parent_id_path=PackedInt32Array(1424987622, 571233728) index="9" unique_id=1759149570]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_2_2" parent="SecondFloor/Rooms/Room_2_4" parent_id_path=PackedInt32Array(1424987622, 571233728) index="10" unique_id=294534537]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_0_0" parent="SecondFloor/Rooms/Room_3_1" parent_id_path=PackedInt32Array(1424987622, 1835171168) index="2" unique_id=1961645462]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_0_1" parent="SecondFloor/Rooms/Room_3_1" parent_id_path=PackedInt32Array(1424987622, 1835171168) index="3" unique_id=792180096]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_0_2" parent="SecondFloor/Rooms/Room_3_1" parent_id_path=PackedInt32Array(1424987622, 1835171168) index="4" unique_id=1026747278]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_1_0" parent="SecondFloor/Rooms/Room_3_1" parent_id_path=PackedInt32Array(1424987622, 1835171168) index="5" unique_id=2043716005]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_1_1" parent="SecondFloor/Rooms/Room_3_1" parent_id_path=PackedInt32Array(1424987622, 1835171168) index="6" unique_id=2021640660]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_1_2" parent="SecondFloor/Rooms/Room_3_1" parent_id_path=PackedInt32Array(1424987622, 1835171168) index="7" unique_id=711806724]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_2_0" parent="SecondFloor/Rooms/Room_3_1" parent_id_path=PackedInt32Array(1424987622, 1835171168) index="8" unique_id=1196291079]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_2_1" parent="SecondFloor/Rooms/Room_3_1" parent_id_path=PackedInt32Array(1424987622, 1835171168) index="9" unique_id=468046648]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_2_2" parent="SecondFloor/Rooms/Room_3_1" parent_id_path=PackedInt32Array(1424987622, 1835171168) index="10" unique_id=777119474]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_0_0" parent="SecondFloor/Rooms/Room_3_2" parent_id_path=PackedInt32Array(1424987622, 1703180197) index="3" unique_id=762250910]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_0_1" parent="SecondFloor/Rooms/Room_3_2" parent_id_path=PackedInt32Array(1424987622, 1703180197) index="4" unique_id=659673239]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_0_2" parent="SecondFloor/Rooms/Room_3_2" parent_id_path=PackedInt32Array(1424987622, 1703180197) index="5" unique_id=1852598572]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_1_0" parent="SecondFloor/Rooms/Room_3_2" parent_id_path=PackedInt32Array(1424987622, 1703180197) index="6" unique_id=574712946]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_1_1" parent="SecondFloor/Rooms/Room_3_2" parent_id_path=PackedInt32Array(1424987622, 1703180197) index="7" unique_id=1938460806]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_1_2" parent="SecondFloor/Rooms/Room_3_2" parent_id_path=PackedInt32Array(1424987622, 1703180197) index="8" unique_id=1743278863]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_2_0" parent="SecondFloor/Rooms/Room_3_2" parent_id_path=PackedInt32Array(1424987622, 1703180197) index="9" unique_id=249769436]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_2_1" parent="SecondFloor/Rooms/Room_3_2" parent_id_path=PackedInt32Array(1424987622, 1703180197) index="10" unique_id=707421909]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_2_2" parent="SecondFloor/Rooms/Room_3_2" parent_id_path=PackedInt32Array(1424987622, 1703180197) index="11" unique_id=171049273]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_0_0" parent="SecondFloor/Rooms/Room_3_3" parent_id_path=PackedInt32Array(1424987622, 1717325374) index="2" unique_id=1937123683]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_0_1" parent="SecondFloor/Rooms/Room_3_3" parent_id_path=PackedInt32Array(1424987622, 1717325374) index="3" unique_id=586589411]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_0_2" parent="SecondFloor/Rooms/Room_3_3" parent_id_path=PackedInt32Array(1424987622, 1717325374) index="4" unique_id=1089712163]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_1_0" parent="SecondFloor/Rooms/Room_3_3" parent_id_path=PackedInt32Array(1424987622, 1717325374) index="5" unique_id=1460064183]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_1_1" parent="SecondFloor/Rooms/Room_3_3" parent_id_path=PackedInt32Array(1424987622, 1717325374) index="6" unique_id=1811586485]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_1_2" parent="SecondFloor/Rooms/Room_3_3" parent_id_path=PackedInt32Array(1424987622, 1717325374) index="7" unique_id=1526576008]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_2_0" parent="SecondFloor/Rooms/Room_3_3" parent_id_path=PackedInt32Array(1424987622, 1717325374) index="8" unique_id=8824058]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_2_1" parent="SecondFloor/Rooms/Room_3_3" parent_id_path=PackedInt32Array(1424987622, 1717325374) index="9" unique_id=802073210]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_2_2" parent="SecondFloor/Rooms/Room_3_3" parent_id_path=PackedInt32Array(1424987622, 1717325374) index="10" unique_id=1674000764]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_0_0" parent="SecondFloor/Rooms/Room_3_4" parent_id_path=PackedInt32Array(1424987622, 1172047516) index="3" unique_id=1361461536]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_0_1" parent="SecondFloor/Rooms/Room_3_4" parent_id_path=PackedInt32Array(1424987622, 1172047516) index="4" unique_id=1753108183]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_0_2" parent="SecondFloor/Rooms/Room_3_4" parent_id_path=PackedInt32Array(1424987622, 1172047516) index="5" unique_id=1255323366]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_1_0" parent="SecondFloor/Rooms/Room_3_4" parent_id_path=PackedInt32Array(1424987622, 1172047516) index="6" unique_id=611137321]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_1_1" parent="SecondFloor/Rooms/Room_3_4" parent_id_path=PackedInt32Array(1424987622, 1172047516) index="7" unique_id=1983256978]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_1_2" parent="SecondFloor/Rooms/Room_3_4" parent_id_path=PackedInt32Array(1424987622, 1172047516) index="8" unique_id=2125212498]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_2_0" parent="SecondFloor/Rooms/Room_3_4" parent_id_path=PackedInt32Array(1424987622, 1172047516) index="9" unique_id=1868624524]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_2_1" parent="SecondFloor/Rooms/Room_3_4" parent_id_path=PackedInt32Array(1424987622, 1172047516) index="10" unique_id=235945652]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Floor_2_2" parent="SecondFloor/Rooms/Room_3_4" parent_id_path=PackedInt32Array(1424987622, 1172047516) index="11" unique_id=1311913499]
+surface_material_override/0 = SubResource("StandardMaterial3D_u7qk0")
+surface_material_override/1 = SubResource("StandardMaterial3D_u7qk0")
+
+[node name="Ceiling_0_0" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="0" unique_id=119625381]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_0_1" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="1" unique_id=1911179214]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_0_2" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="2" unique_id=1400038459]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_0_3" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="3" unique_id=126352992]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_0_4" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="4" unique_id=919464077]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_0_5" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="5" unique_id=2140591359]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_0_6" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="6" unique_id=485153978]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_0_7" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="7" unique_id=518083161]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_0_8" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="8" unique_id=1222267611]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_1_0" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="9" unique_id=989197013]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_1_1" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="10" unique_id=2096915126]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_1_2" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="11" unique_id=1877154582]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_1_3" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="12" unique_id=1826978865]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_1_4" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="13" unique_id=256521543]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_1_5" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="14" unique_id=555848112]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_1_6" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="15" unique_id=1419399795]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_1_7" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="16" unique_id=2118100775]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_1_8" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="17" unique_id=905890101]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_2_0" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="18" unique_id=290301362]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_2_1" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="19" unique_id=756987592]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_2_2" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="20" unique_id=1702308376]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_2_3" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="21" unique_id=1747394375]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_2_4" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="22" unique_id=1010013932]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_2_5" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="23" unique_id=1051706618]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_2_6" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="24" unique_id=2045695155]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_2_7" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="25" unique_id=2108260274]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_2_8" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="26" unique_id=491968254]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_3_0" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="27" unique_id=1535790018]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_3_1" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="28" unique_id=145624034]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_3_2" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="29" unique_id=1516146995]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_3_3" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="30" unique_id=2079123476]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_3_4" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="31" unique_id=1732847454]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_3_5" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="32" unique_id=1440585305]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_3_6" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="33" unique_id=180038358]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_3_7" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="34" unique_id=1084781715]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_3_8" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="35" unique_id=1204105951]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_4_0" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="36" unique_id=1943020841]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_4_1" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="37" unique_id=152011020]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_4_2" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="38" unique_id=1235672144]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_4_3" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="39" unique_id=365347228]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_4_4" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="40" unique_id=1222012601]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_4_5" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="41" unique_id=1574484781]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_4_6" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="42" unique_id=482305898]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_4_7" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="43" unique_id=1136943851]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_4_8" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="44" unique_id=1880920158]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_5_0" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="45" unique_id=1998710566]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_5_1" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="46" unique_id=691023863]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_5_2" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="47" unique_id=1794921722]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_5_3" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="48" unique_id=1344304922]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_5_4" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="49" unique_id=316064620]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_5_5" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="50" unique_id=1776332642]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_5_6" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="51" unique_id=990556957]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_5_7" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="52" unique_id=1612757850]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_5_8" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="53" unique_id=1458069059]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_6_0" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="54" unique_id=1407132218]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_6_1" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="55" unique_id=649439904]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_6_2" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="56" unique_id=680338502]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_6_3" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="57" unique_id=1830332859]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_6_4" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="58" unique_id=511311220]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_6_5" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="59" unique_id=1207495668]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_6_6" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="60" unique_id=2039776450]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_6_7" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="61" unique_id=572762413]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_6_8" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="62" unique_id=1835379123]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_7_0" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="63" unique_id=1581940524]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_7_1" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="64" unique_id=158211594]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_7_2" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="65" unique_id=1538364700]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_7_3" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="66" unique_id=1634886027]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_7_4" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="67" unique_id=529836284]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_7_5" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="68" unique_id=586680505]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_7_6" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="69" unique_id=1677502541]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_7_7" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="70" unique_id=852151712]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_7_8" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="71" unique_id=281018399]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_8_0" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="72" unique_id=690489814]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_8_1" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="73" unique_id=2000099529]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_8_2" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="74" unique_id=43352557]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_8_3" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="75" unique_id=511715116]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_8_4" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="76" unique_id=1917971028]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_8_5" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="77" unique_id=246436043]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_8_6" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="78" unique_id=1039246711]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_8_7" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="79" unique_id=1190572226]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_8_8" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="80" unique_id=304861489]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_9_0" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="81" unique_id=1106981603]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_9_1" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="82" unique_id=564823038]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_9_2" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="83" unique_id=1365975520]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_9_3" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="84" unique_id=1108391588]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_9_4" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="85" unique_id=1557259377]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_9_5" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="86" unique_id=1469173556]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_9_6" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="87" unique_id=1361156254]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_9_7" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="88" unique_id=1293058678]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_9_8" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="89" unique_id=804192452]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_10_0" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="90" unique_id=993504737]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_10_1" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="91" unique_id=1850965672]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_10_2" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="92" unique_id=1065305158]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_10_3" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="93" unique_id=1519773871]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_10_4" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="94" unique_id=1596358208]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_10_5" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="95" unique_id=959533055]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_10_6" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="96" unique_id=1168457013]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_10_7" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="97" unique_id=1996688884]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_10_8" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="98" unique_id=241163532]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_11_0" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="99" unique_id=1335910307]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_11_1" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="100" unique_id=862407878]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_11_2" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="101" unique_id=1048496762]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_11_3" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="102" unique_id=649486430]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_11_4" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="103" unique_id=1350879863]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_11_5" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="104" unique_id=243204067]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_11_6" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="105" unique_id=1318417625]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_11_7" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="106" unique_id=1495797363]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Ceiling_11_8" parent="SecondFloor/Roofs" parent_id_path=PackedInt32Array(1424987622, 855419514) index="107" unique_id=1682943315]
+surface_material_override/0 = SubResource("StandardMaterial3D_urd15")
+surface_material_override/1 = SubResource("StandardMaterial3D_urd15")
+
+[node name="Vertical_0_0_0" parent="SecondFloor/Walls" parent_id_path=PackedInt32Array(1424987622, 828334036) index="0" unique_id=445706904]
+surface_material_override/0 = SubResource("ShaderMaterial_634g0")
+
+[node name="Vertical_0_0_1" parent="SecondFloor/Walls" parent_id_path=PackedInt32Array(1424987622, 828334036) index="1" unique_id=905229452]
+surface_material_override/0 = SubResource("ShaderMaterial_634g0")
+
+[node name="Vertical_0_0_2" parent="SecondFloor/Walls" parent_id_path=PackedInt32Array(1424987622, 828334036) index="2" unique_id=1418405484]
+surface_material_override/0 = SubResource("ShaderMaterial_634g0")
+
+[node name="Vertical_0_1_0" parent="SecondFloor/Walls" parent_id_path=PackedInt32Array(1424987622, 828334036) index="3" unique_id=405419751]
+surface_material_override/0 = SubResource("ShaderMaterial_634g0")
+
+[node name="Vertical_0_1_1" parent="SecondFloor/Walls" parent_id_path=PackedInt32Array(1424987622, 828334036) index="4" unique_id=445890450]
+surface_material_override/0 = SubResource("ShaderMaterial_634g0")
+
+[node name="Vertical_0_1_2" parent="SecondFloor/Walls" parent_id_path=PackedInt32Array(1424987622, 828334036) index="5" unique_id=1679653225]
+surface_material_override/0 = SubResource("ShaderMaterial_634g0")
+
+[node name="Vertical_0_2_0" parent="SecondFloor/Walls" parent_id_path=PackedInt32Array(1424987622, 828334036) index="6" unique_id=4559345]
+surface_material_override/0 = SubResource("ShaderMaterial_634g0")
+
+[node name="Vertical_0_2_1" parent="SecondFloor/Walls" parent_id_path=PackedInt32Array(1424987622, 828334036) index="7" unique_id=86817428]
+surface_material_override/0 = SubResource("ShaderMaterial_634g0")
+
+[node name="Vertical_0_2_2" parent="SecondFloor/Walls" parent_id_path=PackedInt32Array(1424987622, 828334036) index="8" unique_id=1702718126]
+surface_material_override/0 = SubResource("ShaderMaterial_634g0")
+
+[node name="Vertical_1_0_0" parent="SecondFloor/Walls" parent_id_path=PackedInt32Array(1424987622, 828334036) index="9" unique_id=245553797]
+surface_material_override/0 = SubResource("ShaderMaterial_634g0")
+
+[node name="Vertical_1_0_1" parent="SecondFloor/Walls" parent_id_path=PackedInt32Array(1424987622, 828334036) index="10" unique_id=749346520]
+surface_material_override/0 = SubResource("ShaderMaterial_634g0")
+
+[node name="Vertical_1_0_2" parent="SecondFloor/Walls" parent_id_path=PackedInt32Array(1424987622, 828334036) index="11" unique_id=1414063448]
+surface_material_override/0 = SubResource("ShaderMaterial_634g0")
+
+[node name="Vertical_1_1_0" parent="SecondFloor/Walls" parent_id_path=PackedInt32Array(1424987622, 828334036) index="12" unique_id=483441476]
+surface_material_override/0 = SubResource("ShaderMaterial_634g0")
+
+[node name="Vertical_1_1_1" parent="SecondFloor/Walls" parent_id_path=PackedInt32Array(1424987622, 828334036) index="13" unique_id=266305415]
+surface_material_override/0 = SubResource("ShaderMaterial_634g0")
+
+[node name="Vertical_1_1_2" parent="SecondFloor/Walls" parent_id_path=PackedInt32Array(1424987622, 828334036) index="14" unique_id=1512934995]
+surface_material_override/0 = SubResource("ShaderMaterial_634g0")
+
+[node name="Vertical_1_2_0" parent="SecondFloor/Walls" parent_id_path=PackedInt32Array(1424987622, 828334036) index="15" unique_id=518817024]
+surface_material_override/0 = SubResource("ShaderMaterial_634g0")
+
+[node name="Vertical_1_2_1" parent="SecondFloor/Walls" parent_id_path=PackedInt32Array(1424987622, 828334036) index="16" unique_id=77041130]
+surface_material_override/0 = SubResource("ShaderMaterial_634g0")
+
+[node name="Vertical_1_2_2" parent="SecondFloor/Walls" parent_id_path=PackedInt32Array(1424987622, 828334036) index="17" unique_id=1603775016]
+surface_material_override/0 = SubResource("ShaderMaterial_634g0")
+
+[node name="Vertical_2_0_0" parent="SecondFloor/Walls" parent_id_path=PackedInt32Array(1424987622, 828334036) index="18" unique_id=947146836]
+surface_material_override/0 = SubResource("ShaderMaterial_634g0")
+
+[node name="Vertical_2_0_1" parent="SecondFloor/Walls" parent_id_path=PackedInt32Array(1424987622, 828334036) index="19" unique_id=778407187]
+surface_material_override/0 = SubResource("ShaderMaterial_634g0")
+
+[node name="Vertical_2_0_2" parent="SecondFloor/Walls" parent_id_path=PackedInt32Array(1424987622, 828334036) index="20" unique_id=1014678988]
+surface_material_override/0 = SubResource("ShaderMaterial_634g0")
+
+[node name="Vertical_2_1_0" parent="SecondFloor/Walls" parent_id_path=PackedInt32Array(1424987622, 828334036) index="21" unique_id=1315779764]
+surface_material_override/0 = SubResource("ShaderMaterial_634g0")
+
+[node name="Vertical_2_1_1" parent="SecondFloor/Walls" parent_id_path=PackedInt32Array(1424987622, 828334036) index="22" unique_id=803958505]
+surface_material_override/0 = SubResource("ShaderMaterial_634g0")
+
+[node name="Vertical_2_1_2" parent="SecondFloor/Walls" parent_id_path=PackedInt32Array(1424987622, 828334036) index="23" unique_id=1933497808]
+surface_material_override/0 = SubResource("ShaderMaterial_634g0")
+
+[node name="Vertical_2_2_0" parent="SecondFloor/Walls" parent_id_path=PackedInt32Array(1424987622, 828334036) index="24" unique_id=1007558813]
+surface_material_override/0 = SubResource("ShaderMaterial_634g0")
+
+[node name="Vertical_2_2_1" parent="SecondFloor/Walls" parent_id_path=PackedInt32Array(1424987622, 828334036) index="25" unique_id=131461339]
+surface_material_override/0 = SubResource("ShaderMaterial_634g0")
+
+[node name="Vertical_2_2_2" parent="SecondFloor/Walls" parent_id_path=PackedInt32Array(1424987622, 828334036) index="26" unique_id=2138155946]
+surface_material_override/0 = SubResource("ShaderMaterial_634g0")
+
+[node name="Vertical_3_0_0" parent="SecondFloor/Walls" parent_id_path=PackedInt32Array(1424987622, 828334036) index="27" unique_id=1844962134]
+surface_material_override/0 = SubResource("ShaderMaterial_634g0")
+
+[node name="Vertical_3_0_1" parent="SecondFloor/Walls" parent_id_path=PackedInt32Array(1424987622, 828334036) index="28" unique_id=2072799801]
+surface_material_override/0 = SubResource("ShaderMaterial_634g0")
+
+[node name="Vertical_3_0_2" parent="SecondFloor/Walls" parent_id_path=PackedInt32Array(1424987622, 828334036) index="29" unique_id=370533916]
+surface_material_override/0 = SubResource("ShaderMaterial_634g0")
+
+[node name="Vertical_3_1_0" parent="SecondFloor/Walls" parent_id_path=PackedInt32Array(1424987622, 828334036) index="30" unique_id=1066681459]
+surface_material_override/0 = SubResource("ShaderMaterial_634g0")
+
+[node name="Vertical_3_1_1" parent="SecondFloor/Walls" parent_id_path=PackedInt32Array(1424987622, 828334036) index="31" unique_id=159439317]
+surface_material_override/0 = SubResource("ShaderMaterial_634g0")
+
+[node name="Vertical_3_1_2" parent="SecondFloor/Walls" parent_id_path=PackedInt32Array(1424987622, 828334036) index="32" unique_id=1550598265]
+surface_material_override/0 = SubResource("ShaderMaterial_634g0")
+
+[node name="Vertical_3_2_0" parent="SecondFloor/Walls" parent_id_path=PackedInt32Array(1424987622, 828334036) index="33" unique_id=1360643864]
+surface_material_override/0 = SubResource("ShaderMaterial_634g0")
+
+[node name="Vertical_3_2_1" parent="SecondFloor/Walls" parent_id_path=PackedInt32Array(1424987622, 828334036) index="34" unique_id=972285052]
+surface_material_override/0 = SubResource("ShaderMaterial_634g0")
+
+[node name="Vertical_3_2_2" parent="SecondFloor/Walls" parent_id_path=PackedInt32Array(1424987622, 828334036) index="35" unique_id=539566293]
+surface_material_override/0 = SubResource("ShaderMaterial_634g0")
+
+[node name="Vertical_4_0_0" parent="SecondFloor/Walls" parent_id_path=PackedInt32Array(1424987622, 828334036) index="36" unique_id=917779948]
+surface_material_override/0 = SubResource("ShaderMaterial_634g0")
+
+[node name="Vertical_4_0_1" parent="SecondFloor/Walls" parent_id_path=PackedInt32Array(1424987622, 828334036) index="37" unique_id=1063052907]
+surface_material_override/0 = SubResource("ShaderMaterial_634g0")
+
+[node name="Vertical_4_0_2" parent="SecondFloor/Walls" parent_id_path=PackedInt32Array(1424987622, 828334036) index="38" unique_id=970325969]
+surface_material_override/0 = SubResource("ShaderMaterial_634g0")
+
+[node name="Vertical_4_1_0" parent="SecondFloor/Walls" parent_id_path=PackedInt32Array(1424987622, 828334036) index="39" unique_id=166279637]
+surface_material_override/0 = SubResource("ShaderMaterial_634g0")
+
+[node name="Vertical_4_1_1" parent="SecondFloor/Walls" parent_id_path=PackedInt32Array(1424987622, 828334036) index="40" unique_id=1681843277]
+surface_material_override/0 = SubResource("ShaderMaterial_634g0")
+
+[node name="Vertical_4_1_2" parent="SecondFloor/Walls" parent_id_path=PackedInt32Array(1424987622, 828334036) index="41" unique_id=1485202464]
+surface_material_override/0 = SubResource("ShaderMaterial_634g0")
+
+[node name="Vertical_4_2_0" parent="SecondFloor/Walls" parent_id_path=PackedInt32Array(1424987622, 828334036) index="42" unique_id=1386952968]
+surface_material_override/0 = SubResource("ShaderMaterial_634g0")
+
+[node name="Vertical_4_2_1" parent="SecondFloor/Walls" parent_id_path=PackedInt32Array(1424987622, 828334036) index="43" unique_id=1946658194]
+surface_material_override/0 = SubResource("ShaderMaterial_634g0")
+
+[node name="Vertical_4_2_2" parent="SecondFloor/Walls" parent_id_path=PackedInt32Array(1424987622, 828334036) index="44" unique_id=1880307569]
+surface_material_override/0 = SubResource("ShaderMaterial_634g0")
+
+[node name="Horizontal_0_0_0" parent="SecondFloor/Walls" parent_id_path=PackedInt32Array(1424987622, 828334036) index="45" unique_id=1476685668]
+surface_material_override/0 = SubResource("ShaderMaterial_634g0")
+
+[node name="Horizontal_0_0_1" parent="SecondFloor/Walls" parent_id_path=PackedInt32Array(1424987622, 828334036) index="46" unique_id=1299526412]
+surface_material_override/0 = SubResource("ShaderMaterial_634g0")
+
+[node name="Horizontal_0_0_2" parent="SecondFloor/Walls" parent_id_path=PackedInt32Array(1424987622, 828334036) index="47" unique_id=352193348]
+surface_material_override/0 = SubResource("ShaderMaterial_634g0")
+
+[node name="Horizontal_0_1_0" parent="SecondFloor/Walls" parent_id_path=PackedInt32Array(1424987622, 828334036) index="48" unique_id=193717723]
+surface_material_override/0 = SubResource("ShaderMaterial_634g0")
+
+[node name="Horizontal_0_1_1" parent="SecondFloor/Walls" parent_id_path=PackedInt32Array(1424987622, 828334036) index="49" unique_id=356983968]
+surface_material_override/0 = SubResource("ShaderMaterial_634g0")
+
+[node name="Horizontal_0_1_2" parent="SecondFloor/Walls" parent_id_path=PackedInt32Array(1424987622, 828334036) index="50" unique_id=1080500763]
+surface_material_override/0 = SubResource("ShaderMaterial_634g0")
+
+[node name="Horizontal_0_2_0" parent="SecondFloor/Walls" parent_id_path=PackedInt32Array(1424987622, 828334036) index="51" unique_id=2121695683]
+surface_material_override/0 = SubResource("ShaderMaterial_634g0")
+
+[node name="Horizontal_0_2_1" parent="SecondFloor/Walls" parent_id_path=PackedInt32Array(1424987622, 828334036) index="52" unique_id=48263331]
+surface_material_override/0 = SubResource("ShaderMaterial_634g0")
+
+[node name="Horizontal_0_2_2" parent="SecondFloor/Walls" parent_id_path=PackedInt32Array(1424987622, 828334036) index="53" unique_id=809853902]
+surface_material_override/0 = SubResource("ShaderMaterial_634g0")
+
+[node name="Horizontal_0_3_0" parent="SecondFloor/Walls" parent_id_path=PackedInt32Array(1424987622, 828334036) index="54" unique_id=1274943600]
+surface_material_override/0 = SubResource("ShaderMaterial_634g0")
+
+[node name="Horizontal_0_3_1" parent="SecondFloor/Walls" parent_id_path=PackedInt32Array(1424987622, 828334036) index="55" unique_id=451095966]
+surface_material_override/0 = SubResource("ShaderMaterial_634g0")
+
+[node name="Horizontal_0_3_2" parent="SecondFloor/Walls" parent_id_path=PackedInt32Array(1424987622, 828334036) index="56" unique_id=1792610299]
+surface_material_override/0 = SubResource("ShaderMaterial_634g0")
+
+[node name="Horizontal_1_0_0" parent="SecondFloor/Walls" parent_id_path=PackedInt32Array(1424987622, 828334036) index="57" unique_id=1744399422]
+surface_material_override/0 = SubResource("ShaderMaterial_634g0")
+
+[node name="Horizontal_1_0_1" parent="SecondFloor/Walls" parent_id_path=PackedInt32Array(1424987622, 828334036) index="58" unique_id=1798278088]
+surface_material_override/0 = SubResource("ShaderMaterial_634g0")
+
+[node name="Horizontal_1_0_2" parent="SecondFloor/Walls" parent_id_path=PackedInt32Array(1424987622, 828334036) index="59" unique_id=1941796487]
+surface_material_override/0 = SubResource("ShaderMaterial_634g0")
+
+[node name="Horizontal_1_1_0" parent="SecondFloor/Walls" parent_id_path=PackedInt32Array(1424987622, 828334036) index="60" unique_id=1622741773]
+surface_material_override/0 = SubResource("ShaderMaterial_634g0")
+
+[node name="Horizontal_1_1_1" parent="SecondFloor/Walls" parent_id_path=PackedInt32Array(1424987622, 828334036) index="61" unique_id=2033044832]
+surface_material_override/0 = SubResource("ShaderMaterial_634g0")
+
+[node name="Horizontal_1_1_2" parent="SecondFloor/Walls" parent_id_path=PackedInt32Array(1424987622, 828334036) index="62" unique_id=1516054941]
+surface_material_override/0 = SubResource("ShaderMaterial_634g0")
+
+[node name="Horizontal_1_2_0" parent="SecondFloor/Walls" parent_id_path=PackedInt32Array(1424987622, 828334036) index="63" unique_id=934712923]
+surface_material_override/0 = SubResource("ShaderMaterial_634g0")
+
+[node name="Horizontal_1_2_1" parent="SecondFloor/Walls" parent_id_path=PackedInt32Array(1424987622, 828334036) index="64" unique_id=998299093]
+surface_material_override/0 = SubResource("ShaderMaterial_634g0")
+
+[node name="Horizontal_1_2_2" parent="SecondFloor/Walls" parent_id_path=PackedInt32Array(1424987622, 828334036) index="65" unique_id=1607539256]
+surface_material_override/0 = SubResource("ShaderMaterial_634g0")
+
+[node name="Horizontal_1_3_0" parent="SecondFloor/Walls" parent_id_path=PackedInt32Array(1424987622, 828334036) index="66" unique_id=935032084]
+surface_material_override/0 = SubResource("ShaderMaterial_634g0")
+
+[node name="Horizontal_1_3_1" parent="SecondFloor/Walls" parent_id_path=PackedInt32Array(1424987622, 828334036) index="67" unique_id=1134012727]
+surface_material_override/0 = SubResource("ShaderMaterial_634g0")
+
+[node name="Horizontal_1_3_2" parent="SecondFloor/Walls" parent_id_path=PackedInt32Array(1424987622, 828334036) index="68" unique_id=2055460668]
+surface_material_override/0 = SubResource("ShaderMaterial_634g0")
+
+[node name="Horizontal_2_0_0" parent="SecondFloor/Walls" parent_id_path=PackedInt32Array(1424987622, 828334036) index="69" unique_id=1904551399]
+surface_material_override/0 = SubResource("ShaderMaterial_634g0")
+
+[node name="Horizontal_2_0_1" parent="SecondFloor/Walls" parent_id_path=PackedInt32Array(1424987622, 828334036) index="70" unique_id=801809909]
+surface_material_override/0 = SubResource("ShaderMaterial_634g0")
+
+[node name="Horizontal_2_0_2" parent="SecondFloor/Walls" parent_id_path=PackedInt32Array(1424987622, 828334036) index="71" unique_id=874756103]
+surface_material_override/0 = SubResource("ShaderMaterial_634g0")
+
+[node name="Horizontal_2_1_0" parent="SecondFloor/Walls" parent_id_path=PackedInt32Array(1424987622, 828334036) index="72" unique_id=2077716223]
+surface_material_override/0 = SubResource("ShaderMaterial_634g0")
+
+[node name="Horizontal_2_1_1" parent="SecondFloor/Walls" parent_id_path=PackedInt32Array(1424987622, 828334036) index="73" unique_id=927136654]
+surface_material_override/0 = SubResource("ShaderMaterial_634g0")
+
+[node name="Horizontal_2_1_2" parent="SecondFloor/Walls" parent_id_path=PackedInt32Array(1424987622, 828334036) index="74" unique_id=1732986911]
+surface_material_override/0 = SubResource("ShaderMaterial_634g0")
+
+[node name="Horizontal_2_2_0" parent="SecondFloor/Walls" parent_id_path=PackedInt32Array(1424987622, 828334036) index="75" unique_id=459196629]
+surface_material_override/0 = SubResource("ShaderMaterial_634g0")
+
+[node name="Horizontal_2_2_1" parent="SecondFloor/Walls" parent_id_path=PackedInt32Array(1424987622, 828334036) index="76" unique_id=1697926944]
+surface_material_override/0 = SubResource("ShaderMaterial_634g0")
+
+[node name="Horizontal_2_2_2" parent="SecondFloor/Walls" parent_id_path=PackedInt32Array(1424987622, 828334036) index="77" unique_id=1727256363]
+surface_material_override/0 = SubResource("ShaderMaterial_634g0")
+
+[node name="Horizontal_2_3_0" parent="SecondFloor/Walls" parent_id_path=PackedInt32Array(1424987622, 828334036) index="78" unique_id=1748870375]
+surface_material_override/0 = SubResource("ShaderMaterial_634g0")
+
+[node name="Horizontal_2_3_1" parent="SecondFloor/Walls" parent_id_path=PackedInt32Array(1424987622, 828334036) index="79" unique_id=1979921084]
+surface_material_override/0 = SubResource("ShaderMaterial_634g0")
+
+[node name="Horizontal_2_3_2" parent="SecondFloor/Walls" parent_id_path=PackedInt32Array(1424987622, 828334036) index="80" unique_id=843016015]
+surface_material_override/0 = SubResource("ShaderMaterial_634g0")
+
+[node name="Horizontal_3_0_0" parent="SecondFloor/Walls" parent_id_path=PackedInt32Array(1424987622, 828334036) index="81" unique_id=80887467]
+surface_material_override/0 = SubResource("ShaderMaterial_634g0")
+
+[node name="Horizontal_3_0_1" parent="SecondFloor/Walls" parent_id_path=PackedInt32Array(1424987622, 828334036) index="82" unique_id=916245912]
+surface_material_override/0 = SubResource("ShaderMaterial_634g0")
+
+[node name="Horizontal_3_0_2" parent="SecondFloor/Walls" parent_id_path=PackedInt32Array(1424987622, 828334036) index="83" unique_id=999490776]
+surface_material_override/0 = SubResource("ShaderMaterial_634g0")
+
+[node name="Horizontal_3_1_0" parent="SecondFloor/Walls" parent_id_path=PackedInt32Array(1424987622, 828334036) index="84" unique_id=2051473638]
+surface_material_override/0 = SubResource("ShaderMaterial_634g0")
+
+[node name="Horizontal_3_1_1" parent="SecondFloor/Walls" parent_id_path=PackedInt32Array(1424987622, 828334036) index="85" unique_id=919822840]
+surface_material_override/0 = SubResource("ShaderMaterial_634g0")
+
+[node name="Horizontal_3_1_2" parent="SecondFloor/Walls" parent_id_path=PackedInt32Array(1424987622, 828334036) index="86" unique_id=1761306869]
+surface_material_override/0 = SubResource("ShaderMaterial_634g0")
+
+[node name="Horizontal_3_2_0" parent="SecondFloor/Walls" parent_id_path=PackedInt32Array(1424987622, 828334036) index="87" unique_id=374714361]
+surface_material_override/0 = SubResource("ShaderMaterial_634g0")
+
+[node name="Horizontal_3_2_1" parent="SecondFloor/Walls" parent_id_path=PackedInt32Array(1424987622, 828334036) index="88" unique_id=178562220]
+surface_material_override/0 = SubResource("ShaderMaterial_634g0")
+
+[node name="Horizontal_3_2_2" parent="SecondFloor/Walls" parent_id_path=PackedInt32Array(1424987622, 828334036) index="89" unique_id=690758129]
+surface_material_override/0 = SubResource("ShaderMaterial_634g0")
+
+[node name="Horizontal_3_3_0" parent="SecondFloor/Walls" parent_id_path=PackedInt32Array(1424987622, 828334036) index="90" unique_id=388177031]
+surface_material_override/0 = SubResource("ShaderMaterial_634g0")
+
+[node name="Horizontal_3_3_1" parent="SecondFloor/Walls" parent_id_path=PackedInt32Array(1424987622, 828334036) index="91" unique_id=775229649]
+surface_material_override/0 = SubResource("ShaderMaterial_634g0")
+
+[node name="Horizontal_3_3_2" parent="SecondFloor/Walls" parent_id_path=PackedInt32Array(1424987622, 828334036) index="92" unique_id=1112269983]
+surface_material_override/0 = SubResource("ShaderMaterial_634g0")
+
 [node name="LadderLayout" type="Node" parent="." unique_id=940992429]
 script = ExtResource("ladder_layout")
 
 [node name="DistantSkyline" parent="." unique_id=1621596081 instance=ExtResource("distant_skyline")]
+
+[editable path="SecondFloor"]

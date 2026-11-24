@@ -36,7 +36,11 @@ func _build_preview() -> void:
 	_viewport.size = Vector2i(960, 540)
 	_viewport.render_target_update_mode = SubViewport.UPDATE_ONCE
 	add_child(_viewport)
-	for node_name in ["WorldEnvironment", "DirectionalLight3D", "BuildingComplex3"]:
+	var preview_nodes := ["WorldEnvironment", "BuildingComplex3"]
+	for child in source.get_children():
+		if child is DirectionalLight3D:
+			preview_nodes.append(String(child.name))
+	for node_name in preview_nodes:
 		var node := source.get_node(node_name)
 		source.remove_child(node)
 		node.owner = null
