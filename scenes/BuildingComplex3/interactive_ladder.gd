@@ -47,7 +47,7 @@ func _add_shaft_guard() -> void:
 
 
 func get_interaction_prompt() -> String:
-	return "[E] Use Ladder"
+	return ""
 
 
 func request_interaction(peer_id: int) -> void:

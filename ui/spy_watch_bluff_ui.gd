@@ -15,6 +15,8 @@ const BLUFF_CUES: Array[Dictionary] = [
 
 class PlayerMapMarker extends Control:
 	const RADIUS := 5.0
+	const DOT_COLOR := Color(1.0, 0.19, 0.23)
+	const OUTLINE_COLOR := Color(0.12, 0.03, 0.04)
 
 	var level: Node3D
 	var first_button: Button
@@ -22,12 +24,16 @@ class PlayerMapMarker extends Control:
 	var first_room_center: Vector2
 	var room_size: Vector2
 	var room_count: Vector2i
+	var facing := Vector2.UP
 
 	func _draw() -> void:
-		draw_circle(Vector2.ZERO, RADIUS + 1.5, Color(0.12, 0.03, 0.04), true, -1.0, true)
-		draw_circle(Vector2.ZERO, RADIUS, Color(1.0, 0.19, 0.23), true, -1.0, true)
+		var across := facing.orthogonal()
+		draw_colored_polygon(PackedVector2Array([facing * 15.0, across * 6.0, -across * 6.0]), OUTLINE_COLOR)
+		draw_colored_polygon(PackedVector2Array([facing * 12.0, across * 4.0, -across * 4.0]), DOT_COLOR)
+		draw_circle(Vector2.ZERO, RADIUS + 1.5, OUTLINE_COLOR, true, -1.0, true)
+		draw_circle(Vector2.ZERO, RADIUS, DOT_COLOR, true, -1.0, true)
 
-	func update_position(world_position: Vector3, on_floor: bool) -> void:
+	func update_position(world_position: Vector3, world_forward: Vector3, on_floor: bool) -> void:
 		if not on_floor or first_button.size.x <= 0.0:
 			hide()
 			return
@@ -46,6 +52,11 @@ class PlayerMapMarker extends Control:
 			(last_center.x - first_center.x) / steps.x if steps.x > 0 else first_button.size.x,
 			(last_center.y - first_center.y) / steps.y if steps.y > 0 else first_button.size.y
 		)
+		var local_forward := level.global_transform.basis.inverse() * world_forward if level != null else world_forward
+		var map_forward := (Vector2(local_forward.x, local_forward.z) * pitch / room_size).normalized()
+		if not map_forward.is_zero_approx() and not facing.is_equal_approx(map_forward):
+			facing = map_forward
+			queue_redraw()
 		position = (first_center + room_coords * pitch).clamp(
 			first_button.position + Vector2.ONE * RADIUS,
 			last_button.position + last_button.size - Vector2.ONE * RADIUS
@@ -144,11 +155,12 @@ func _process(_delta: float) -> void:
 			marker.hide()
 		return
 
-	var world_position := (_player as Node3D).global_position
+	var player_transform := (_player as Node3D).global_transform
+	var world_position := player_transform.origin
 	# Use the player’s feet to switch floors near the top of a ladder.
 	var is_upstairs := is_instance_valid(_upper_floor) and _upper_floor.to_local(world_position).y >= -0.15
 	for marker in _player_markers:
-		marker.update_position(world_position, not is_instance_valid(_upper_floor) or (marker.level == _upper_floor) == is_upstairs)
+		marker.update_position(world_position, -player_transform.basis.z, not is_instance_valid(_upper_floor) or (marker.level == _upper_floor) == is_upstairs)
 
 
 func setup_for_player(player_node: Node) -> void:
