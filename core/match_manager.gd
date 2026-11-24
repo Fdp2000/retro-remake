@@ -61,7 +61,7 @@ func tick_match_clocks(delta: float) -> void:
 
 	# OG 1984 Mutual Loss (Draw): If all spies run out of time before anyone escapes
 	if active_peers_remaining == 0 and not peer_clocks.is_empty():
-		_finish_match(0, "Mutual Loss (Draw) — All spies ran out of time!")
+		_finish_match(0, "Mutual Loss (Draw) — All agents ran out of time!")
 		return
 
 	_sync_accumulator += delta
@@ -140,8 +140,10 @@ func report_airport_exit_reached(peer_id: int, packed_objectives_count: int) -> 
 		return false
 
 	var role: int = get_peer_role(peer_id)
-	var spy_label: String = GameConfig.get_spy_role_name(role) if (GameConfig != null and role > 0) else ("Spy %d" % peer_id)
-	_finish_match(peer_id, "Escape Victory — %s escaped with all %d Objectives!" % [spy_label, packed_objectives_count])
+	var agent_label := "Agent %d" % peer_id
+	if GameConfig != null and role > 0:
+		agent_label = "Agent " + GameConfig.get_spy_role_name(role).trim_prefix("SPY ").capitalize()
+	_finish_match(peer_id, "Escape Victory — %s escaped with all %d Objectives!" % [agent_label, packed_objectives_count])
 	return true
 
 

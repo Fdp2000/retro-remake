@@ -2,7 +2,9 @@
 class_name MatchEndOverlayUI
 extends Control
 
-## Match Result Summary Overlay & In-Game Rematch / Mode-Switch Controls (J5).
+## Round results and the actions available for the current session.
+
+enum Actions { LEAVE_ONLY, PRIVATE_HOST, LOCAL_HOST }
 
 signal rematch_requested()
 signal switch_mode_requested()
@@ -86,7 +88,7 @@ func _build_layout() -> void:
 
 	_rematch_button = Button.new()
 	_rematch_button.name = "RematchButton"
-	_rematch_button.text = "Rematch — New Seed"
+	_rematch_button.text = "Rematch"
 	_rematch_button.pressed.connect(func() -> void: rematch_requested.emit())
 	vbox.add_child(_rematch_button)
 
@@ -107,9 +109,8 @@ func show_match_result(
 	winner_peer_id: int,
 	local_peer_id: int,
 	reason: String,
-	is_host: bool,
-	is_sandbox: bool,
-	match_seed: int
+	actions: Actions,
+	is_sandbox: bool
 ) -> void:
 	_build_layout()
 	last_winner_peer_id = winner_peer_id
@@ -129,25 +130,16 @@ func show_match_result(
 		_title_label.modulate = Color(0.95, 0.35, 0.42)
 
 	_subtitle_label.text = reason
-	_meta_label.text = "Mode: %s   |   Match Seed: #%d" % [
-		"Dev Sandbox Gym" if is_sandbox else "Full Embassy Match",
-		match_seed
-	]
+	_meta_label.text = "Dev Sandbox Gym" if is_sandbox else "Full Embassy Match"
 
-	if is_host:
-		_rematch_button.text = "Rematch — New Seed"
-		_rematch_button.disabled = false
-		_switch_mode_button.visible = true
-		_switch_mode_button.disabled = false
-		_switch_mode_button.text = (
-			"Switch to Full Match (Seeded Embassy)"
-			if is_sandbox
-			else "Switch to Dev Sandbox Gym"
-		)
-	else:
-		_rematch_button.text = "Waiting for Host to start Rematch..."
-		_rematch_button.disabled = true
-		_switch_mode_button.visible = false
+	_rematch_button.visible = actions != Actions.LEAVE_ONLY
+	_lobby_button.text = "Leave Game" if actions == Actions.LEAVE_ONLY else "Return to Lobby"
+	_switch_mode_button.visible = actions == Actions.LOCAL_HOST
+	_switch_mode_button.text = (
+		"Switch to Full Match (Seeded Embassy)"
+		if is_sandbox
+		else "Switch to Dev Sandbox Gym"
+	)
 
 	visible = true
 
