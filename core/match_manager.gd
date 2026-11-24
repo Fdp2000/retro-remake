@@ -38,6 +38,8 @@ func _process(delta: float) -> void:
 func tick_match_clocks(delta: float) -> void:
 	if match_state != MatchState.IN_PROGRESS:
 		return
+	if GameConfig != null and GameConfig.debug_disable_match_timer:
+		return
 
 	# Only server / host (or offline authority) ticks the authoritative match clocks
 	if _is_network_connected() and not multiplayer.is_server():
@@ -173,6 +175,21 @@ func eliminate_disconnected_peer(peer_id: int) -> void:
 
 func get_private_clock(peer_id: int) -> float:
 	return float(peer_clocks.get(peer_id, GameConfig.starting_clock_seconds))
+
+
+func set_debug_timer_disabled(disabled_now: bool) -> void:
+	if _is_network_connected():
+		_rpc_set_debug_timer_disabled.rpc(disabled_now)
+	else:
+		_rpc_set_debug_timer_disabled(disabled_now)
+
+
+@rpc("any_peer", "call_local", "reliable")
+func _rpc_set_debug_timer_disabled(disabled_now: bool) -> void:
+	if GameConfig != null:
+		GameConfig.debug_disable_match_timer = disabled_now
+	for peer_id in peer_clocks.keys():
+		clock_updated.emit(peer_id, peer_clocks[peer_id], 0.0)
 
 
 func is_peer_eliminated(peer_id: int) -> bool:

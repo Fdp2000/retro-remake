@@ -30,6 +30,7 @@ const CLUB_QTE_UI_SCRIPT = preload("res://ui/club_qte_bar_ui.gd")
 const CLUB_HIT_GIZMO_SCRIPT = preload("res://entities/player/club_hit_gizmo.gd")
 const WATCH_BLUFF_UI_SCRIPT = preload("res://ui/spy_watch_bluff_ui.gd")
 const CRT_REPLAY_UI_SCRIPT = preload("res://ui/crt_replay_monitor_ui.gd")
+const VM_TUNER_UI_SCRIPT = preload("res://ui/viewmodel_offset_tuner_ui.gd")
 const RAGDOLL_CTRL_SCRIPT = preload("res://entities/player/spy_ragdoll_controller.gd")
 const TRIPWIRE_SCRIPT = preload("res://entities/traps/tripwire_trap.gd")
 const TRIPWIRE_PLACEMENT_SCRIPT = preload("res://entities/player/tripwire_placement_controller.gd")
@@ -52,6 +53,9 @@ const PELVIS_SYNC_INTERVAL: float = 0.20
 		stance_state = value
 		_apply_stance_collision_and_visuals()
 		_update_hud_status()
+
+@export var is_climbing_ladder: bool = false
+var _climb_vertical_speed: float = 0.0
 
 # ==========================================
 # Server-Authoritative Inventory Facade (Backed by SpyInventoryComponent)
@@ -142,6 +146,8 @@ var is_charging_club: bool:
 @onready var visual_rig: Node3D = get_node_or_null("VisualRig")
 @onready var back_club_socket: Marker3D = get_node_or_null("VisualRig/BackClubSocket")
 @onready var spy_wearable_socket: Marker3D = get_node_or_null("VisualRig/SpyWearableSocket")
+@onready var tp_left_hand_socket: Marker3D = get_node_or_null("VisualRig/ThirdPersonLeftHandSocket")
+@onready var tp_right_hand_socket: Marker3D = get_node_or_null("VisualRig/ThirdPersonRightHandSocket")
 @onready var head: Node3D = $Head
 @onready var camera: Camera3D = $Head/Camera3D
 @onready var raycast: RayCast3D = $Head/Camera3D/RayCast3D
@@ -184,6 +190,10 @@ var _club_qte_ui: ClubQTEBarUI = null
 var _club_hit_gizmo: ClubHitGizmo = null
 var _watch_bluff_ui: SpyWatchBluffUI = null
 var _crt_replay_ui: CRTReplayMonitorUI = null
+var _vm_tuner_ui: VM_TUNER_UI_SCRIPT = null
+var _tp_preview_camera: Camera3D = null
+var _tp_preview_active: bool = false
+var _tp_sim_motion: String = "IDLE"
 var _ragdoll_ctrl: SpyRagdollController = null
 var _back_club_bone_offset: Transform3D = Transform3D.IDENTITY
 var _wearable_bone_offset: Transform3D = Transform3D.IDENTITY
@@ -240,6 +250,167 @@ var _was_on_floor: bool = true
 var _sens_toast_timer: float = 0.0
 var _drop_counter: int = 0
 
+# First-person viewmodel procedural animation state
+const _VM_LEFT_BASE_POS: Vector3 = Vector3(-0.34, -0.26, -0.52)
+const _VM_RIGHT_BASE_POS: Vector3 = Vector3(0.34, -0.26, -0.52)
+const _VM_ARM_SCALE: Vector3 = Vector3(0.76, 0.76, 0.76)
+const _VM_ARM_LEFT_OFFSET: Vector3 = Vector3(-0.045, -0.02, 0.03)
+const _VM_ARM_RIGHT_OFFSET: Vector3 = Vector3(0.045, -0.02, 0.03)
+const _HAND_POSES_OVERRIDE_PATH: String = "res://entities/player/hand_poses_override.json"
+
+var _vm_left_base_pos: Vector3 = _VM_LEFT_BASE_POS
+var _vm_right_base_pos: Vector3 = _VM_RIGHT_BASE_POS
+var _vm_arm_scale: Vector3 = _VM_ARM_SCALE
+var _vm_arm_left_offset: Vector3 = _VM_ARM_LEFT_OFFSET
+var _vm_arm_right_offset: Vector3 = _VM_ARM_RIGHT_OFFSET
+var _runtime_hand_item_poses: Dictionary = {}
+var _runtime_tp_hand_item_poses: Dictionary = {}
+var _runtime_poses_loaded: bool = false
+
+# Custom per-item offsets in hand-local space (authored for Right hand; Left hand mirrors X, Yaw-Y, and Roll-Z automatically).
+# Optional "left_pos"/"left_rot_deg"/"right_pos"/"right_rot_deg" keys override mirroring per side if needed.
+const _HAND_ITEM_POSES: Dictionary = {
+	"BRIEFCASE": {
+		"pos": Vector3(-0.02, -0.19, -0.03),
+		"rot_deg": Vector3(8.0, 78.0, -8.0),
+		"scale": Vector3(0.60, 0.60, 0.60)
+	},
+	"KEY": {
+		"pos": Vector3(-0.025, 0.02, -0.07),
+		"rot_deg": Vector3(18.0, 16.0, -28.0),
+		"scale": Vector3(0.95, 0.95, 0.95)
+	},
+	"MONEY": {
+		"pos": Vector3(-0.035, 0.015, -0.04),
+		"rot_deg": Vector3(16.0, 22.0, -12.0),
+		"scale": Vector3(0.90, 0.90, 0.90)
+	},
+	"PASSPORT": {
+		"pos": Vector3(-0.03, 0.02, -0.06),
+		"rot_deg": Vector3(48.0, 24.0, -18.0),
+		"scale": Vector3(0.95, 0.95, 0.95)
+	},
+	"PLANS": {
+		"pos": Vector3(-0.04, 0.03, -0.07),
+		"rot_deg": Vector3(52.0, 20.0, -14.0),
+		"scale": Vector3(0.85, 0.85, 0.85)
+	},
+	"CLUB": {
+		"pos": Vector3(-0.015, 0.15, -0.03),
+		"rot_deg": Vector3(-22.0, 8.0, 10.0),
+		"scale": Vector3(0.92, 0.92, 0.92)
+	},
+	"DART_GUN": {
+		"pos": Vector3(-0.015, 0.065, -0.07),
+		"rot_deg": Vector3(3.0, 4.0, 0.0),
+		"scale": Vector3(1.0, 1.0, 1.0)
+	},
+	"BOMB": {
+		"pos": Vector3(-0.03, 0.01, -0.05),
+		"rot_deg": Vector3(12.0, 15.0, -6.0),
+		"scale": Vector3(0.85, 0.85, 0.85)
+	},
+	"LIVE_BOMB": {
+		"pos": Vector3(-0.03, 0.025, -0.06),
+		"rot_deg": Vector3(14.0, 12.0, -6.0),
+		"scale": Vector3(0.85, 0.85, 0.85)
+	},
+	"BUCKET": {
+		"pos": Vector3(-0.03, -0.04, -0.06),
+		"rot_deg": Vector3(10.0, 15.0, -10.0),
+		"scale": Vector3(0.72, 0.72, 0.72)
+	},
+	"TRIPWIRE": {
+		"pos": Vector3(-0.02, 0.02, -0.05),
+		"rot_deg": Vector3(18.0, 35.0, -10.0),
+		"scale": Vector3(0.95, 0.95, 0.95)
+	},
+	"SPRING": {
+		"pos": Vector3(-0.025, 0.015, -0.05),
+		"rot_deg": Vector3(16.0, 18.0, -8.0),
+		"scale": Vector3(0.88, 0.88, 0.88)
+	}
+}
+
+# Third-person outside-view carry offsets in hand.R bone-local space (+Y = down along fingers, +Z = forward, -X = inward palm).
+# Left hand (hand.L) automatically mirrors X, Yaw-Y, and Roll-Z.
+const _TP_HAND_ITEM_POSES: Dictionary = {
+	"BRIEFCASE": {
+		"pos": Vector3(0.05, 0.42, 0.0),
+		"rot_deg": Vector3(180.0, 90.0, 0.0),
+		"scale": Vector3(0.75, 0.75, 0.75)
+	},
+	"KEY": {
+		"pos": Vector3(-0.02, 0.19, 0.05),
+		"rot_deg": Vector3(165.0, 15.0, 0.0),
+		"scale": Vector3(0.95, 0.95, 0.95)
+	},
+	"MONEY": {
+		"pos": Vector3(-0.025, 0.18, 0.04),
+		"rot_deg": Vector3(165.0, 15.0, 0.0),
+		"scale": Vector3(0.90, 0.90, 0.90)
+	},
+	"PASSPORT": {
+		"pos": Vector3(-0.025, 0.19, 0.04),
+		"rot_deg": Vector3(165.0, 20.0, 0.0),
+		"scale": Vector3(0.95, 0.95, 0.95)
+	},
+	"PLANS": {
+		"pos": Vector3(-0.03, 0.19, 0.04),
+		"rot_deg": Vector3(165.0, 20.0, 0.0),
+		"scale": Vector3(0.85, 0.85, 0.85)
+	},
+	"CLUB": {
+		"pos": Vector3(-0.02, 0.17, 0.14),
+		"rot_deg": Vector3(110.0, 0.0, 0.0),
+		"scale": Vector3(0.88, 0.88, 0.88)
+	},
+	"DART_GUN": {
+		"pos": Vector3(-0.02, 0.16, 0.04),
+		"rot_deg": Vector3(165.0, 0.0, 0.0),
+		"scale": Vector3(0.95, 0.95, 0.95)
+	},
+	"BOMB": {
+		"pos": Vector3(0.02, 0.24, 0.03),
+		"rot_deg": Vector3(180.0, 0.0, 0.0),
+		"scale": Vector3(0.85, 0.85, 0.85)
+	},
+	"LIVE_BOMB": {
+		"pos": Vector3(0.02, 0.24, 0.03),
+		"rot_deg": Vector3(180.0, 0.0, 0.0),
+		"scale": Vector3(0.85, 0.85, 0.85)
+	},
+	"BUCKET": {
+		"pos": Vector3(0.06, 0.28, 0.02),
+		"rot_deg": Vector3(180.0, 0.0, 0.0),
+		"scale": Vector3(0.75, 0.75, 0.75)
+	},
+	"TRIPWIRE": {
+		"pos": Vector3(0.0, 0.19, 0.04),
+		"rot_deg": Vector3(180.0, 35.0, 0.0),
+		"scale": Vector3(0.90, 0.90, 0.90)
+	},
+	"SPRING": {
+		"pos": Vector3(0.01, 0.20, 0.03),
+		"rot_deg": Vector3(180.0, 0.0, 0.0),
+		"scale": Vector3(0.85, 0.85, 0.85)
+	}
+}
+var _vm_idle_time: float = 0.0
+var _vm_walk_phase: float = 0.0
+var _vm_sway_vel: Vector2 = Vector2.ZERO
+var _vm_sway_pos: Vector2 = Vector2.ZERO
+var _vm_left_equip: float = 0.0
+var _vm_right_equip: float = 0.0
+var _vm_last_left_id: String = "NONE"
+var _vm_last_right_id: String = "NONE"
+var _vm_club_charge_blend: float = 0.0
+var _vm_dart_aim_blend: float = 0.0
+var _vm_sprint_blend: float = 0.0
+var _vm_right_action: String = ""
+var _vm_right_action_timer: float = 0.0
+var _vm_right_action_dur: float = 0.0
+
 
 func _enter_tree() -> void:
 	add_to_group("spy_players")
@@ -271,7 +442,7 @@ func _ready() -> void:
 		door_bash_detector.area_entered.connect(_on_door_bash_area_entered)
 
 	_update_mesh_color()
-	_setup_wearable_visual()
+	_clear_legacy_wearable_placeholder()
 	_refresh_hand_and_back_sockets()
 	_apply_stance_collision_and_visuals()
 	_update_hud_status()
@@ -307,6 +478,7 @@ func _ready() -> void:
 			_ragdoll_ctrl.set_first_person_local(true)
 		apply_local_camera_cull_mask()
 		_sync_camera_to_ragdoll_head()
+		_sync_visual_rig_sockets_to_skeleton()
 		ensure_overlay_uis()
 		_ensure_tripwire_controller()
 		if MatchManager != null:
@@ -315,6 +487,10 @@ func _ready() -> void:
 			_on_match_clock_updated(name.to_int(), MatchManager.get_private_clock(name.to_int()), 0.0)
 	else:
 		camera.current = false
+		if left_hand_socket != null:
+			left_hand_socket.visible = false
+		if right_hand_socket != null:
+			right_hand_socket.visible = false
 		set_process_input(false)
 		set_process_unhandled_input(false)
 		set_process(false)
@@ -1141,16 +1317,21 @@ func _sync_visual_rig_sockets_to_skeleton() -> void:
 		return
 	var b_socket: Marker3D = back_club_socket if back_club_socket != null else get_node_or_null("VisualRig/BackClubSocket") as Marker3D
 	var w_socket: Marker3D = spy_wearable_socket if spy_wearable_socket != null else get_node_or_null("VisualRig/SpyWearableSocket") as Marker3D
+	var tp_l_socket: Marker3D = tp_left_hand_socket if tp_left_hand_socket != null else get_node_or_null("VisualRig/ThirdPersonLeftHandSocket") as Marker3D
+	var tp_r_socket: Marker3D = tp_right_hand_socket if tp_right_hand_socket != null else get_node_or_null("VisualRig/ThirdPersonRightHandSocket") as Marker3D
 	if not _socket_offsets_calibrated:
 		_socket_offsets_calibrated = true
 		if b_socket != null:
 			_back_club_bone_offset = _ragdoll_ctrl.compute_bone_local_offset("spine.002", b_socket.transform)
-		if w_socket != null:
-			_wearable_bone_offset = _ragdoll_ctrl.compute_bone_local_offset("forearm.L", w_socket.transform)
+		_wearable_bone_offset = Transform3D(Basis.IDENTITY, Vector3(-0.038, 0.185, 0.0))
 	if b_socket != null and b_socket.is_inside_tree():
 		b_socket.global_transform = _ragdoll_ctrl.get_bone_world_transform("spine.002") * _back_club_bone_offset
 	if w_socket != null and w_socket.is_inside_tree():
 		w_socket.global_transform = _ragdoll_ctrl.get_bone_world_transform("forearm.L") * _wearable_bone_offset
+	if tp_l_socket != null and tp_l_socket.is_inside_tree():
+		tp_l_socket.global_transform = _ragdoll_ctrl.get_bone_world_transform("hand.L")
+	if tp_r_socket != null and tp_r_socket.is_inside_tree():
+		tp_r_socket.global_transform = _ragdoll_ctrl.get_bone_world_transform("hand.R")
 
 
 func get_ragdoll_pelvis_world_position() -> Vector3:
@@ -1398,8 +1579,12 @@ func _on_match_clock_updated(peer_id: int, remaining_seconds: float, delta_bonus
 		@warning_ignore("integer_division")
 		var mins: int = clamped_sec / 60
 		var secs: int = clamped_sec % 60
-		clock_label.text = "CLOCK: %02d:%02d" % [mins, secs]
-		clock_label.modulate = Color(1.0, 0.35, 0.30) if clamped_sec <= 30 else Color(1.0, 1.0, 1.0)
+		var timer_paused: bool = GameConfig != null and GameConfig.debug_disable_match_timer
+		clock_label.text = "CLOCK: %02d:%02d%s" % [mins, secs, " [PAUSED]" if timer_paused else ""]
+		if timer_paused:
+			clock_label.modulate = Color(0.55, 0.90, 1.0)
+		else:
+			clock_label.modulate = Color(1.0, 0.35, 0.30) if clamped_sec <= 30 else Color(1.0, 1.0, 1.0)
 	if delta_bonus > 0.0 and bonus_toast_label != null:
 		bonus_toast_label.text = "+%ds FIRST SEARCH!" % int(round(delta_bonus))
 		bonus_toast_label.visible = true
@@ -1701,6 +1886,9 @@ func throw_live_bomb(custom_origin: Vector3 = Vector3.ZERO, custom_dir: Vector3 
 		else:
 			dir = Vector3(0.0, 0.0, -1.0)
 	dir = dir.normalized()
+	_trigger_vm_right_action("THROW")
+	if _ragdoll_ctrl != null:
+		_ragdoll_ctrl.trigger_right_hand_action("THROW")
 	var fuse_now: float = maxf(live_bomb_remaining, 0.20)
 	var orig_owner: int = live_bomb_owner_peer_id if live_bomb_owner_peer_id > 0 else name.to_int()
 	live_bomb_remaining = 0.0
@@ -1882,6 +2070,9 @@ func fire_dart_gun(custom_origin: Vector3 = Vector3.ZERO, custom_dir: Vector3 = 
 	ray_dir = ray_dir.normalized()
 	if _dvd_reticle_ui != null:
 		_dvd_reticle_ui.set_active(false)
+	_trigger_vm_right_action("DART_RECOIL")
+	if _ragdoll_ctrl != null:
+		_ragdoll_ctrl.trigger_right_hand_action("DART_RECOIL")
 	if _is_peer_connected() and not multiplayer.is_server():
 		_rpc_server_fire_dart_gun.rpc_id(1, ray_origin, ray_dir)
 		return true
@@ -1986,15 +2177,22 @@ func evaluate_club_release() -> String:
 	match outcome:
 		"FEINT":
 			_club_feint_cooldown = GameConfig.club_feint_cooldown if GameConfig != null else 0.40
+			_trigger_vm_right_action("CLUB_FEINT")
 			if _club_qte_ui != null:
 				_club_qte_ui.show_outcome("FEINT!", Color(0.85, 0.85, 0.90))
 		"WHIFF":
 			_club_whiff_recovery = GameConfig.club_whiff_recovery_time if GameConfig != null else 0.60
+			_trigger_vm_right_action("CLUB_WHIFF")
+			if _ragdoll_ctrl != null:
+				_ragdoll_ctrl.trigger_right_hand_action("CLUB_WHIFF")
 			if _club_qte_ui != null:
 				_club_qte_ui.show_outcome("WHIFF! (0.6s recovery)", Color(0.95, 0.45, 0.25))
 			if AudioBridge != null:
 				AudioBridge.request_world_cue("club_whoosh", cam_origin, 4.0, name.to_int())
 		"KO_SLAM":
+			_trigger_vm_right_action("CLUB_SWING")
+			if _ragdoll_ctrl != null:
+				_ragdoll_ctrl.trigger_right_hand_action("CLUB_SWING")
 			if _club_qte_ui != null:
 				_club_qte_ui.show_outcome("CLUB SLAM!", Color(0.30, 0.95, 0.45))
 			if _is_peer_connected() and not multiplayer.is_server():
@@ -2299,6 +2497,7 @@ func _update_mesh_color() -> void:
 		_ragdoll_ctrl.setup_for_role(spy_role, is_local_fp)
 		if mesh_instance != null and _ragdoll_ctrl.agent_instance != null:
 			mesh_instance.visible = false
+	_refresh_hand_and_back_sockets()
 
 
 func _set_visual_layer_recursive(node: Node, layer_mask: int) -> void:
@@ -2314,8 +2513,9 @@ func apply_local_camera_cull_mask() -> void:
 		return
 	var all_layers: int = GameConfig.VISUAL_LAYER_ALL if GameConfig != null else 0xFFFFF
 	var local_bit: int = GameConfig.VISUAL_LAYER_LOCAL_SPY_BODY if GameConfig != null else (1 << 10)
-	var is_local_fp: bool = (_ragdoll_ctrl != null and _ragdoll_ctrl.is_first_person_local) or (is_inside_tree() and not Engine.is_editor_hint() and is_multiplayer_authority())
-	cam.cull_mask = (all_layers & ~local_bit) if is_local_fp else all_layers
+	var fp_only_bit: int = GameConfig.VISUAL_LAYER_LOCAL_FP_BODY if GameConfig != null else (1 << 14)
+	var is_local_fp: bool = _ragdoll_ctrl.is_first_person_local if _ragdoll_ctrl != null else (is_inside_tree() and not Engine.is_editor_hint() and is_multiplayer_authority())
+	cam.cull_mask = (all_layers & ~local_bit) if is_local_fp else (all_layers & ~fp_only_bit)
 
 
 func set_crt_body_visual_layer(layer_mask: int) -> void:
@@ -2329,6 +2529,12 @@ func set_crt_body_visual_layer(layer_mask: int) -> void:
 	var w_socket: Marker3D = spy_wearable_socket if spy_wearable_socket != null else get_node_or_null("VisualRig/SpyWearableSocket") as Marker3D
 	if w_socket != null:
 		_set_visual_layer_recursive(w_socket, _crt_body_visual_layer)
+	var tp_l_socket: Marker3D = tp_left_hand_socket if tp_left_hand_socket != null else get_node_or_null("VisualRig/ThirdPersonLeftHandSocket") as Marker3D
+	if tp_l_socket != null:
+		_set_visual_layer_recursive(tp_l_socket, _crt_body_visual_layer)
+	var tp_r_socket: Marker3D = tp_right_hand_socket if tp_right_hand_socket != null else get_node_or_null("VisualRig/ThirdPersonRightHandSocket") as Marker3D
+	if tp_r_socket != null:
+		_set_visual_layer_recursive(tp_r_socket, _crt_body_visual_layer)
 
 
 func get_crt_body_visual_layer() -> int:
@@ -2346,56 +2552,557 @@ func get_crt_pov_transform() -> Transform3D:
 	return Transform3D(Basis.from_euler(Vector3(head_pitch, rotation.y, 0.0)), _safe_global_pos() + Vector3(0.0, stand_y, 0.0))
 
 
-func _setup_wearable_visual() -> void:
+func _clear_legacy_wearable_placeholder() -> void:
 	var w_socket: Marker3D = spy_wearable_socket if spy_wearable_socket != null else get_node_or_null("VisualRig/SpyWearableSocket") as Marker3D
-	if w_socket == null or w_socket.get_child_count() > 0:
+	if w_socket == null:
 		return
-	var watch_mi := MeshInstance3D.new()
-	watch_mi.name = "SpyWristwatchMesh"
-	var box := BoxMesh.new()
-	box.size = Vector3(0.08, 0.05, 0.08)
-	watch_mi.mesh = box
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = Color(0.10, 0.85, 0.75)
-	watch_mi.material_override = mat
-	_set_visual_layer_recursive(watch_mi, get_crt_body_visual_layer())
-	w_socket.add_child(watch_mi)
+	for c in w_socket.get_children():
+		c.queue_free()
+
+
+func _get_effective_fp_left_item_id() -> String:
+	if _vm_tuner_ui != null and _vm_tuner_ui.has_preview_override(true) and not _vm_tuner_ui.is_third_person_mode():
+		return _vm_tuner_ui.get_preview_item_id(true)
+	return left_hand_item_id
+
+
+func _get_effective_fp_right_item_id() -> String:
+	if _vm_tuner_ui != null and _vm_tuner_ui.has_preview_override(false) and not _vm_tuner_ui.is_third_person_mode():
+		return _vm_tuner_ui.get_preview_item_id(false)
+	return right_hand_item_id
+
+
+func _get_effective_tp_left_item_id() -> String:
+	if _vm_tuner_ui != null and _vm_tuner_ui.has_preview_override(true) and _vm_tuner_ui.is_third_person_mode():
+		return _vm_tuner_ui.get_preview_item_id(true)
+	return left_hand_item_id
+
+
+func _get_effective_tp_right_item_id() -> String:
+	if _vm_tuner_ui != null and _vm_tuner_ui.has_preview_override(false) and _vm_tuner_ui.is_third_person_mode():
+		return _vm_tuner_ui.get_preview_item_id(false)
+	return right_hand_item_id
 
 
 func _refresh_hand_and_back_sockets() -> void:
+	_ensure_runtime_hand_poses_loaded()
 	var b_socket: Marker3D = back_club_socket if back_club_socket != null else get_node_or_null("VisualRig/BackClubSocket") as Marker3D
+	var tp_l_socket: Marker3D = tp_left_hand_socket if tp_left_hand_socket != null else get_node_or_null("VisualRig/ThirdPersonLeftHandSocket") as Marker3D
+	var tp_r_socket: Marker3D = tp_right_hand_socket if tp_right_hand_socket != null else get_node_or_null("VisualRig/ThirdPersonRightHandSocket") as Marker3D
 	var l_socket: Marker3D = left_hand_socket if left_hand_socket != null else get_node_or_null("Head/Camera3D/LeftHandSocket") as Marker3D
 	var r_socket: Marker3D = right_hand_socket if right_hand_socket != null else get_node_or_null("Head/Camera3D/RightHandSocket") as Marker3D
+
+	var eff_fp_left: String = _get_effective_fp_left_item_id()
+	var eff_fp_right: String = _get_effective_fp_right_item_id()
+	var eff_tp_left: String = _get_effective_tp_left_item_id()
+	var eff_tp_right: String = _get_effective_tp_right_item_id()
 
 	if b_socket != null:
 		for c in b_socket.get_children():
 			c.queue_free()
-		if right_hand_item_id != "CLUB":
+		if eff_tp_right != "CLUB":
 			var club_back: Node3D = PICKUP_SCRIPT.build_item_visual("CLUB")
 			club_back.name = "HolsteredClubMesh"
 			_set_visual_layer_recursive(club_back, get_crt_body_visual_layer())
 			b_socket.add_child(club_back)
 
+	_rebuild_third_person_hand_socket(tp_l_socket, true, eff_tp_left)
+	_rebuild_third_person_hand_socket(tp_r_socket, false, eff_tp_right)
+
+	var is_local_fp: bool = _ragdoll_ctrl.is_first_person_local if _ragdoll_ctrl != null else (is_inside_tree() and not Engine.is_editor_hint() and is_multiplayer_authority())
+	if _ragdoll_ctrl != null:
+		_ragdoll_ctrl.set_fp_body_arm_occupancy(eff_fp_left != "NONE" and eff_fp_left != "", eff_fp_right != "NONE" and eff_fp_right != "")
+	_rebuild_camera_hand_socket(l_socket, true, eff_fp_left, is_local_fp)
+	_rebuild_camera_hand_socket(r_socket, false, eff_fp_right, is_local_fp)
+
+
+func _rebuild_third_person_hand_socket(socket: Marker3D, is_left: bool, item_id: String) -> void:
+	if socket == null:
+		return
+	for c in socket.get_children():
+		c.queue_free()
+	if item_id == "NONE" or item_id == "":
+		return
+	_ensure_runtime_hand_poses_loaded()
+	var tp_mesh: Node3D = PICKUP_SCRIPT.build_item_visual(item_id)
+	tp_mesh.name = "ThirdPersonLeftHeldMesh" if is_left else "ThirdPersonRightHeldMesh"
+	var spec: Dictionary = _runtime_tp_hand_item_poses.get(item_id, {})
+	_apply_mirrored_pose_spec(tp_mesh, spec, is_left)
+	_set_visual_layer_recursive(tp_mesh, get_crt_body_visual_layer())
+	socket.add_child(tp_mesh)
+
+
+func _rebuild_camera_hand_socket(socket: Marker3D, is_left: bool, item_id: String, is_local_fp: bool) -> void:
+	if socket == null:
+		return
+	for c in socket.get_children():
+		c.queue_free()
+	# Remote puppets never render first-person camera viewmodel items (prevent duplicate neck/hat props)
+	if not is_local_fp:
+		socket.visible = false
+		return
+	if item_id == "NONE" or item_id == "":
+		return
+	var fp_layer: int = GameConfig.VISUAL_LAYER_LOCAL_FP_BODY if GameConfig != null else (1 << 14)
+	var arm_mesh: ArrayMesh = SpyRagdollController.get_camera_arm_mesh(is_left)
+	if arm_mesh != null:
+		var arm_mi := MeshInstance3D.new()
+		arm_mi.name = "LeftCameraArm" if is_left else "RightCameraArm"
+		arm_mi.mesh = arm_mesh
+		arm_mi.material_override = SpyRagdollController.get_body_material_for_role(spy_role)
+		arm_mi.position = _vm_arm_left_offset if is_left else _vm_arm_right_offset
+		arm_mi.scale = _vm_arm_scale
+		arm_mi.layers = fp_layer
+		arm_mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		arm_mi.extra_cull_margin = 16384.0
+		socket.add_child(arm_mi)
+
+	var held_mesh: Node3D = PICKUP_SCRIPT.build_item_visual(item_id)
+	held_mesh.name = "LeftHeldMesh" if is_left else "RightHeldMesh"
+	_apply_hand_item_pose(held_mesh, item_id, is_left)
+	_set_visual_layer_recursive(held_mesh, fp_layer)
+	_disable_shadows_recursive(held_mesh)
+	socket.add_child(held_mesh)
+
+
+func _disable_shadows_recursive(node: Node) -> void:
+	if node is GeometryInstance3D:
+		(node as GeometryInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	for child in node.get_children():
+		_disable_shadows_recursive(child)
+
+
+func _apply_hand_item_pose(mesh_node: Node3D, item_id: String, is_left: bool) -> void:
+	if mesh_node == null:
+		return
+	_ensure_runtime_hand_poses_loaded()
+	var spec: Dictionary = _runtime_hand_item_poses.get(item_id, {})
+	_apply_mirrored_pose_spec(mesh_node, spec, is_left)
+
+
+func _apply_mirrored_pose_spec(mesh_node: Node3D, spec: Dictionary, is_left: bool) -> void:
+	if mesh_node == null or spec.is_empty():
+		return
+	var side_sign: float = -1.0 if is_left else 1.0
+	var pos_key: String = "left_pos" if is_left else "right_pos"
+	var rot_key: String = "left_rot_deg" if is_left else "right_rot_deg"
+	if spec.has(pos_key):
+		mesh_node.position = spec[pos_key]
+	else:
+		var p: Vector3 = spec.get("pos", Vector3.ZERO)
+		mesh_node.position = Vector3(p.x * side_sign, p.y, p.z)
+	if spec.has(rot_key):
+		var rd: Vector3 = spec[rot_key]
+		mesh_node.rotation = Vector3(deg_to_rad(rd.x), deg_to_rad(rd.y), deg_to_rad(rd.z))
+	else:
+		var r: Vector3 = spec.get("rot_deg", Vector3.ZERO)
+		mesh_node.rotation = Vector3(deg_to_rad(r.x), deg_to_rad(r.y * side_sign), deg_to_rad(r.z * side_sign))
+	mesh_node.scale = spec.get("scale", Vector3.ONE)
+
+
+func _ensure_runtime_hand_poses_loaded() -> void:
+	if _runtime_poses_loaded:
+		return
+	_runtime_poses_loaded = true
+	_runtime_hand_item_poses.clear()
+	_runtime_tp_hand_item_poses.clear()
+	for k in _HAND_ITEM_POSES.keys():
+		_runtime_hand_item_poses[k] = (_HAND_ITEM_POSES[k] as Dictionary).duplicate(true)
+	for k in _TP_HAND_ITEM_POSES.keys():
+		_runtime_tp_hand_item_poses[k] = (_TP_HAND_ITEM_POSES[k] as Dictionary).duplicate(true)
+	if FileAccess.file_exists(_HAND_POSES_OVERRIDE_PATH):
+		var f: FileAccess = FileAccess.open(_HAND_POSES_OVERRIDE_PATH, FileAccess.READ)
+		if f != null:
+			var parsed: Variant = JSON.parse_string(f.get_as_text())
+			f.close()
+			if parsed is Dictionary:
+				var d: Dictionary = parsed
+				if d.has("right_base_pos"):
+					var rb: Variant = d["right_base_pos"]
+					if rb is Array and rb.size() >= 3:
+						_vm_right_base_pos = Vector3(float(rb[0]), float(rb[1]), float(rb[2]))
+						_vm_left_base_pos = Vector3(-_vm_right_base_pos.x, _vm_right_base_pos.y, _vm_right_base_pos.z)
+				if d.has("right_arm_offset"):
+					var ra: Variant = d["right_arm_offset"]
+					if ra is Array and ra.size() >= 3:
+						_vm_arm_right_offset = Vector3(float(ra[0]), float(ra[1]), float(ra[2]))
+						_vm_arm_left_offset = Vector3(-_vm_arm_right_offset.x, _vm_arm_right_offset.y, _vm_arm_right_offset.z)
+				if d.has("arm_scale"):
+					var asc: Variant = d["arm_scale"]
+					if asc is Array and asc.size() >= 3:
+						_vm_arm_scale = Vector3(float(asc[0]), float(asc[1]), float(asc[2]))
+				if d.has("items") and d["items"] is Dictionary:
+					var items_d: Dictionary = d["items"]
+					for item_k in items_d.keys():
+						var raw_spec: Variant = items_d[item_k]
+						if raw_spec is Dictionary:
+							_runtime_hand_item_poses[str(item_k)] = _decode_json_pose_dict(raw_spec as Dictionary)
+				if d.has("tp_items") and d["tp_items"] is Dictionary:
+					var tp_d: Dictionary = d["tp_items"]
+					for item_k in tp_d.keys():
+						var raw_spec: Variant = tp_d[item_k]
+						if raw_spec is Dictionary:
+							_runtime_tp_hand_item_poses[str(item_k)] = _decode_json_pose_dict(raw_spec as Dictionary)
+
+
+func _decode_json_pose_dict(raw_spec: Dictionary) -> Dictionary:
+	var out: Dictionary = {}
+	for key in raw_spec.keys():
+		var val: Variant = raw_spec[key]
+		if val is Array and (val as Array).size() >= 3:
+			out[key] = Vector3(float(val[0]), float(val[1]), float(val[2]))
+	return out
+
+
+func _encode_json_pose_dict(spec: Dictionary) -> Dictionary:
+	var out: Dictionary = {}
+	for key in spec.keys():
+		if spec[key] is Vector3:
+			var v: Vector3 = spec[key]
+			out[key] = [snappedf(v.x, 0.0001), snappedf(v.y, 0.0001), snappedf(v.z, 0.0001)]
+	return out
+
+
+func get_hand_item_pose_dict(item_id: String, is_third_person: bool = false) -> Dictionary:
+	_ensure_runtime_hand_poses_loaded()
+	var table: Dictionary = _runtime_tp_hand_item_poses if is_third_person else _runtime_hand_item_poses
+	return (table.get(item_id, {}) as Dictionary).duplicate(true)
+
+
+func set_runtime_hand_item_pose(item_id: String, is_left: bool, mirror_lr: bool, vis_pos: Vector3, vis_rot_deg: Vector3, sc: Vector3, is_third_person: bool = false) -> void:
+	_ensure_runtime_hand_poses_loaded()
+	var table: Dictionary = _runtime_tp_hand_item_poses if is_third_person else _runtime_hand_item_poses
+	var spec: Dictionary = (table.get(item_id, {}) as Dictionary).duplicate(true)
+	if mirror_lr:
+		var side_sign: float = -1.0 if is_left else 1.0
+		spec["pos"] = Vector3(vis_pos.x * side_sign, vis_pos.y, vis_pos.z)
+		spec["rot_deg"] = Vector3(vis_rot_deg.x, vis_rot_deg.y * side_sign, vis_rot_deg.z * side_sign)
+		spec.erase("left_pos")
+		spec.erase("left_rot_deg")
+		spec.erase("right_pos")
+		spec.erase("right_rot_deg")
+	else:
+		if not spec.has("pos"):
+			spec["pos"] = Vector3.ZERO
+		if not spec.has("rot_deg"):
+			spec["rot_deg"] = Vector3.ZERO
+		if is_left:
+			spec["left_pos"] = vis_pos
+			spec["left_rot_deg"] = vis_rot_deg
+		else:
+			spec["right_pos"] = vis_pos
+			spec["right_rot_deg"] = vis_rot_deg
+	spec["scale"] = sc
+	table[item_id] = spec
+	_apply_live_socket_transforms()
+
+
+func reset_runtime_hand_item_pose(item_id: String, is_third_person: bool = false) -> void:
+	_ensure_runtime_hand_poses_loaded()
+	var table: Dictionary = _runtime_tp_hand_item_poses if is_third_person else _runtime_hand_item_poses
+	var defaults: Dictionary = _TP_HAND_ITEM_POSES if is_third_person else _HAND_ITEM_POSES
+	if defaults.has(item_id):
+		table[item_id] = (defaults[item_id] as Dictionary).duplicate(true)
+	else:
+		table.erase(item_id)
+	_apply_live_socket_transforms()
+
+
+func set_tp_preview_state(active: bool, yaw_deg: float, pitch_deg: float, dist: float, height: float, sim_motion: String) -> void:
+	_tp_preview_active = active
+	_tp_sim_motion = sim_motion
+	var fp_cam: Camera3D = camera if camera != null else get_node_or_null("Head/Camera3D") as Camera3D
+	if active:
+		if _tp_preview_camera == null:
+			_tp_preview_camera = Camera3D.new()
+			_tp_preview_camera.name = "ThirdPersonPreviewCamera"
+			add_child(_tp_preview_camera)
+		var all_layers: int = GameConfig.VISUAL_LAYER_ALL if GameConfig != null else 0xFFFFF
+		var fp_only_bit: int = GameConfig.VISUAL_LAYER_LOCAL_FP_BODY if GameConfig != null else (1 << 14)
+		_tp_preview_camera.cull_mask = all_layers & ~fp_only_bit
+		var target := Vector3(0.0, height, 0.0)
+		var orbit_rot := Basis.from_euler(Vector3(deg_to_rad(pitch_deg), deg_to_rad(yaw_deg), 0.0))
+		var cam_pos: Vector3 = target + orbit_rot * Vector3(0.0, 0.0, -dist)
+		var look_dir: Vector3 = (target - cam_pos).normalized()
+		_tp_preview_camera.transform = Transform3D(Basis.looking_at(look_dir, Vector3.UP), cam_pos)
+		_tp_preview_camera.current = true
+		if fp_cam != null:
+			fp_cam.current = false
+	else:
+		if _tp_preview_camera != null:
+			_tp_preview_camera.current = false
+		if fp_cam != null:
+			fp_cam.current = true
+		apply_local_camera_cull_mask()
+
+
+func get_viewmodel_base_config() -> Dictionary:
+	_ensure_runtime_hand_poses_loaded()
+	return {
+		"right_base_pos": _vm_right_base_pos,
+		"right_arm_offset": _vm_arm_right_offset,
+		"arm_scale": _vm_arm_scale
+	}
+
+
+func set_viewmodel_base_config(right_base: Vector3, right_arm_off: Vector3, arm_sc: Vector3) -> void:
+	_vm_right_base_pos = right_base
+	_vm_left_base_pos = Vector3(-right_base.x, right_base.y, right_base.z)
+	_vm_arm_right_offset = right_arm_off
+	_vm_arm_left_offset = Vector3(-right_arm_off.x, right_arm_off.y, right_arm_off.z)
+	_vm_arm_scale = arm_sc
+	_apply_live_socket_transforms()
+
+
+func _apply_live_socket_transforms() -> void:
+	var l_socket: Marker3D = left_hand_socket if left_hand_socket != null else get_node_or_null("Head/Camera3D/LeftHandSocket") as Marker3D
+	var r_socket: Marker3D = right_hand_socket if right_hand_socket != null else get_node_or_null("Head/Camera3D/RightHandSocket") as Marker3D
+	var eff_fp_left: String = _get_effective_fp_left_item_id()
+	var eff_fp_right: String = _get_effective_fp_right_item_id()
 	if l_socket != null:
-		for c in l_socket.get_children():
-			c.queue_free()
-		if left_hand_item_id != "NONE":
-			var l_mesh: Node3D = PICKUP_SCRIPT.build_item_visual(left_hand_item_id)
-			l_mesh.name = "LeftHeldMesh"
-			if left_hand_item_id in ["KEY", "PASSPORT", "PLANS"]:
-				l_mesh.rotation.x = deg_to_rad(32.0)
-			l_socket.add_child(l_mesh)
+		var l_arm: Node3D = l_socket.get_node_or_null("LeftCameraArm") as Node3D
+		if l_arm != null:
+			l_arm.position = _vm_arm_left_offset
+			l_arm.scale = _vm_arm_scale
+		var l_mesh: Node3D = l_socket.get_node_or_null("LeftHeldMesh") as Node3D
+		if l_mesh != null:
+			_apply_hand_item_pose(l_mesh, eff_fp_left, true)
+	if r_socket != null:
+		var r_arm: Node3D = r_socket.get_node_or_null("RightCameraArm") as Node3D
+		if r_arm != null:
+			r_arm.position = _vm_arm_right_offset
+			r_arm.scale = _vm_arm_scale
+		var r_mesh: Node3D = r_socket.get_node_or_null("RightHeldMesh") as Node3D
+		if r_mesh != null:
+			_apply_hand_item_pose(r_mesh, eff_fp_right, false)
+
+	var tp_l_socket: Marker3D = tp_left_hand_socket if tp_left_hand_socket != null else get_node_or_null("VisualRig/ThirdPersonLeftHandSocket") as Marker3D
+	var tp_r_socket: Marker3D = tp_right_hand_socket if tp_right_hand_socket != null else get_node_or_null("VisualRig/ThirdPersonRightHandSocket") as Marker3D
+	var eff_tp_left: String = _get_effective_tp_left_item_id()
+	var eff_tp_right: String = _get_effective_tp_right_item_id()
+	if tp_l_socket != null:
+		var tp_l_mesh: Node3D = tp_l_socket.get_node_or_null("ThirdPersonLeftHeldMesh") as Node3D
+		if tp_l_mesh != null:
+			_apply_mirrored_pose_spec(tp_l_mesh, _runtime_tp_hand_item_poses.get(eff_tp_left, {}), true)
+	if tp_r_socket != null:
+		var tp_r_mesh: Node3D = tp_r_socket.get_node_or_null("ThirdPersonRightHeldMesh") as Node3D
+		if tp_r_mesh != null:
+			_apply_mirrored_pose_spec(tp_r_mesh, _runtime_tp_hand_item_poses.get(eff_tp_right, {}), false)
+
+
+func save_viewmodel_poses_override_file() -> bool:
+	_ensure_runtime_hand_poses_loaded()
+	var items_out: Dictionary = {}
+	for k in _runtime_hand_item_poses.keys():
+		items_out[k] = _encode_json_pose_dict(_runtime_hand_item_poses[k] as Dictionary)
+	var tp_items_out: Dictionary = {}
+	for k in _runtime_tp_hand_item_poses.keys():
+		tp_items_out[k] = _encode_json_pose_dict(_runtime_tp_hand_item_poses[k] as Dictionary)
+	var payload: Dictionary = {
+		"right_base_pos": [snappedf(_vm_right_base_pos.x, 0.0001), snappedf(_vm_right_base_pos.y, 0.0001), snappedf(_vm_right_base_pos.z, 0.0001)],
+		"right_arm_offset": [snappedf(_vm_arm_right_offset.x, 0.0001), snappedf(_vm_arm_right_offset.y, 0.0001), snappedf(_vm_arm_right_offset.z, 0.0001)],
+		"arm_scale": [snappedf(_vm_arm_scale.x, 0.0001), snappedf(_vm_arm_scale.y, 0.0001), snappedf(_vm_arm_scale.z, 0.0001)],
+		"items": items_out,
+		"tp_items": tp_items_out
+	}
+	var f: FileAccess = FileAccess.open(_HAND_POSES_OVERRIDE_PATH, FileAccess.WRITE)
+	if f == null:
+		return false
+	f.store_string(JSON.stringify(payload, "\t"))
+	f.close()
+	return true
+
+
+func _export_pose_dict_block(const_name: String, table: Dictionary) -> String:
+	var lines: Array[String] = []
+	lines.append("const %s: Dictionary = {" % const_name)
+	var item_order: Array[String] = ["BRIEFCASE", "KEY", "MONEY", "PASSPORT", "PLANS", "CLUB", "DART_GUN", "BOMB", "LIVE_BOMB", "BUCKET", "TRIPWIRE", "SPRING"]
+	for idx in range(item_order.size()):
+		var k: String = item_order[idx]
+		var spec: Dictionary = table.get(k, {})
+		var sub: Array[String] = []
+		for sub_k in ["pos", "rot_deg", "scale", "left_pos", "left_rot_deg", "right_pos", "right_rot_deg"]:
+			if spec.has(sub_k) and spec[sub_k] is Vector3:
+				var v: Vector3 = spec[sub_k]
+				sub.append("\t\t\"%s\": Vector3(%.3f, %.3f, %.3f)" % [sub_k, v.x, v.y, v.z])
+		lines.append("\t\"%s\": {" % k)
+		lines.append(",\n".join(sub))
+		var comma: String = "," if idx < item_order.size() - 1 else ""
+		lines.append("\t}%s" % comma)
+	lines.append("}")
+	return "\n".join(lines)
+
+
+func export_viewmodel_poses_gdscript() -> String:
+	_ensure_runtime_hand_poses_loaded()
+	var lines: Array[String] = []
+	lines.append("const _VM_LEFT_BASE_POS: Vector3 = Vector3(%.3f, %.3f, %.3f)" % [_vm_left_base_pos.x, _vm_left_base_pos.y, _vm_left_base_pos.z])
+	lines.append("const _VM_RIGHT_BASE_POS: Vector3 = Vector3(%.3f, %.3f, %.3f)" % [_vm_right_base_pos.x, _vm_right_base_pos.y, _vm_right_base_pos.z])
+	lines.append("const _VM_ARM_SCALE: Vector3 = Vector3(%.3f, %.3f, %.3f)" % [_vm_arm_scale.x, _vm_arm_scale.y, _vm_arm_scale.z])
+	lines.append("const _VM_ARM_LEFT_OFFSET: Vector3 = Vector3(%.3f, %.3f, %.3f)" % [_vm_arm_left_offset.x, _vm_arm_left_offset.y, _vm_arm_left_offset.z])
+	lines.append("const _VM_ARM_RIGHT_OFFSET: Vector3 = Vector3(%.3f, %.3f, %.3f)" % [_vm_arm_right_offset.x, _vm_arm_right_offset.y, _vm_arm_right_offset.z])
+	lines.append(_export_pose_dict_block("_HAND_ITEM_POSES", _runtime_hand_item_poses))
+	lines.append("")
+	lines.append(_export_pose_dict_block("_TP_HAND_ITEM_POSES", _runtime_tp_hand_item_poses))
+	return "\n".join(lines)
+
+
+func _toggle_viewmodel_tuner() -> void:
+	if _vm_tuner_ui == null:
+		var target_hud: CanvasLayer = hud if hud != null else get_node_or_null("HUD") as CanvasLayer
+		var parent_node: Node = target_hud if target_hud != null else self
+		_vm_tuner_ui = VM_TUNER_UI_SCRIPT.new()
+		_vm_tuner_ui.name = "ViewmodelOffsetTunerUI"
+		parent_node.add_child(_vm_tuner_ui)
+		_vm_tuner_ui.setup(self)
+		_vm_tuner_ui.preview_changed.connect(_refresh_hand_and_back_sockets)
+	_vm_tuner_ui.toggle_open()
+
+
+func _trigger_vm_right_action(action_type: String) -> void:
+	match action_type.to_upper():
+		"CLUB_SWING":
+			_vm_right_action = "CLUB_SWING"
+			_vm_right_action_dur = 0.26
+			_vm_right_action_timer = 0.26
+		"CLUB_WHIFF":
+			_vm_right_action = "CLUB_WHIFF"
+			_vm_right_action_dur = 0.34
+			_vm_right_action_timer = 0.34
+		"CLUB_FEINT":
+			_vm_right_action = "CLUB_FEINT"
+			_vm_right_action_dur = 0.20
+			_vm_right_action_timer = 0.20
+		"DART_RECOIL":
+			_vm_right_action = "DART_RECOIL"
+			_vm_right_action_dur = 0.22
+			_vm_right_action_timer = 0.22
+		"THROW":
+			_vm_right_action = "THROW"
+			_vm_right_action_dur = 0.24
+			_vm_right_action_timer = 0.24
+
+
+func _update_first_person_viewmodel(delta: float) -> void:
+	var l_socket: Marker3D = left_hand_socket if left_hand_socket != null else get_node_or_null("Head/Camera3D/LeftHandSocket") as Marker3D
+	var r_socket: Marker3D = right_hand_socket if right_hand_socket != null else get_node_or_null("Head/Camera3D/RightHandSocket") as Marker3D
+	if l_socket == null and r_socket == null:
+		return
+
+	var ko_val: int = GameConfig.Stance.KO if GameConfig != null else 4
+	var lock_val: int = GameConfig.Stance.DRAWER_LOCK if GameConfig != null else 3
+	var sprint_val: int = GameConfig.Stance.SPRINT if GameConfig != null else 1
+	var hide_hands: bool = (stance_state == ko_val or stance_state == lock_val)
+	var eff_left: String = _get_effective_fp_left_item_id()
+	var eff_right: String = _get_effective_fp_right_item_id()
+	if _ragdoll_ctrl != null:
+		_ragdoll_ctrl.set_fp_body_visible(not hide_hands)
+	if l_socket != null:
+		l_socket.visible = not hide_hands and (eff_left != "NONE" and eff_left != "")
+	if r_socket != null:
+		r_socket.visible = not hide_hands and (eff_right != "NONE" and eff_right != "")
+	if hide_hands:
+		return
+
+	var cur_left: String = eff_left
+	var cur_right: String = eff_right
+	if cur_left != _vm_last_left_id:
+		_vm_last_left_id = cur_left
+		_vm_left_equip = 1.0
+	if cur_right != _vm_last_right_id:
+		_vm_last_right_id = cur_right
+		_vm_right_equip = 1.0
+
+	_vm_left_equip = move_toward(_vm_left_equip, 0.0, delta * 4.5)
+	_vm_right_equip = move_toward(_vm_right_equip, 0.0, delta * 4.5)
+	_vm_idle_time += delta
+
+	var horiz_spd: float = Vector2(velocity.x, velocity.z).length()
+	var climb_spd: float = absf(_climb_vertical_speed) if is_climbing_ladder else 0.0
+	var move_norm: float = clampf(climb_spd / LADDER_CLIMB_SPEED, 0.0, 1.0) * 0.75 if is_climbing_ladder else clampf(horiz_spd / 6.8, 0.0, 1.0)
+	if is_climbing_ladder:
+		if climb_spd > 0.12:
+			_vm_walk_phase = wrapf(_vm_walk_phase + delta * _climb_vertical_speed * 3.6, 0.0, TAU)
+	elif horiz_spd > 0.25 and is_on_floor():
+		_vm_walk_phase = fmod(_vm_walk_phase + delta * horiz_spd * 2.2, TAU)
+	else:
+		_vm_walk_phase = move_toward(_vm_walk_phase, 0.0, delta * 8.0)
+
+	_vm_sprint_blend = lerpf(_vm_sprint_blend, 1.0 if (stance_state == sprint_val and horiz_spd > 1.0) else 0.0, clampf(delta * 10.0, 0.0, 1.0))
+	_vm_club_charge_blend = lerpf(_vm_club_charge_blend, 1.0 if (cur_right == "CLUB" and is_charging_club) else 0.0, clampf(delta * 12.0, 0.0, 1.0))
+	_vm_dart_aim_blend = lerpf(_vm_dart_aim_blend, 1.0 if _is_aiming_dart_gun() else 0.0, clampf(delta * 12.0, 0.0, 1.0))
+
+	_vm_sway_pos = _vm_sway_pos.lerp(_vm_sway_vel, clampf(delta * 18.0, 0.0, 1.0))
+	_vm_sway_vel = _vm_sway_vel.lerp(Vector2.ZERO, clampf(delta * 12.0, 0.0, 1.0))
+
+	if _vm_right_action_timer > 0.0:
+		_vm_right_action_timer = maxf(_vm_right_action_timer - delta, 0.0)
+		if _vm_right_action_timer <= 0.0:
+			_vm_right_action = ""
+
+	var idle_y: float = sin(_vm_idle_time * 2.1) * 0.0045
+	var idle_rx: float = cos(_vm_idle_time * 1.6) * 0.012
+	var bob_x: float = cos(_vm_walk_phase) * 0.018 * move_norm
+	var bob_y: float = -absf(sin(_vm_walk_phase)) * 0.022 * move_norm
+	var sway_x: float = clampf(-_vm_sway_pos.x * 0.0018, -0.045, 0.045)
+	var sway_y: float = clampf(_vm_sway_pos.y * 0.0018, -0.045, 0.045)
+
+	if l_socket != null:
+		var equip_dip_l: float = _vm_left_equip * _vm_left_equip
+		var l_pos: Vector3 = _vm_left_base_pos + Vector3(
+			bob_x + sway_x - _vm_sprint_blend * 0.03,
+			idle_y + bob_y + sway_y - equip_dip_l * 0.20 - _vm_sprint_blend * 0.04,
+			_vm_sprint_blend * 0.04
+		)
+		var l_rot := Vector3(
+			idle_rx - equip_dip_l * 0.65 - _vm_sprint_blend * 0.18 + sway_y * 1.4,
+			-sway_x * 1.6 + _vm_sprint_blend * 0.15,
+			bob_x * 1.8
+		)
+		l_socket.position = l_pos
+		l_socket.rotation = l_rot
 
 	if r_socket != null:
-		for c in r_socket.get_children():
-			c.queue_free()
-		if right_hand_item_id != "NONE":
-			var r_mesh: Node3D = PICKUP_SCRIPT.build_item_visual(right_hand_item_id)
-			r_mesh.name = "RightHeldMesh"
-			if right_hand_item_id == "CLUB" and is_charging_club:
-				r_mesh.position = Vector3(-0.12, 0.34, 0.05)
-				r_mesh.rotation.x = deg_to_rad(-45.0)
-			r_socket.add_child(r_mesh)
+		var equip_dip_r: float = _vm_right_equip * _vm_right_equip
+		var r_pos: Vector3 = _vm_right_base_pos + Vector3(
+			-bob_x + sway_x + _vm_sprint_blend * 0.03,
+			idle_y + bob_y + sway_y - equip_dip_r * 0.20 - _vm_sprint_blend * 0.04,
+			_vm_sprint_blend * 0.04
+		)
+		var r_rot := Vector3(
+			idle_rx - equip_dip_r * 0.65 - _vm_sprint_blend * 0.22 + sway_y * 1.4,
+			-sway_x * 1.6 - _vm_sprint_blend * 0.18,
+			-bob_x * 1.8
+		)
+
+		if _vm_club_charge_blend > 0.001:
+			var jitter: float = sin(_vm_idle_time * 38.0) * 0.003 * _vm_club_charge_blend
+			r_pos = r_pos.lerp(Vector3(0.24 + jitter, 0.04 + jitter, -0.44), _vm_club_charge_blend)
+			r_rot = r_rot.lerp(Vector3(deg_to_rad(28.0), deg_to_rad(14.0), deg_to_rad(-18.0)), _vm_club_charge_blend)
+
+		if _vm_dart_aim_blend > 0.001:
+			r_pos = r_pos.lerp(Vector3(0.22, -0.18, -0.46), _vm_dart_aim_blend)
+			r_rot = r_rot.lerp(Vector3(0.0, deg_to_rad(6.0), 0.0), _vm_dart_aim_blend)
+
+		if _vm_right_action_timer > 0.0 and _vm_right_action_dur > 0.001:
+			var prog: float = 1.0 - clampf(_vm_right_action_timer / _vm_right_action_dur, 0.0, 1.0)
+			var arc: float = sin(prog * PI)
+			match _vm_right_action:
+				"CLUB_SWING", "CLUB_WHIFF":
+					r_pos = r_pos.lerp(Vector3(-0.22, -0.32, -0.62), arc)
+					r_rot = r_rot.lerp(Vector3(deg_to_rad(-78.0), deg_to_rad(32.0), deg_to_rad(52.0)), arc)
+				"CLUB_FEINT":
+					r_pos = r_pos.lerp(Vector3(0.26, -0.32, -0.46), arc)
+					r_rot = r_rot.lerp(Vector3(deg_to_rad(-20.0), 0.0, deg_to_rad(10.0)), arc)
+				"DART_RECOIL":
+					r_pos += Vector3(0.0, 0.03 * arc, 0.12 * arc)
+					r_rot.x += deg_to_rad(24.0) * arc
+				"THROW":
+					r_pos = r_pos.lerp(Vector3(0.14, -0.14, -0.68), arc)
+					r_rot = r_rot.lerp(Vector3(deg_to_rad(-42.0), deg_to_rad(12.0), 0.0), arc)
+
+		r_socket.position = r_pos
+		r_socket.rotation = r_rot
 
 
 func _update_hud_status() -> void:
@@ -2602,6 +3309,7 @@ func _process(delta: float) -> void:
 		hold_progress_bar.visible = true
 		hold_progress_bar.value = tw_ctrl.get_hold_progress() * 100.0
 	_process_interaction_raycast()
+	_update_first_person_viewmodel(delta)
 
 
 func _is_e_key_pressed() -> bool:
@@ -3385,6 +4093,9 @@ func _unhandled_input(event: InputEvent) -> void:
 			GameConfig.debug_club_hit_gizmo = not GameConfig.debug_club_hit_gizmo
 			print("[ClubHitGizmo] ", "ON" if GameConfig.debug_club_hit_gizmo else "OFF")
 		return
+	if event is InputEventKey and event.pressed and not event.is_echo() and event.keycode == KEY_F9:
+		_toggle_viewmodel_tuner()
+		return
 
 	if event.is_action_pressed("toggle_club") and not event.is_echo():
 		reset_anti_camp()
@@ -3465,7 +4176,8 @@ func _unhandled_input(event: InputEvent) -> void:
 			var esc_menu_node: Variant = scene.get("esc_menu") if scene != null else null
 			var esc_open: bool = esc_menu_node is CanvasItem and (esc_menu_node as CanvasItem).visible
 			var map_open: bool = _watch_bluff_ui != null and _watch_bluff_ui.is_map_open
-			if not esc_open and not map_open:
+			var tuner_open: bool = _vm_tuner_ui != null and _vm_tuner_ui.visible
+			if not esc_open and not map_open and not tuner_open:
 				Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 				return
 
@@ -3473,11 +4185,14 @@ func _unhandled_input(event: InputEvent) -> void:
 		var eff_sens: float = GameConfig.get_effective_mouse_sensitivity() if GameConfig != null else mouse_sensitivity
 		rotate_y(-event.relative.x * eff_sens)
 		head_pitch = clampf(head_pitch - event.relative.y * eff_sens, deg_to_rad(-89.0), deg_to_rad(89.0))
+		_vm_sway_vel += Vector2(event.relative.x, event.relative.y) * 0.35
 		if head != null:
 			head.rotation.x = head_pitch
 		if _ragdoll_ctrl != null and not _ragdoll_ctrl.is_ragdoll_active:
-			_ragdoll_ctrl._apply_idle_standing_pose(head_pitch, _ragdoll_ctrl._crouch_blend)
+			_ragdoll_ctrl.refresh_head_pitch_pose(head_pitch)
 			_sync_camera_to_ragdoll_head()
+			_sync_visual_rig_sockets_to_skeleton()
+			_update_first_person_viewmodel(0.0)
 
 
 func _trigger_hand_action(action_type: String, slot_arg: int = 0) -> void:
@@ -3550,6 +4265,8 @@ func _try_mount_ladder(ladder: INTERACTIVE_LADDER) -> void:
 		_set_ladder_collision_exceptions(ladder, false)
 		return
 	_active_ladder = ladder
+	is_climbing_ladder = true
+	_climb_vertical_speed = 0.0
 	_ladder_side = side
 	_ladder_level_forward = 1 if landing == lower else -1
 	global_position = mount
@@ -3572,6 +4289,8 @@ func _release_ladder() -> void:
 	if is_instance_valid(_active_ladder):
 		_set_ladder_collision_exceptions(_active_ladder, false)
 	_active_ladder = null
+	is_climbing_ladder = false
+	_climb_vertical_speed = 0.0
 
 
 func _can_walk_with_map() -> bool:
@@ -3583,6 +4302,7 @@ func _can_walk_with_map() -> bool:
 
 
 func _move_on_ladder(delta: float) -> void:
+	_climb_vertical_speed = 0.0
 	if Input.mouse_mode != Input.MOUSE_MODE_CAPTURED and not _can_walk_with_map():
 		return
 	var forward := Input.is_action_pressed("move_forward") or Input.is_physical_key_pressed(KEY_W)
@@ -3599,8 +4319,16 @@ func _move_on_ladder(delta: float) -> void:
 	var ladder := _active_ladder
 	var landing := ladder.upper_landing_y if direction > 0 else ladder.lower_landing_y
 	var end_height := landing + LADDER_LANDING_CLEARANCE
+	var prev_y: float = global_position.y
 	var next_height := move_toward(global_position.y, end_height, LADDER_CLIMB_SPEED * delta)
 	move_and_collide(Vector3.UP * (next_height - global_position.y))
+	_climb_vertical_speed = (global_position.y - prev_y) / maxf(delta, 0.001)
+	if absf(_climb_vertical_speed) > 0.12:
+		_footstep_timer += delta
+		if _footstep_timer >= 0.34:
+			_footstep_timer = 0.0
+			if AudioBridge != null and GameConfig != null:
+				AudioBridge.request_world_cue("footstep_walk", global_position, GameConfig.audio_radius_walk, name.to_int())
 	if absf(global_position.y - end_height) <= 0.005:
 		var exit := ladder.exit_point(end_height, _ladder_side)
 		if not test_move(global_transform, exit - global_position):
@@ -3640,6 +4368,12 @@ func _physics_process(delta: float) -> void:
 			_requested_ladder = null
 		if is_instance_valid(_active_ladder):
 			_move_on_ladder(delta)
+			if _ragdoll_ctrl != null:
+				var climb_left: String = _get_effective_tp_left_item_id() if _tp_preview_active else _get_effective_fp_left_item_id()
+				var climb_right: String = _get_effective_tp_right_item_id() if _tp_preview_active else _get_effective_fp_right_item_id()
+				_ragdoll_ctrl.update_locomotion_pose(delta, 0.0, false, head_pitch, false, climb_left, climb_right, is_climbing_ladder, _climb_vertical_speed)
+				_sync_camera_to_ragdoll_head()
+				_sync_visual_rig_sockets_to_skeleton()
 			return
 
 	if not _is_peer_connected() or not is_multiplayer_authority():
@@ -3651,7 +4385,8 @@ func _physics_process(delta: float) -> void:
 		rotation.y = lerp_angle(rotation.y, _target_yaw, 20.0 * delta)
 		if _ragdoll_ctrl != null:
 			var remote_spd: float = Vector2(position.x - prev_pos.x, position.z - prev_pos.z).length() / maxf(delta, 0.001)
-			_ragdoll_ctrl.update_locomotion_pose(delta, remote_spd, stance_state == crouch_val, head_pitch, is_charging_club)
+			var remote_vert_spd: float = (position.y - prev_pos.y) / maxf(delta, 0.001)
+			_ragdoll_ctrl.update_locomotion_pose(delta, remote_spd, stance_state == crouch_val, head_pitch, is_charging_club, left_hand_item_id, right_hand_item_id, is_climbing_ladder, remote_vert_spd)
 			_sync_camera_to_ragdoll_head()
 			_sync_visual_rig_sockets_to_skeleton()
 		elif head != null:
@@ -3726,7 +4461,41 @@ func _physics_process(delta: float) -> void:
 
 	if _ragdoll_ctrl != null:
 		var local_horiz_spd: float = Vector2(velocity.x, velocity.z).length()
-		_ragdoll_ctrl.update_locomotion_pose(delta, local_horiz_spd, stance_state == crouch_val, head_pitch, is_charging_club)
+		var pose_crouch: bool = (stance_state == crouch_val)
+		var pose_charge: bool = is_charging_club
+		var pose_climb: bool = is_climbing_ladder
+		var pose_climb_spd: float = _climb_vertical_speed
+		if _tp_preview_active:
+			match _tp_sim_motion:
+				"WALK":
+					local_horiz_spd = GameConfig.walk_speed if GameConfig != null else 4.5
+					pose_crouch = false
+					pose_charge = false
+					pose_climb = false
+				"SPRINT":
+					local_horiz_spd = GameConfig.sprint_speed if GameConfig != null else 6.8
+					pose_crouch = false
+					pose_charge = false
+					pose_climb = false
+				"CROUCH":
+					local_horiz_spd = GameConfig.crouch_speed if GameConfig != null else 2.5
+					pose_crouch = true
+					pose_charge = false
+					pose_climb = false
+				"CLIMB":
+					local_horiz_spd = 0.0
+					pose_crouch = false
+					pose_charge = false
+					pose_climb = true
+					pose_climb_spd = LADDER_CLIMB_SPEED
+				"CLUB_CHARGE":
+					local_horiz_spd = 0.0
+					pose_crouch = false
+					pose_charge = true
+					pose_climb = false
+		var pose_left: String = _get_effective_tp_left_item_id() if _tp_preview_active else _get_effective_fp_left_item_id()
+		var pose_right: String = _get_effective_tp_right_item_id() if _tp_preview_active else _get_effective_fp_right_item_id()
+		_ragdoll_ctrl.update_locomotion_pose(delta, local_horiz_spd, pose_crouch, head_pitch, pose_charge, pose_left, pose_right, pose_climb, pose_climb_spd)
 		_sync_camera_to_ragdoll_head()
 		_sync_visual_rig_sockets_to_skeleton()
 
