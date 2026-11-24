@@ -21,6 +21,7 @@ var _seed_label: Label = null
 
 var _preset_buttons: Dictionary = {} # int (2, 3, 4) -> Button
 var _auto_preset_check: CheckBox = null
+var _enable_upper_floor_check: CheckBox = null
 var _starting_clock_spin: SpinBox = null
 var _first_search_bonus_spin: SpinBox = null
 
@@ -188,6 +189,16 @@ func _build_layout() -> void:
 	_auto_preset_check.button_pressed = true
 	_auto_preset_check.toggled.connect(func(_v: bool) -> void: _on_any_control_changed())
 	auto_preset_row.add_child(_auto_preset_check)
+
+	var upper_floor_row := HBoxContainer.new()
+	upper_floor_row.add_theme_constant_override("separation", 8)
+	controls_vbox.add_child(upper_floor_row)
+	_enable_upper_floor_check = CheckBox.new()
+	_enable_upper_floor_check.name = "EnableUpperFloorCheck"
+	_enable_upper_floor_check.text = "Enable Second Floor & Ladders (OFF for 2P, ON for 3P/4P)"
+	_enable_upper_floor_check.button_pressed = false
+	_enable_upper_floor_check.toggled.connect(func(_v: bool) -> void: _on_any_control_changed())
+	upper_floor_row.add_child(_enable_upper_floor_check)
 
 	controls_vbox.add_child(HSeparator.new())
 
@@ -438,6 +449,8 @@ func refresh_from_config() -> void:
 			btn.button_pressed = (int(p_count) == active_p)
 	if _auto_preset_check != null:
 		_auto_preset_check.button_pressed = GameConfig.spawner_auto_preset_by_player_count
+	if _enable_upper_floor_check != null:
+		_enable_upper_floor_check.button_pressed = GameConfig.spawner_enable_upper_floor
 	if _starting_clock_spin != null:
 		_starting_clock_spin.value = GameConfig.starting_clock_seconds
 	if _first_search_bonus_spin != null:
@@ -496,7 +509,7 @@ func collect_ui_config_dict() -> Dictionary:
 	return {
 		"active_preset_players": GameConfig.spawner_active_preset_players if GameConfig != null else 2,
 		"auto_preset_by_player_count": _auto_preset_check.button_pressed if _auto_preset_check != null else true,
-		"enable_upper_floor": (GameConfig.spawner_active_preset_players > 2) if GameConfig != null else false,
+		"enable_upper_floor": _enable_upper_floor_check.button_pressed if _enable_upper_floor_check != null else ((GameConfig.spawner_active_preset_players > 2) if GameConfig != null else false),
 		"starting_clock_seconds": float(_starting_clock_spin.value) if _starting_clock_spin != null else 180.0,
 		"drawer_first_search_bonus_seconds": float(_first_search_bonus_spin.value) if _first_search_bonus_spin != null else 10.0,
 		"min_containers": min_c,

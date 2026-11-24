@@ -283,11 +283,15 @@ func populate_level(
 
 	var building := _get_building(level_root)
 	var include_upper_floor: bool = bool(manifest.get("enable_upper_floor", true))
-	if not include_upper_floor and building != null and not Engine.is_editor_hint():
-		var upper_floor_node := building.get_node_or_null("SecondFloor")
-		if upper_floor_node != null:
-			building.remove_child(upper_floor_node)
-			upper_floor_node.queue_free()
+	if building != null and not Engine.is_editor_hint():
+		var ladder_layout_pre: Node = building.get_node_or_null("LadderLayout")
+		if ladder_layout_pre != null and ladder_layout_pre.has_method("sync_upper_floor_state"):
+			ladder_layout_pre.call("sync_upper_floor_state", include_upper_floor, int(manifest["seed"]))
+		elif not include_upper_floor:
+			var upper_floor_node := building.get_node_or_null("SecondFloor")
+			if upper_floor_node != null:
+				building.remove_child(upper_floor_node)
+				upper_floor_node.queue_free()
 
 	var f_spawner: Node = building.get_node_or_null("FurnitureSpawner") if building != null else null
 	var spawn_room_keys: Array[String] = SPAWN_ROOM_NAMES.duplicate()

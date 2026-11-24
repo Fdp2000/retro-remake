@@ -384,8 +384,6 @@ func _is_upper_floor_enabled() -> bool:
 		if cfg.has("active_preset_players"):
 			return int(cfg["active_preset_players"]) > 2
 	if GameConfig != null:
-		if GameConfig.spawner_auto_preset_by_player_count and not expected_peers.is_empty():
-			return expected_peers.size() > 2
 		return GameConfig.spawner_enable_upper_floor
 	return true
 
