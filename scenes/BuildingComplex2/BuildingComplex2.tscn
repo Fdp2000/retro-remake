@@ -1686,6 +1686,7 @@ gizmo_extents = 0.5
 metadata/spawn_id = "Room_4_4_8"
 
 [node name="Roofs" type="Node3D" parent="." unique_id=855419514]
+visible = false
 
 [node name="Ceiling_0_0" parent="Roofs" unique_id=119625381 instance=ExtResource("floor")]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, -16.5, 3, -16.5)
