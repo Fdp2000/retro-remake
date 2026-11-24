@@ -80,9 +80,9 @@ class RoomInk extends Control:
 			for point in stroke:
 				points.append(point * size)
 			if points.size() == 1:
-				draw_circle(points[0], 1.8, Color("#ffd376"), true, -1.0, true)
+				draw_circle(points[0], 1.8, Color("#111416"), true, -1.0, true)
 			elif points.size() > 1:
-				draw_polyline(points, Color("#ffd376"), 2.8, true)
+				draw_polyline(points, Color("#111416"), 2.8, true)
 
 	func handle_input(event: InputEvent) -> bool:
 		if event is InputEventMouseButton:
