@@ -1,0 +1,13 @@
+[gd_scene format=3 uid="uid://dgf1od23jdbv4"]
+
+[ext_resource type="PackedScene" uid="uid://dscl4gthawlm0" path="res://Assets/Models/Samleobjekter/Passport.glb" id="1_q2djr"]
+[ext_resource type="Texture2D" uid="uid://um7lmfh5ikl4" path="res://Assets/Models/Samleobjekter/Texture_Passport.png" id="2_1tqn8"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_64pcf"]
+albedo_texture = ExtResource("2_1tqn8")
+
+[node name="Passport" unique_id=1550787958 instance=ExtResource("1_q2djr")]
+
+[node name="Passport_001" parent="." index="0" unique_id=1903701347]
+transform = Transform3D(-1, 8.742278e-08, 0, -8.742278e-08, -1, 0, 0, 0, 1, 0, 0, 0)
+material_override = SubResource("StandardMaterial3D_64pcf")

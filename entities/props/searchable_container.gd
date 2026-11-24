@@ -1540,11 +1540,29 @@ func _sync_back_to_briefcase_pickup() -> void:
 		linked_briefcase_pickup.set("bomb_owner_peer_id", bomb_owner_peer_id)
 
 
+func _update_interior_glint_visibility(ratio: float) -> void:
+	var clamped: float = clampf(ratio, 0.0, 1.0)
+	var show_interior: bool = clamped > 0.22
+	if _contents_root != null and is_instance_valid(_contents_root):
+		for child in _contents_root.get_children():
+			var glint: CPUParticles3D = child.get_node_or_null("ObjectiveGlintParticles") as CPUParticles3D
+			if glint != null:
+				glint.visible = show_interior
+				glint.emitting = show_interior
+	if is_briefcase_container and linked_briefcase_pickup != null and is_instance_valid(linked_briefcase_pickup):
+		var outer_glint: CPUParticles3D = linked_briefcase_pickup.get_node_or_null("ObjectiveGlintParticles") as CPUParticles3D
+		if outer_glint != null:
+			var show_outer: bool = (clamped <= 0.04 and occupied_by_peer_id == 0)
+			outer_glint.visible = show_outer
+			outer_glint.emitting = show_outer
+
+
 func _apply_briefcase_lid_ratio(ratio: float) -> void:
 	var clamped: float = clampf(ratio, 0.0, 1.0)
 	BRIEFCASE_BUILDER.set_lid_open_ratio(_briefcase_lid_pivot, clamped, _briefcase_interior_light)
 	if _contents_root != null and is_instance_valid(_contents_root):
 		_contents_root.visible = (clamped > 0.03)
+	_update_interior_glint_visibility(clamped)
 
 
 func _apply_open_visual_ratio(ratio: float) -> void:
@@ -1559,6 +1577,7 @@ func _apply_open_visual_ratio(ratio: float) -> void:
 			_slide_tween.kill()
 		if _tray_drawer_node != null:
 			_tray_drawer_node.position.z = _tray_target_z
+		_update_interior_glint_visibility(clamped_ratio)
 
 
 func _animate_tray_open(open_state: bool, slow: bool) -> void:
@@ -1569,6 +1588,7 @@ func _animate_tray_to_ratio(ratio: float, slow: bool) -> void:
 	if _tray_drawer_node == null:
 		return
 	var clamped_ratio: float = clampf(ratio, 0.0, 1.0)
+	_update_interior_glint_visibility(clamped_ratio)
 
 	var base_dur: float = 0.0
 	if clamped_ratio > 0.01:
@@ -2235,12 +2255,12 @@ func _rebuild_3d_interior() -> void:
 		var item_visual: Node3D = PICKUP_SCRIPT.build_item_visual(item_id)
 		item_visual.scale = layout["scale"] as Vector3
 		item_visual.rotation = layout.get("rot", Vector3.ZERO) as Vector3
+		var item_aabb: AABB = _compute_visual_aabb_recursive(item_visual, item_visual.transform)
+		if item_aabb.size != Vector3.ZERO:
+			item_visual.position.y -= item_aabb.get_center().y
+			exact_size.y = maxf(exact_size.y, item_aabb.size.y)
+		var item_half_h: float = maxf(item_aabb.size.y * 0.5, 0.007 if not is_briefcase_container else 0.005)
 		if not is_briefcase_container:
-			var item_aabb: AABB = _compute_visual_aabb_recursive(item_visual, item_visual.transform)
-			if item_aabb.size != Vector3.ZERO:
-				item_visual.position.y -= item_aabb.get_center().y
-				exact_size.y = maxf(exact_size.y, item_aabb.size.y)
-			var item_half_h: float = maxf(item_aabb.size.y * 0.5, 0.007)
 			item_y = item_band_base_y + float(slot_idx) * DRAWER_ITEM_SLOT_STEP_Y + item_half_h
 			max_item_top_y = maxf(max_item_top_y, item_y + item_half_h + 0.004)
 
@@ -2262,9 +2282,13 @@ func _rebuild_3d_interior() -> void:
 		item_col.shape = item_shape
 		item_area.add_child(item_col)
 		item_area.add_child(item_visual)
-		if PICKUP_SCRIPT.is_objective_item(item_id) or PICKUP_SCRIPT.is_briefcase_item(item_id):
-			var glint: CPUParticles3D = PICKUP_SCRIPT.create_objective_glint_particles(true)
-			glint.position = Vector3(0.0, 0.012, 0.0)
+		if PICKUP_SCRIPT.should_emit_pickup_glint(item_id):
+			var glint: CPUParticles3D = PICKUP_SCRIPT.create_objective_glint_particles(
+				true,
+				item_id,
+				Vector2(exact_size.x, exact_size.z)
+			)
+			glint.position = Vector3(0.0, item_half_h + 0.0008, 0.0)
 			item_area.add_child(glint)
 		_contents_root.add_child(item_area)
 
@@ -2359,6 +2383,7 @@ func _rebuild_3d_interior() -> void:
 	_contents_root.set_meta("structure_sig", _compute_structure_signature())
 	if is_briefcase_container:
 		_apply_briefcase_lid_ratio(drawer_visual_ratio)
+	_update_interior_glint_visibility(drawer_visual_ratio)
 
 
 func _compute_structure_signature() -> String:
