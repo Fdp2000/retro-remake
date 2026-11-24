@@ -38,7 +38,7 @@
 [ext_resource type="PackedScene" uid="uid://el2ftbhiveae" path="res://Assets/Models/Prefabs/table_a.tscn" id="furn_table_a"]
 [ext_resource type="Script" uid="uid://bclgtewxn8u1c" path="res://scenes/BuildingComplex3/ladder_layout.gd" id="ladder_layout"]
 [ext_resource type="Script" uid="uid://3w2au6iklilk" path="res://scenes/BuildingComplex2/room_palette.gd" id="room_palette"]
-[ext_resource type="PackedScene" uid="uid://4vgovubnuvh" path="res://scenes/BuildingComplex3/BuildingComplex3UpperFloor.tscn" id="second_floor"]
+[ext_resource type="PackedScene" uid="uid://ce78o3q5pygvo" path="res://scenes/BuildingComplex3/BuildingComplex3UpperFloor.tscn" id="second_floor"]
 [ext_resource type="PackedScene" uid="uid://1081g1d8f2ni" path="res://Assets/Models/Import/Interiors_A/Scenes/Walls/wall_3m.tscn" id="wall"]
 [ext_resource type="PackedScene" path="res://scenes/BuildingComplex3/RaisedWindowWall.tscn" id="window"]
 

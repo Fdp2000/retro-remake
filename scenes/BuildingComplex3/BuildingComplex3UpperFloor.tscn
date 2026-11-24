@@ -1,16 +1,14 @@
-﻿[gd_scene format=3 uid="uid://4vgovubnuvh"]
+[gd_scene format=3 uid="uid://ce78o3q5pygvo"]
 
 [ext_resource type="Material" path="res://scenes/BuildingComplex2/ComplexClearGlass.tres" id="3_whg7k"]
 [ext_resource type="Shader" uid="uid://u2le7vmonyfk" path="res://scenes/BuildingComplex3/updated_room_palette.gdshader" id="4_dmn8s"]
-[ext_resource type="Texture2D" uid="uid://5nvn5c7ixwi4" path="res://Assets/Models/Import/Interiors_A/texture/Updated_Textures/Texture_Floor.png" id="5_ryetv"]
-[ext_resource type="Texture2D" uid="uid://qo1etvt063k8" path="res://Assets/Models/Import/Interiors_A/texture/Updated_Textures/Texture_Ceiling.png" id="30_grmk8"]
 [ext_resource type="Texture2D" uid="uid://be5gw0ro7nqx3" path="res://Assets/Models/Import/Interiors_A/texture/Updated_Textures/Wall/Texture_Wall_Blue.png" id="32_hqswk"]
 [ext_resource type="Texture2D" uid="uid://cfsai7l8p32oc" path="res://Assets/Models/Import/Interiors_A/texture/Updated_Textures/Wall/Texture_Wall_Green.png" id="33_kvhno"]
 [ext_resource type="Texture2D" uid="uid://ba1ewlnvnu6tq" path="res://Assets/Models/Import/Interiors_A/texture/Updated_Textures/Wall/Texture_Wall_Purple.png" id="34_bexqq"]
 [ext_resource type="Texture2D" uid="uid://luvxynyr0pca" path="res://Assets/Models/Import/Interiors_A/texture/Updated_Textures/Wall/Texture_Wall_Red.png" id="35_ewrqa"]
 [ext_resource type="Texture2D" uid="uid://1e2r2oxcuyw5" path="res://Assets/Models/Import/Interiors_A/texture/Updated_Textures/Wall/Texture_Wall_Yellow.png" id="36_gl3hc"]
+[ext_resource type="Script" uid="uid://cllj0ru5bflyw" path="res://scenes/BuildingComplex3/bucket_spawn_overview.gd" id="bucket_spawn_overview"]
 [ext_resource type="Script" uid="uid://dyucfojwm7ba3" path="res://scenes/BuildingComplex3/updated_building_palette.gd" id="building_palette"]
-[ext_resource type="Script" path="res://scenes/BuildingComplex3/bucket_spawn_overview.gd" id="bucket_spawn_overview"]
 [ext_resource type="PackedScene" uid="uid://b5qju4mcr53wp" path="res://Assets/Models/Import/Interiors_A/Scenes/Floor/floor_3x_3.tscn" id="floor"]
 [ext_resource type="PackedScene" uid="uid://dqa5v6tsdgp3a" path="res://Assets/Models/Prefabs/AlexBook.tscn" id="furn_AlexBook"]
 [ext_resource type="PackedScene" uid="uid://8x6gy308v6f" path="res://Assets/Models/Prefabs/BetweenFrame.tscn" id="furn_BetweenFrame"]
@@ -41,20 +39,12 @@
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_rri1y"]
 render_priority = 0
 shader = ExtResource("4_dmn8s")
-shader_parameter/is_wall = false
-shader_parameter/is_ceiling = false
-shader_parameter/surface_texture = ExtResource("5_ryetv")
-shader_parameter/room_colors = PackedColorArray(0.30980393, 0.39215687, 0.52941173, 1, 0.79607844, 0.827451, 0.5686275, 1, 0.89411765, 0.84313726, 0.5568628, 1, 0.59607846, 0.34509805, 0.42352942, 1, 0.91764706, 0.7294118, 0.63529414, 1, 0.46666667, 0.49019608, 0.6392157, 1, 0.72156864, 0.85490197, 0.85882354, 1, 0.4745098, 0.5254902, 0.3372549, 1, 0.6901961, 0.5764706, 0.4, 1, 0.3254902, 0.49411765, 0.4745098, 1, 0.8352941, 0.7764706, 0.8745098, 1, 0.52156866, 0.5098039, 0.5098039, 1, 0.6901961, 0.5764706, 0.4, 1, 0.3254902, 0.49411765, 0.4745098, 1, 0.8352941, 0.7764706, 0.8745098, 1, 0.52156866, 0.5098039, 0.5098039, 1)
 shader_parameter/wall_variants = PackedInt32Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
 shader_parameter/building_inverse = Projection(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1)
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_8ae00"]
 render_priority = 0
 shader = ExtResource("4_dmn8s")
-shader_parameter/is_wall = false
-shader_parameter/is_ceiling = true
-shader_parameter/surface_texture = ExtResource("30_grmk8")
-shader_parameter/room_colors = PackedColorArray(0.30980393, 0.39215687, 0.52941173, 1, 0.79607844, 0.827451, 0.5686275, 1, 0.89411765, 0.84313726, 0.5568628, 1, 0.59607846, 0.34509805, 0.42352942, 1, 0.91764706, 0.7294118, 0.63529414, 1, 0.46666667, 0.49019608, 0.6392157, 1, 0.72156864, 0.85490197, 0.85882354, 1, 0.4745098, 0.5254902, 0.3372549, 1, 0.6901961, 0.5764706, 0.4, 1, 0.3254902, 0.49411765, 0.4745098, 1, 0.8352941, 0.7764706, 0.8745098, 1, 0.52156866, 0.5098039, 0.5098039, 1, 0.6901961, 0.5764706, 0.4, 1, 0.3254902, 0.49411765, 0.4745098, 1, 0.8352941, 0.7764706, 0.8745098, 1, 0.52156866, 0.5098039, 0.5098039, 1)
 shader_parameter/wall_variants = PackedInt32Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
 shader_parameter/building_inverse = Projection(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1)
 
@@ -77,14 +67,11 @@ size = Vector3(0.2, 0.3, 27.4)
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_dmn8s"]
 render_priority = 0
 shader = ExtResource("4_dmn8s")
-shader_parameter/is_wall = true
-shader_parameter/is_ceiling = false
 shader_parameter/wall_blue = ExtResource("32_hqswk")
 shader_parameter/wall_green = ExtResource("33_kvhno")
 shader_parameter/wall_purple = ExtResource("34_bexqq")
 shader_parameter/wall_red = ExtResource("35_ewrqa")
 shader_parameter/wall_yellow = ExtResource("36_gl3hc")
-shader_parameter/room_colors = PackedColorArray(0.30980393, 0.39215687, 0.52941173, 1, 0.79607844, 0.827451, 0.5686275, 1, 0.89411765, 0.84313726, 0.5568628, 1, 0.59607846, 0.34509805, 0.42352942, 1, 0.91764706, 0.7294118, 0.63529414, 1, 0.46666667, 0.49019608, 0.6392157, 1, 0.72156864, 0.85490197, 0.85882354, 1, 0.4745098, 0.5254902, 0.3372549, 1, 0.6901961, 0.5764706, 0.4, 1, 0.3254902, 0.49411765, 0.4745098, 1, 0.8352941, 0.7764706, 0.8745098, 1, 0.52156866, 0.5098039, 0.5098039, 1, 0.6901961, 0.5764706, 0.4, 1, 0.3254902, 0.49411765, 0.4745098, 1, 0.8352941, 0.7764706, 0.8745098, 1, 0.52156866, 0.5098039, 0.5098039, 1)
 shader_parameter/wall_variants = PackedInt32Array(2, 4, 4, 3, 3, 2, 0, 4, 4, 0, 2, 3, 4, 0, 2, 3)
 shader_parameter/building_inverse = Projection(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1)
 
@@ -94,13 +81,12 @@ size = Vector3(0.25, 4.2, 0.25)
 
 [node name="SecondFloor" type="Node3D" unique_id=2101441047]
 script = ExtResource("building_palette")
-
-[node name="BucketSpawnOverview" type="Node3D" parent="." unique_id=1950000501]
-script = ExtResource("bucket_spawn_overview")
-wall_texture_offset = 1
 metadata/layout = "3 x 4 equal 9 x 9 metre rooms; 36 x 27 metres"
 metadata/room_size = Vector2(9, 9)
 metadata/grid_size = Vector2i(4, 3)
+
+[node name="BucketSpawnOverview" type="Node3D" parent="." unique_id=1950000501]
+script = ExtResource("bucket_spawn_overview")
 
 [node name="Rooms" type="Node3D" parent="." unique_id=339518819]
 
