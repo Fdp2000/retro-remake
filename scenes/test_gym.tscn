@@ -11,6 +11,8 @@
 [ext_resource type="Texture2D" uid="uid://luvxynyr0pca" path="res://Assets/Models/Import/Interiors_A/texture/Updated_Textures/Wall/Texture_Wall_Red.png" id="9_xng4e"]
 [ext_resource type="Texture2D" uid="uid://1e2r2oxcuyw5" path="res://Assets/Models/Import/Interiors_A/texture/Updated_Textures/Wall/Texture_Wall_Yellow.png" id="10_yss0p"]
 
+[ext_resource type="Theme" path="res://ui/spy_console_theme.tres" id="spy_console_theme"]
+
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_8qy8g"]
 sky_top_color = Color(0.27, 0.53, 0.83, 1)
 sky_horizon_color = Color(0.76, 0.86, 0.96, 1)
@@ -140,18 +142,19 @@ vertical_alignment = 1
 
 [node name="EscMenu" type="PanelContainer" parent="UI" unique_id=257886096]
 visible = false
-custom_minimum_size = Vector2(280, 180)
+custom_minimum_size = Vector2(360, 0)
 anchors_preset = 8
 anchor_left = 0.5
 anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
-offset_left = -140.0
-offset_top = -90.0
-offset_right = 140.0
-offset_bottom = 90.0
+offset_left = -180.0
+offset_top = 0.0
+offset_right = 180.0
+offset_bottom = 0.0
 grow_horizontal = 2
 grow_vertical = 2
+theme = ExtResource("spy_console_theme")
 
 [node name="VBoxContainer" type="VBoxContainer" parent="UI/EscMenu" unique_id=912575960]
 layout_mode = 2
@@ -161,16 +164,33 @@ alignment = 1
 [node name="MenuTitle" type="Label" parent="UI/EscMenu/VBoxContainer" unique_id=596266256]
 layout_mode = 2
 theme_override_font_sizes/font_size = 18
-text = "MATCH MENU"
+text = "Match Menu"
 horizontal_alignment = 1
 
 [node name="ResumeButton" type="Button" parent="UI/EscMenu/VBoxContainer" unique_id=478467697]
 layout_mode = 2
-text = "Resume"
+custom_minimum_size = Vector2(0, 42)
+text = "Continue"
 
 [node name="LeaveButton" type="Button" parent="UI/EscMenu/VBoxContainer" unique_id=1809511471]
 layout_mode = 2
-text = "Leave to Lobby"
+custom_minimum_size = Vector2(0, 42)
+text = "Leave Game"
+
+[node name="SettingsMenu" type="VBoxContainer" parent="UI/EscMenu"]
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="SettingsTitle" type="Label" parent="UI/EscMenu/SettingsMenu"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
+text = "Settings & Tools"
+horizontal_alignment = 1
+
+[node name="CloseButton" type="Button" parent="UI/EscMenu/SettingsMenu"]
+layout_mode = 2
+text = "Close"
 
 [node name="BuildingComplex3" parent="." unique_id=2088144634 instance=ExtResource("3_cppg0")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.00020456314, 0.011564493, -5.2928925e-05)

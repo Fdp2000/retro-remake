@@ -1,0 +1,104 @@
+[gd_resource type="Theme" format=3]
+
+[sub_resource type="StyleBoxFlat" id="Console"]
+content_margin_left = 26.0
+content_margin_top = 22.0
+content_margin_right = 26.0
+content_margin_bottom = 22.0
+bg_color = Color(0.0667, 0.0980, 0.1059, 0.97)
+border_width_left = 2
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.4157, 0.3608, 0.2627, 1)
+
+[sub_resource type="StyleBoxFlat" id="ButtonIdle"]
+content_margin_left = 12.0
+content_margin_top = 8.0
+content_margin_right = 12.0
+content_margin_bottom = 8.0
+bg_color = Color(0.1333, 0.1725, 0.1804, 0.97)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.3176, 0.3529, 0.3294, 1)
+
+[sub_resource type="StyleBoxFlat" id="ButtonHover"]
+content_margin_left = 12.0
+content_margin_top = 8.0
+content_margin_right = 12.0
+content_margin_bottom = 8.0
+bg_color = Color(0.2392, 0.2196, 0.1608, 0.97)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.8941, 0.6863, 0.3843, 1)
+
+[sub_resource type="StyleBoxFlat" id="ButtonPressed"]
+content_margin_left = 12.0
+content_margin_top = 8.0
+content_margin_right = 12.0
+content_margin_bottom = 8.0
+bg_color = Color(0.3216, 0.2667, 0.1725, 0.97)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.8941, 0.6863, 0.3843, 1)
+
+[sub_resource type="StyleBoxFlat" id="ButtonDisabled"]
+content_margin_left = 12.0
+content_margin_top = 8.0
+content_margin_right = 12.0
+content_margin_bottom = 8.0
+bg_color = Color(0.0902, 0.1137, 0.1176, 0.97)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.2039, 0.2471, 0.2431, 1)
+
+[sub_resource type="StyleBoxFlat" id="Input"]
+content_margin_left = 12.0
+content_margin_top = 7.0
+content_margin_right = 12.0
+content_margin_bottom = 7.0
+bg_color = Color(0.0510, 0.0784, 0.0863, 0.97)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.3373, 0.3765, 0.3529, 1)
+
+[sub_resource type="StyleBoxFlat" id="Focus"]
+draw_center = false
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.8941, 0.6863, 0.3843, 1)
+
+[sub_resource type="SystemFont" id="ConsoleMono"]
+font_names = PackedStringArray("Cascadia Mono", "Consolas", "DejaVu Sans Mono")
+
+[resource]
+default_font = SubResource("ConsoleMono")
+default_font_size = 16
+Button/colors/font_color = Color(0.9373, 0.8980, 0.8000, 1)
+Button/colors/font_hover_color = Color(1.0000, 0.8431, 0.5333, 1)
+Button/colors/font_focus_color = Color(1.0000, 0.8431, 0.5333, 1)
+Button/colors/font_pressed_color = Color(1.0000, 0.8431, 0.5333, 1)
+Button/colors/font_disabled_color = Color(0.5451, 0.5882, 0.5647, 1)
+Button/styles/disabled = SubResource("ButtonDisabled")
+Button/styles/focus = SubResource("Focus")
+Button/styles/hover = SubResource("ButtonHover")
+Button/styles/normal = SubResource("ButtonIdle")
+Button/styles/pressed = SubResource("ButtonPressed")
+Label/colors/font_color = Color(0.9373, 0.8980, 0.8000, 1)
+LineEdit/colors/font_color = Color(0.9373, 0.8980, 0.8000, 1)
+LineEdit/colors/font_placeholder_color = Color(0.6392, 0.6784, 0.6431, 1)
+LineEdit/styles/focus = SubResource("Focus")
+LineEdit/styles/normal = SubResource("Input")
+PanelContainer/styles/panel = SubResource("Console")

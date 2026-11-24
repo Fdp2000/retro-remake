@@ -1239,8 +1239,7 @@ func apply_clock_elimination() -> Array[Dictionary]:
 		if stance_label != null:
 			stance_label.text = "ELIMINATED (00:00)"
 		if prompt_label != null:
-			prompt_label.text = "CLOCK EXPIRED — ELIMINATED! Waiting for remaining spies..."
-			prompt_label.visible = true
+			prompt_label.hide()
 		if clock_label != null:
 			clock_label.text = "CLOCK: 00:00 [OUT]"
 			clock_label.modulate = Color(1.0, 0.25, 0.25)
@@ -1351,8 +1350,7 @@ func tick_ko_and_immunity(delta: float) -> void:
 				if stance_label != null:
 					stance_label.text = "ELIMINATED (00:00)"
 				if prompt_label != null:
-					prompt_label.text = "CLOCK EXPIRED — ELIMINATED! Waiting for rival..."
-					prompt_label.visible = true
+					prompt_label.hide()
 			return
 		ko_remaining_seconds -= delta
 		var clamped_ko: float = maxf(ko_remaining_seconds, 0.0)

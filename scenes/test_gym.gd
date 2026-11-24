@@ -35,6 +35,9 @@ const FULL_MATCH_SPAWN_YAWS: Dictionary = {
 @onready var ui_layer: CanvasLayer = $UI
 @onready var role_label: Label = $UI/HUD/RoleBadge/RoleLabel
 @onready var esc_menu: PanelContainer = $UI/EscMenu
+@onready var match_menu: VBoxContainer = $UI/EscMenu/VBoxContainer
+@onready var settings_menu: VBoxContainer = $UI/EscMenu/SettingsMenu
+@onready var close_settings_button: Button = $UI/EscMenu/SettingsMenu/CloseButton
 @onready var resume_button: Button = $UI/EscMenu/VBoxContainer/ResumeButton
 @onready var leave_button: Button = $UI/EscMenu/VBoxContainer/LeaveButton
 
@@ -72,7 +75,7 @@ func _ready() -> void:
 	_refresh_role_badge()
 
 	# ESC Menu buttons & Mouse DPI/Sensitivity controls
-	var esc_vbox: VBoxContainer = get_node_or_null("UI/EscMenu/VBoxContainer")
+	var esc_vbox: VBoxContainer = settings_menu
 	if esc_vbox != null:
 		if esc_vbox.get_node_or_null("MouseSettingsWidget") == null:
 			var mouse_widget: VBoxContainer = preload("res://ui/mouse_settings_widget.gd").new()
@@ -112,7 +115,10 @@ func _ready() -> void:
 			_esc_debug_bomb_fuse_button.pressed.connect(_on_debug_bomb_fuse_toggled)
 			esc_vbox.add_child(_esc_debug_bomb_fuse_button)
 		_refresh_debug_bomb_fuse_button_text()
+		esc_vbox.move_child(close_settings_button, -1)
 
+	esc_menu.resized.connect(_center_match_menu)
+	close_settings_button.pressed.connect(_on_resume_pressed)
 	resume_button.pressed.connect(_on_resume_pressed)
 	leave_button.pressed.connect(_on_leave_button_pressed)
 
@@ -533,12 +539,32 @@ func _on_match_ended(winner_peer_id: int, reason: String) -> void:
 	if _match_end_ui != null:
 		var my_id: int = multiplayer.get_unique_id() if _is_network_active() else 1
 		var is_srv: bool = (not _is_network_active()) or multiplayer.is_server()
-		var active_seed: int = MatchManager.match_seed if MatchManager != null else 0
-		_match_end_ui.show_match_result(winner_peer_id, my_id, reason, is_srv, is_sandbox_mode, active_seed)
+		var actions := MatchEndOverlayUI.Actions.LEAVE_ONLY
+		if is_srv:
+			if NetworkManager.current_mode == NetworkManager.NetworkMode.ENET_LOCAL or not _is_network_active():
+				actions = MatchEndOverlayUI.Actions.LOCAL_HOST
+			elif SessionManager.current_room_code not in ["", "NONE"]:
+				actions = MatchEndOverlayUI.Actions.PRIVATE_HOST
+		_match_end_ui.show_match_result(winner_peer_id, my_id, reason, actions, is_sandbox_mode)
+
+
+func _input(event: InputEvent) -> void:
+	if event is InputEventKey and event.pressed and not event.is_echo() and event.keycode == KEY_F12:
+		if _is_network_active() and not multiplayer.is_server():
+			return
+		if MatchManager != null and MatchManager.match_state == MatchManager.MatchState.ENDED:
+			return
+		if _spawner_cheatsheet_ui != null and _spawner_cheatsheet_ui.visible:
+			_spawner_cheatsheet_ui.call("close_cheatsheet")
+		if settings_menu.is_visible_in_tree():
+			_on_resume_pressed()
+		else:
+			_open_match_menu(true)
+		get_viewport().set_input_as_handled()
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if event is InputEventKey and event.pressed and not event.is_echo() and event.keycode == KEY_F2:
+	if event is InputEventKey and event.pressed and not event.is_echo() and event.keycode == KEY_F2 and (settings_menu.is_visible_in_tree() or (_spawner_cheatsheet_ui != null and _spawner_cheatsheet_ui.visible)):
 		var is_host_or_offline: bool = (not _is_network_active()) or multiplayer.is_server()
 		if is_host_or_offline:
 			_ensure_spawner_cheatsheet_ui()
@@ -562,12 +588,27 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func toggle_esc_menu() -> void:
-	esc_menu.visible = not esc_menu.visible
 	if esc_menu.visible:
-		_refresh_esc_mode_button_text()
-		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+		_on_resume_pressed()
 	else:
-		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+		_open_match_menu(false)
+
+
+func _open_match_menu(show_settings: bool) -> void:
+	match_menu.visible = not show_settings
+	settings_menu.visible = show_settings
+	if show_settings:
+		_refresh_esc_mode_button_text()
+		_refresh_debug_bomb_fuse_button_text()
+	esc_menu.show()
+	esc_menu.reset_size()
+	_center_match_menu()
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+
+
+func _center_match_menu() -> void:
+	var viewport_size := esc_menu.get_viewport_rect().size
+	esc_menu.position = (viewport_size - esc_menu.size) * 0.5
 
 
 func _on_resume_pressed() -> void:
