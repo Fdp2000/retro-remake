@@ -3,6 +3,7 @@ extends Node
 const DOOR_LAYOUT := preload("res://scenes/BuildingComplex3/door_layout.gd")
 const INTERACTIVE_LADDER := preload("res://scenes/BuildingComplex3/interactive_ladder.gd")
 const LADDER_SCENE := preload("res://Assets/Models/Prefabs/ladder_2.tscn")
+const UPPER_FLOOR_SCENE := preload("res://scenes/BuildingComplex3/BuildingComplex3UpperFloor.tscn")
 const TILE_SIDE := 3.0
 const SHAFT_WIDTH := INTERACTIVE_LADDER.SHAFT_WIDTH
 const SHAFT_LINER_THICKNESS := 0.02
@@ -40,6 +41,62 @@ func _is_upper_floor_enabled() -> bool:
 	if GameConfig != null:
 		return GameConfig.spawner_enable_upper_floor
 	return true
+
+
+func sync_upper_floor_state(enable_upper: bool, seed_value: int) -> void:
+	if not _layout_built:
+		_build_layout(seed_value)
+		return
+	if building == null:
+		return
+
+	var upper_floor := building.get_node_or_null("SecondFloor") as Node3D
+	if not enable_upper:
+		if upper_floor != null:
+			building.remove_child(upper_floor)
+			upper_floor.queue_free()
+		var rooms_root := building.get_node_or_null("Rooms")
+		if rooms_root != null:
+			for room in rooms_root.get_children():
+				var marker := room.get_node_or_null("LadderSpawn")
+				if marker != null:
+					for c in marker.get_children():
+						if c.name == &"AccessLadder" or c is INTERACTIVE_LADDER:
+							marker.remove_child(c)
+							c.queue_free()
+		var roofs := building.get_node_or_null("Roofs")
+		if roofs != null:
+			for c in roofs.get_children():
+				if bool(c.get_meta("ladder_shaft_piece", false)):
+					roofs.remove_child(c)
+					c.queue_free()
+				elif bool(c.get_meta("hidden_for_ladder_shaft", false)):
+					c.remove_meta("hidden_for_ladder_shaft")
+					if c is Node3D:
+						(c as Node3D).visible = true
+					for sb in c.find_children("*", "StaticBody3D", true, false):
+						if sb is StaticBody3D:
+							(sb as StaticBody3D).collision_layer = int(sb.get_meta("orig_collision_layer", 1))
+	else:
+		var rng := RandomNumberGenerator.new()
+		rng.seed = seed_value ^ 0x4C4144
+		if upper_floor == null:
+			upper_floor = UPPER_FLOOR_SCENE.instantiate() as Node3D
+			upper_floor.name = "SecondFloor"
+			upper_floor.position = Vector3(0.0, 3.22, 0.0)
+			building.add_child(upper_floor)
+			var grid_size: Vector2i = building.get_meta("grid_size")
+			DOOR_LAYOUT.randomize_floor(upper_floor, grid_size, rng, min_doors_per_floor, max_doors_per_floor)
+		var has_ladders := false
+		var rooms_root := building.get_node_or_null("Rooms")
+		if rooms_root != null:
+			for room in rooms_root.get_children():
+				var marker := room.get_node_or_null("LadderSpawn")
+				if marker != null and marker.get_node_or_null("AccessLadder") != null:
+					has_ladders = true
+					break
+		if not has_ladders:
+			_spawn_ladders(rng)
 
 
 func _build_layout(seed_value: int) -> void:
@@ -129,13 +186,22 @@ func _replace_with_shaft_edges(tile: Node3D, ladder: INTERACTIVE_LADDER) -> void
 	_add_edge(tile, "East", Rect2(opening.end.x, -half_tile, half_tile - opening.end.x, TILE_SIDE))
 	_add_edge(tile, "North", Rect2(opening.position.x, -half_tile, opening.size.x, opening.position.y + half_tile))
 	_add_edge(tile, "South", Rect2(opening.position.x, opening.end.y, opening.size.x, half_tile - opening.end.y))
-	tile.get_parent().remove_child(tile)
-	tile.queue_free()
+	if tile.get_parent() != null and tile.get_parent().name == &"Roofs":
+		tile.set_meta("hidden_for_ladder_shaft", true)
+		tile.visible = false
+		for sb in tile.find_children("*", "StaticBody3D", true, false):
+			if sb is StaticBody3D:
+				sb.set_meta("orig_collision_layer", (sb as StaticBody3D).collision_layer)
+				(sb as StaticBody3D).collision_layer = 0
+	else:
+		tile.get_parent().remove_child(tile)
+		tile.queue_free()
 
 
 func _add_edge(tile: Node3D, suffix: String, strip: Rect2) -> void:
 	var edge := tile.duplicate() as Node3D
 	edge.name = String(tile.name) + "_Shaft" + suffix
+	edge.set_meta("ladder_shaft_piece", true)
 	var center := strip.get_center()
 	var basis := Basis.from_scale(Vector3(strip.size.x / TILE_SIDE, 1.0, strip.size.y / TILE_SIDE))
 	edge.transform = tile.transform * Transform3D(basis, Vector3(center.x, 0.0, center.y))
