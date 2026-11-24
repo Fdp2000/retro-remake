@@ -293,7 +293,8 @@ func sync_rival_rigs() -> void:
 			if owner_world != null and vp.world_3d != owner_world:
 				vp.world_3d = owner_world
 		if cam != null:
-			cam.cull_mask = all_layers & ~layer_bit
+			var fp_only_bit: int = GameConfig.VISUAL_LAYER_LOCAL_FP_BODY if GameConfig != null else (1 << 14)
+			cam.cull_mask = all_layers & ~layer_bit & ~fp_only_bit
 
 
 func update_rival_camera_transforms() -> void:

@@ -47,6 +47,7 @@ const VISUAL_LAYER_WORLD: int = 1 << 0                # Layer 1: World geometry,
 const VISUAL_LAYER_LOCAL_SPY_BODY: int = 1 << 10      # Layer 11: Local spy's own Head/Eyes/Body (hidden from local cam, visible to rival CRT cam)
 const VISUAL_LAYER_REMOTE_SPY_BASE_BIT: int = 11      # Layers 12-14 (bits 11..13): Up to 3 remote rivals' Head/Eyes/Body
 const VISUAL_LAYER_REMOTE_SPY_SLOTS: int = 3
+const VISUAL_LAYER_LOCAL_FP_BODY: int = 1 << 14       # Layer 15: Dedicated pushed-back 1st-person body copy (local cam only)
 
 
 static func get_remote_spy_visual_layer(slot_index: int) -> int:
@@ -204,6 +205,7 @@ static func get_spy_role_badge_color(role: int) -> Color:
 @export var club_overcharge_stumble_duration: float = 2.5
 @export var club_charge_exit_lerp_duration: float = 0.40
 @export var debug_club_hit_gizmo: bool = false
+@export var debug_disable_match_timer: bool = false
 
 @export var ko_ragdoll_duration: float = 15.0
 @export var ko_wakeup_blend_duration: float = 0.35
