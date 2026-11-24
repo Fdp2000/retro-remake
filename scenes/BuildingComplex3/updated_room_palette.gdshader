@@ -1,5 +1,4 @@
 shader_type spatial;
-render_mode unshaded;
 
 uniform sampler2D wall_blue : source_color, filter_linear_mipmap, repeat_disable;
 uniform sampler2D wall_green : source_color, filter_linear_mipmap, repeat_disable;
@@ -44,4 +43,6 @@ void fragment() {
 	float along_wall = abs(wall_tangent.x) > abs(wall_tangent.y) ? room_uv.x : room_uv.y;
 	vec2 wall_uv = vec2(along_wall, 1.0 - room_surface.y / 3.0);
 	ALBEDO = sample_wall(wall_variants[room], wall_uv, dFdx(wall_uv), dFdy(wall_uv));
+	ROUGHNESS = 1.0;
+	SPECULAR = 0.0;
 }

@@ -19,6 +19,7 @@ background_mode = 2
 sky = SubResource("Sky_unxgw")
 ambient_light_source = 3
 reflected_light_source = 2
+ssao_enabled = true
 
 [node name="TestGym" type="Node3D" unique_id=93966209]
 script = ExtResource("1_cppg0")
@@ -27,7 +28,7 @@ script = ExtResource("1_cppg0")
 environment = SubResource("Environment_63yqs")
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=1645396586]
-transform = Transform3D(0.8320503, -0.4122226, 0.37116688, 0, 0.6691306, 0.7431448, -0.5547002, -0.6183339, 0.5567503, 0, 10, 0)
+transform = Transform3D(0.70710677, -0.29883623, 0.6408564, 0, 0.9063078, 0.42261827, -0.70710677, -0.29883623, 0.6408564, 0, 10, 0)
 shadow_enabled = true
 
 [node name="Players" type="Node3D" parent="." unique_id=69997764]

@@ -1,5 +1,6 @@
 [gd_scene format=3 uid="uid://4vgovubnuvh"]
 
+[ext_resource type="PackedScene" path="res://Assets/Models/Prefabs/ceiling_fan.tscn" id="ceiling_fan"]
 [ext_resource type="Material" path="res://scenes/BuildingComplex2/ComplexClearGlass.tres" id="3_whg7k"]
 [ext_resource type="Shader" uid="uid://u2le7vmonyfk" path="res://scenes/BuildingComplex3/updated_room_palette.gdshader" id="4_dmn8s"]
 [ext_resource type="Texture2D" uid="uid://5nvn5c7ixwi4" path="res://Assets/Models/Import/Interiors_A/texture/Updated_Textures/Texture_Floor.png" id="5_ryetv"]
@@ -110,6 +111,9 @@ metadata/room_id = "Room_1_1"
 metadata/room_size = Vector2(9, 9)
 metadata/palette_name = "Midnight Blue"
 metadata/office_use = "Director’s office"
+
+[node name="CeilingFan" parent="Rooms/Room_1_1" instance=ExtResource("ceiling_fan")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3.01, 0)
 
 [node name="MatchDrawerSpawnPoints" type="Node3D" parent="Rooms/Room_1_1" unique_id=212634400]
 
@@ -229,6 +233,9 @@ metadata/room_id = "Room_1_2"
 metadata/room_size = Vector2(9, 9)
 metadata/palette_name = "Pistachio"
 metadata/office_use = "Open-plan workroom"
+
+[node name="CeilingFan" parent="Rooms/Room_1_2" instance=ExtResource("ceiling_fan")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3.01, 0)
 
 [node name="MatchDrawerSpawnPoints" type="Node3D" parent="Rooms/Room_1_2" unique_id=2100200229]
 
@@ -469,6 +476,9 @@ metadata/room_size = Vector2(9, 9)
 metadata/palette_name = "Oxblood"
 metadata/office_use = "Accounts office"
 
+[node name="CeilingFan" parent="Rooms/Room_1_4" instance=ExtResource("ceiling_fan")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3.01, 0)
+
 [node name="MatchDrawerSpawnPoints" type="Node3D" parent="Rooms/Room_1_4" unique_id=729127395]
 
 [node name="DrawerSpawn_1" type="Marker3D" parent="Rooms/Room_1_4/MatchDrawerSpawnPoints" unique_id=929807573]
@@ -575,6 +585,9 @@ metadata/room_id = "Room_2_1"
 metadata/room_size = Vector2(9, 9)
 metadata/palette_name = "Powder Peach"
 metadata/office_use = "Staff lounge"
+
+[node name="CeilingFan" parent="Rooms/Room_2_1" instance=ExtResource("ceiling_fan")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3.01, 0)
 
 [node name="MatchDrawerSpawnPoints" type="Node3D" parent="Rooms/Room_2_1" unique_id=969819318]
 
@@ -811,6 +824,9 @@ metadata/room_id = "Room_2_3"
 metadata/room_size = Vector2(9, 9)
 metadata/palette_name = "Aqua Glass"
 metadata/office_use = "Design review office"
+
+[node name="CeilingFan" parent="Rooms/Room_2_3" instance=ExtResource("ceiling_fan")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3.01, 0)
 
 [node name="MatchDrawerSpawnPoints" type="Node3D" parent="Rooms/Room_2_3" unique_id=1501794435]
 
@@ -1146,6 +1162,9 @@ metadata/room_size = Vector2(9, 9)
 metadata/palette_name = "Blue Spruce"
 metadata/office_use = "Team lead office"
 
+[node name="CeilingFan" parent="Rooms/Room_3_2" instance=ExtResource("ceiling_fan")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3.01, 0)
+
 [node name="MatchDrawerSpawnPoints" type="Node3D" parent="Rooms/Room_3_2" unique_id=829025060]
 
 [node name="DrawerSpawn_1" type="Marker3D" parent="Rooms/Room_3_2/MatchDrawerSpawnPoints" unique_id=602363225]
@@ -1360,6 +1379,9 @@ metadata/room_id = "Room_3_4"
 metadata/room_size = Vector2(9, 9)
 metadata/palette_name = "Warm Graphite"
 metadata/office_use = "Executive conference room"
+
+[node name="CeilingFan" parent="Rooms/Room_3_4" instance=ExtResource("ceiling_fan")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3.01, 0)
 
 [node name="MatchDrawerSpawnPoints" type="Node3D" parent="Rooms/Room_3_4" unique_id=2127126973]
 

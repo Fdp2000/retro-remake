@@ -36,7 +36,8 @@ func _plain_material(category: String) -> StandardMaterial3D:
 	if not _plain_materials.has(category):
 		var material := StandardMaterial3D.new()
 		material.albedo_texture = FLOOR_TEXTURE if category == "floor" else CEILING_TEXTURE
-		material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		material.roughness = 1.0
+		material.metallic_specular = 0.0
 		_plain_materials[category] = material
 	return _plain_materials[category]
 
