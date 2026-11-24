@@ -1246,10 +1246,10 @@ transform = Transform3D(0.34202015, 0, -0.9396926, 0, 1, 0, 0.9396926, 0, 0.3420
 transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 1.44, 0, 3.75)
 
 [node name="SE_ReviewChair" parent="Rooms/Room_3_2" unique_id=663920485 instance=ExtResource("furn_chair_a")]
-transform = Transform3D(0.81915206, 0, 0.57357645, 0, 1, 0, -0.57357645, 0, 0.81915206, 1.95, 0, 1.87)
+transform = Transform3D(0.81915206, 0, 0.57357645, 0, 1, 0, -0.57357645, 0, 0.81915206, 1.95, 0, 3.3218966)
 
 [node name="NE_Rug" parent="Rooms/Room_3_2" unique_id=680869822 instance=ExtResource("furn_carpet_a")]
-transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 0.37059307, 0.015, -0.6782005)
+transform = Transform3D(-3.059797e-08, 0, 0.7, 0, 0.7, 0, -0.7, 0, -3.059797e-08, 0.37059307, 0.015, -0.6782005)
 
 [node name="Room_3_3" type="Node3D" parent="Rooms" unique_id=1717325374]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.5, 0, 4.5)

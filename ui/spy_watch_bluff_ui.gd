@@ -53,6 +53,54 @@ class PlayerMapMarker extends Control:
 		show()
 
 
+class RoomInk extends Control:
+	var strokes: Array
+	var _drawing := false
+
+	func _draw() -> void:
+		for stroke: PackedVector2Array in strokes:
+			var points := PackedVector2Array()
+			for point in stroke:
+				points.append(point * size)
+			if points.size() == 1:
+				draw_circle(points[0], 1.8, Color("#ffd376"), true, -1.0, true)
+			elif points.size() > 1:
+				draw_polyline(points, Color("#ffd376"), 2.8, true)
+
+	func handle_input(event: InputEvent) -> bool:
+		if event is InputEventMouseButton:
+			if event.button_index == MOUSE_BUTTON_RIGHT and event.pressed:
+				_drawing = false
+				strokes.clear()
+				queue_redraw()
+				return true
+			if event.button_index == MOUSE_BUTTON_LEFT:
+				_drawing = event.pressed
+				if _drawing:
+					strokes.append(PackedVector2Array())
+					_append_point(event.position)
+				return true
+		elif event is InputEventMouseMotion and _drawing:
+			if (event.button_mask & MOUSE_BUTTON_MASK_LEFT) == 0:
+				_drawing = false
+				return false
+			_append_point(event.position)
+			return true
+		return false
+
+	func _append_point(local_position: Vector2) -> void:
+		var point := (local_position / size.max(Vector2.ONE)).clamp(Vector2.ZERO, Vector2.ONE)
+		var index := strokes.size() - 1
+		var stroke: PackedVector2Array = strokes[index]
+		if stroke.is_empty() or ((stroke[-1] - point) * size).length_squared() >= 2.25:
+			stroke.append(point)
+			strokes[index] = stroke
+			queue_redraw()
+
+
+var _room_ink: Dictionary[String, Array] = {}
+var _ink_layers: Array[RoomInk] = []
+var _active_ink: RoomInk
 var _player: Node = null
 var _selected_cue_idx: int = 0
 var _status_lbl: Label = null
@@ -69,6 +117,25 @@ func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_build_layout()
 	set_process(is_map_open)
+	set_process_input(is_map_open)
+
+
+func _input(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.pressed:
+		if event.button_index != MOUSE_BUTTON_LEFT and event.button_index != MOUSE_BUTTON_RIGHT:
+			return
+		for ink in _ink_layers:
+			var local_event := ink.make_input_local(event) as InputEventMouseButton
+			if Rect2(Vector2.ZERO, ink.size).has_point(local_event.position):
+				ink.handle_input(local_event)
+				_active_ink = ink if event.button_index == MOUSE_BUTTON_LEFT else null
+				get_viewport().set_input_as_handled()
+				return
+	elif _active_ink != null and event is InputEventMouse:
+		if _active_ink.handle_input(_active_ink.make_input_local(event)):
+			get_viewport().set_input_as_handled()
+		if (event.button_mask & MOUSE_BUTTON_MASK_LEFT) == 0:
+			_active_ink = null
 
 
 func _process(_delta: float) -> void:
@@ -138,6 +205,12 @@ func _build_layout() -> void:
 	content.add_theme_constant_override("separation", 12)
 	margin.add_child(content)
 
+	var ink_hint := Label.new()
+	ink_hint.text = "Left-drag to draw · Right-click to clear a room"
+	ink_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	ink_hint.add_theme_font_size_override("font_size", 12)
+	content.add_child(ink_hint)
+
 	_floor_maps = VBoxContainer.new()
 	_floor_maps.add_theme_constant_override("separation", 18)
 	content.add_child(_floor_maps)
@@ -171,6 +244,8 @@ func set_map_open(opened: bool) -> void:
 		_build_layout()
 	_map_panel.visible = opened
 	set_process(opened)
+	set_process_input(opened)
+	_active_ink = null
 	if opened:
 		_rebuild_room_buttons()
 
@@ -182,6 +257,7 @@ func _refresh_labels() -> void:
 
 func _rebuild_room_buttons() -> void:
 	_player_markers.clear()
+	_ink_layers.clear()
 	_upper_floor = null
 	for child in _floor_maps.get_children():
 		_floor_maps.remove_child(child)
@@ -249,7 +325,7 @@ func _build_floor_map(title: String, level: Node, ground: Node, size_in_rooms: V
 				var room := level.get_node_or_null("Rooms/" + room_name) as Node3D if level != null else null
 				var has_ladder := ground != null and ground.has_node("Rooms/" + room_name + "/LadderSpawn/AccessLadder")
 				var fallback_pos := Vector3((room_x - 1) * 9.0, 0.0, (room_z - 1) * 9.0)
-				var button := _make_room_button(room, has_ladder, fallback_pos)
+				var button := _make_room_button(room, has_ladder, title + "/" + room_name)
 				grid.add_child(button)
 				if marker.first_button == null:
 					marker.first_button = button
@@ -275,7 +351,7 @@ func _build_floor_map(title: String, level: Node, ground: Node, size_in_rooms: V
 	map_area.custom_minimum_size = grid.get_combined_minimum_size()
 
 
-func _make_room_button(room: Node3D, has_ladder: bool, fallback_pos: Vector3) -> Button:
+func _make_room_button(room: Node3D, has_ladder: bool, ink_key: String) -> Button:
 	var btn := Button.new()
 	btn.focus_mode = Control.FOCUS_NONE
 	btn.custom_minimum_size = Vector2(69, 44)
@@ -294,11 +370,15 @@ func _make_room_button(room: Node3D, has_ladder: bool, fallback_pos: Vector3) ->
 		btn.add_theme_stylebox_override("hover", hover)
 		btn.add_theme_stylebox_override("pressed", hover)
 
-	var target := room.global_position if room != null else fallback_pos
-	btn.pressed.connect(func():
-		if is_instance_valid(_player) and _player.has_method("emit_watch_bluff"):
-			_player.emit_watch_bluff(get_selected_cue_id(), target)
-		set_map_open(false)
-		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
-	)
+	if not _room_ink.has(ink_key):
+		_room_ink[ink_key] = []
+	var ink := RoomInk.new()
+	ink.name = "RoomInk"
+	ink.strokes = _room_ink[ink_key]
+	ink.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ink.clip_contents = true
+	btn.add_child(ink)
+	ink.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_ink_layers.append(ink)
+
 	return btn

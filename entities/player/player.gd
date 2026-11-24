@@ -3544,8 +3544,16 @@ func _release_ladder() -> void:
 	_active_ladder = null
 
 
+func _can_walk_with_map() -> bool:
+	if _watch_bluff_ui == null or not _watch_bluff_ui.is_map_open:
+		return false
+	var scene := get_tree().current_scene
+	var esc_menu: Variant = scene.get("esc_menu") if scene != null else null
+	return not (esc_menu is CanvasItem and esc_menu.visible)
+
+
 func _move_on_ladder(delta: float) -> void:
-	if Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
+	if Input.mouse_mode != Input.MOUSE_MODE_CAPTURED and not _can_walk_with_map():
 		return
 	var up := Input.is_action_pressed("move_forward") or Input.is_physical_key_pressed(KEY_W)
 	var down := Input.is_action_pressed("move_back") or Input.is_physical_key_pressed(KEY_S)
@@ -3614,11 +3622,11 @@ func _physics_process(delta: float) -> void:
 			head.rotation.x = lerp_angle(head.rotation.x, head_pitch, 20.0 * delta)
 		return
 
-	var controls_captured: bool = (
-		Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
-		and (MatchManager == null or MatchManager.match_state != MatchManager.MatchState.ENDED)
+	var movement_allowed: bool = (
+		(MatchManager == null or MatchManager.match_state != MatchManager.MatchState.ENDED)
 		and not is_clock_eliminated
 	)
+	var controls_captured := movement_allowed and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
 	var aiming_dart: bool = _is_aiming_dart_gun()
 	var wants_crouch: bool = (stance_state == crouch_val) if aiming_dart else (
 		controls_captured and (
@@ -3654,7 +3662,7 @@ func _physics_process(delta: float) -> void:
 		velocity.y = GameConfig.jump_velocity if GameConfig != null else jump_velocity
 
 	var input_dir: Vector2 = Vector2.ZERO
-	if controls_captured and not aiming_dart:
+	if movement_allowed and (controls_captured or _can_walk_with_map()) and not aiming_dart:
 		if InputMap.has_action("move_forward") and InputMap.has_action("move_left"):
 			input_dir = Input.get_vector("move_left", "move_right", "move_forward", "move_back")
 		else:
