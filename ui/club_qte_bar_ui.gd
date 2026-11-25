@@ -6,16 +6,19 @@ extends Control
 ## Fills over 2.71s with randomized 9% Green Sweet-Spot (55%–75%) and 100% Overcharge penalty.
 
 const BAR_SIZE := Vector2(320.0, 24.0)
+const PRE_RED_WIDTH: float = 0.08
 
 var charge_ratio: float = 0.0
 var charge_elapsed: float = 0.0
 var green_start: float = 0.60
 var green_width: float = 0.09
+var pre_red_start: float = 0.52
 var is_charging: bool = false
 
 var _bar_container: PanelContainer = null
 var _track_bg: ColorRect = null
 var _green_zone: ColorRect = null
+var _pre_overcharge_zone: ColorRect = null
 var _overcharge_cap: ColorRect = null
 var _cursor_rect: ColorRect = null
 var _outcome_label: Label = null
@@ -54,6 +57,11 @@ func _build_visual() -> void:
 	_green_zone.color = Color(0.22, 0.88, 0.34, 0.95)
 	_green_zone.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_track_bg.add_child(_green_zone)
+
+	_pre_overcharge_zone = ColorRect.new()
+	_pre_overcharge_zone.color = Color(0.92, 0.20, 0.18, 0.95)
+	_pre_overcharge_zone.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_track_bg.add_child(_pre_overcharge_zone)
 
 	_overcharge_cap = ColorRect.new()
 	_overcharge_cap.color = Color(0.92, 0.20, 0.18, 0.95)
@@ -101,8 +109,15 @@ func begin_charge(fixed_green_start: float = -1.0) -> void:
 	charge_elapsed = 0.0
 	is_charging = true
 
+	var green_end: float = minf(green_start + green_width, 1.0)
+	pre_red_start = maxf(green_start - PRE_RED_WIDTH, 0.0)
+
+	_pre_overcharge_zone.position = Vector2(pre_red_start * BAR_SIZE.x, 0.0)
+	_pre_overcharge_zone.size = Vector2((green_start - pre_red_start) * BAR_SIZE.x, BAR_SIZE.y)
 	_green_zone.position = Vector2(green_start * BAR_SIZE.x, 0.0)
 	_green_zone.size = Vector2(green_width * BAR_SIZE.x, BAR_SIZE.y)
+	_overcharge_cap.position = Vector2(green_end * BAR_SIZE.x, 0.0)
+	_overcharge_cap.size = Vector2(maxf(1.0 - green_end, 0.0) * BAR_SIZE.x, BAR_SIZE.y)
 	_cursor_rect.position.x = 0.0
 	_bar_container.visible = true
 
@@ -140,6 +155,8 @@ func evaluate_release() -> String:
 		return "OVERCHARGE"
 	if charge_ratio >= green_start and charge_ratio <= (green_start + green_width):
 		return "KO_SLAM"
+	if charge_ratio >= pre_red_start:
+		return "OVERCHARGE"
 	return "WHIFF"
 
 

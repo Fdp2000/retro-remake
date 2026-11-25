@@ -11,6 +11,17 @@ static func randomize_floor(floor: Node3D, grid_size: Vector2i, rng: RandomNumbe
 	return selected.size()
 
 
+static func get_all_boundaries(grid_size: Vector2i) -> Array[String]:
+	var result: Array[String] = []
+	for boundary in range(1, grid_size.x):
+		for row in range(grid_size.y):
+			result.append("Vertical_%d_%d" % [boundary, row])
+	for boundary in range(1, grid_size.y):
+		for column in range(grid_size.x):
+			result.append("Horizontal_%d_%d" % [boundary, column])
+	return result
+
+
 static func select_doorways(grid_size: Vector2i, rng: RandomNumberGenerator, min_doors: int, max_doors: int, reserved_boundary: String = "") -> Array[String]:
 	var connections: Dictionary[String, Vector2i] = {}
 	for boundary in range(1, grid_size.x):

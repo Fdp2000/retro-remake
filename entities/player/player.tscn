@@ -2,6 +2,7 @@
 
 [ext_resource type="Script" uid="uid://cgaldtw48igda" path="res://entities/player/player.gd" id="1_symyc"]
 [ext_resource type="Script" uid="uid://cy774ryr4ty6j" path="res://entities/player/spy_inventory_component.gd" id="2_inv"]
+[ext_resource type="Script" path="res://ui/inventory_slot_bar_ui.gd" id="3_slotbar"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_abrql"]
 radius = 0.4
@@ -160,36 +161,14 @@ anchor_left = 0.5
 anchor_top = 1.0
 anchor_right = 0.5
 anchor_bottom = 1.0
-offset_left = -460.0
-offset_top = -54.0
-offset_right = 460.0
+offset_left = -190.0
+offset_top = -90.0
+offset_right = 190.0
 offset_bottom = -14.0
 grow_horizontal = 2
 grow_vertical = 0
 mouse_filter = 2
-
-[node name="HBox" type="HBoxContainer" parent="HUD/StatusBar" unique_id=1812345610]
-layout_mode = 2
-theme_override_constants/separation = 24
-alignment = 1
-
-[node name="LeftHandLabel" type="Label" parent="HUD/StatusBar/HBox" unique_id=1812345611]
-layout_mode = 2
-size_flags_horizontal = 3
-text = "LEFT [Q]: Empty"
-horizontal_alignment = 1
-
-[node name="StanceLabel" type="Label" parent="HUD/StatusBar/HBox" unique_id=1812345612]
-layout_mode = 2
-size_flags_horizontal = 3
-text = "WALK (4.5 m/s)"
-horizontal_alignment = 1
-
-[node name="RightHandLabel" type="Label" parent="HUD/StatusBar/HBox" unique_id=1812345613]
-layout_mode = 2
-size_flags_horizontal = 3
-text = "COAT [1-3/G]: [-- | -- | --]  [4/R]: Club (Back)"
-horizontal_alignment = 1
+script = ExtResource("3_slotbar")
 
 [node name="ClockPanel" type="PanelContainer" parent="HUD" unique_id=1812345615]
 offset_left = 20.0

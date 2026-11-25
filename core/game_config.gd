@@ -106,6 +106,11 @@ static func get_spy_role_badge_color(role: int) -> Color:
 		mouse_sensitivity_multiplier = clampf(value, 0.10, 4.00)
 		mouse_settings_changed.emit(get_effective_mouse_sensitivity())
 
+var master_volume: float = 1.0
+var music_volume: float = 1.0
+var voice_volume: float = 1.0
+var audio_input_device: String = "Default"
+
 # ==========================================
 # Doc 2: Locomotion, Stances & Reach [TUNABLE]
 # ==========================================
@@ -133,6 +138,7 @@ static func get_spy_role_badge_color(role: int) -> Color:
 @export_group("Match & Timer Economy")
 @export var starting_clock_seconds: float = 180.0
 @export var drawer_first_search_bonus_seconds: float = 10.0
+@export var ko_reward_bonus_seconds: float = 15.0
 @export var starting_prearmed_traps: int = 0
 @export var required_objectives_count: int = 4
 
@@ -185,6 +191,7 @@ static func get_spy_role_badge_color(role: int) -> Color:
 @export var time_bomb_fuse_max: float = 3.5
 @export var debug_long_bomb_fuse: bool = false
 @export var debug_long_bomb_fuse_seconds: float = 8.0
+@export var debug_show_airport_exit: bool = false
 @export var time_bomb_throw_distance: float = 9.0
 @export var time_bomb_throw_speed: float = 9.5
 @export var time_bomb_blast_radius: float = 5.7
@@ -203,14 +210,14 @@ static func get_spy_role_badge_color(role: int) -> Color:
 @export var club_green_zone_min_start: float = 0.55
 @export var club_green_zone_max_start: float = 0.75
 @export var club_melee_range: float = 2.0
-@export var club_overcharge_stumble_duration: float = 2.5
+@export var club_overcharge_stumble_duration: float = 5.0
 @export var club_charge_exit_lerp_duration: float = 0.40
 @export var debug_club_hit_gizmo: bool = false
 @export var debug_disable_match_timer: bool = false
 
 @export var ko_ragdoll_duration: float = 15.0
 @export var ko_wakeup_blend_duration: float = 0.35
-@export var ko_wakeup_immunity_duration: float = 2.0
+@export var ko_wakeup_immunity_duration: float = 2.6
 @export var ko_drop_scatter_speed: float = 1.5
 
 # ==========================================
@@ -222,11 +229,11 @@ static func get_spy_role_badge_color(role: int) -> Color:
 @export var audio_radius_crouch: float = 0.0
 @export var audio_radius_jump: float = 4.0
 @export var audio_radius_jump_land: float = 5.0
-@export var audio_radius_door_fast: float = 8.0
+@export var audio_radius_door_fast: float = 5.0
 @export var audio_radius_door_bash: float = 14.0
-@export var audio_radius_door_close: float = 5.0
+@export var audio_radius_door_close: float = 4.0
 @export var audio_radius_bucket_spill: float = 12.0
-@export var audio_radius_drawer_fast: float = 10.0
+@export var audio_radius_drawer_fast: float = 12.0
 @export var audio_radius_trap_setup: float = 5.0
 @export var audio_radius_bucket_arm: float = 4.0
 @export var audio_radius_bomb_arm: float = 3.0
@@ -242,16 +249,24 @@ static func get_spy_role_badge_color(role: int) -> Color:
 @export var audio_radius_bluff: float = 12.0
 @export var audio_radius_sneeze: float = 22.0
 @export var audio_radius_player_ko: float = 42.0
+@export var audio_radius_giggle: float = 6.0
+@export var audio_radius_club_hit: float = 38.0
+@export var audio_radius_club_miss: float = 6.0
 
 @export var bluff_mode: int = BluffMode.MAP_PROJECTOR
 @export var show_enemy_room_blip: bool = false
 
-@export var crt_replay_fps: int = 12
-@export var crt_replay_duration: float = 3.0
-@export var crt_replay_frame_count: int = 36
-@export var crt_viewport_size: Vector2i = Vector2i(240, 135)
-## Seconds of live post-impact ragdoll footage appended onto the 3.0s CRT replay after the trap hits.
-@export var crt_replay_post_hit_seconds: float = 1.0
+@export var crt_replay_fps: int = 24
+@export var crt_replay_duration: float = 4.0
+@export var crt_replay_frame_count: int = 96
+@export var crt_viewport_size: Vector2i = Vector2i(426, 240)
+@export var crt_display_size: Vector2 = Vector2(288.0, 162.0)
+@export var crt_replay_max_queue: int = 4
+@export var crt_archive_enabled: bool = true
+@export var crt_archive_max_clips: int = 8
+@export var crt_totg_delay_seconds: float = 3.5
+## Seconds of live post-impact ragdoll footage appended onto the CRT replay after the trap hits.
+@export var crt_replay_post_hit_seconds: float = 2.5
 
 @export var anti_camp_warning_seconds: float = 15.0
 @export var anti_camp_sneeze_seconds: float = 20.0
@@ -307,6 +322,7 @@ const PLAYER_COUNT_SPAWNER_PRESETS: Dictionary = {
 		"enable_upper_floor": false,
 		"starting_clock_seconds": 180.0,
 		"drawer_first_search_bonus_seconds": 10.0,
+		"ko_reward_bonus_seconds": 15.0,
 		"min_containers": 16,
 		"max_containers": 22,
 		"max_drawers_per_room": 2,
@@ -340,6 +356,7 @@ const PLAYER_COUNT_SPAWNER_PRESETS: Dictionary = {
 		"enable_upper_floor": true,
 		"starting_clock_seconds": 210.0,
 		"drawer_first_search_bonus_seconds": 10.0,
+		"ko_reward_bonus_seconds": 15.0,
 		"min_containers": 30,
 		"max_containers": 38,
 		"max_drawers_per_room": 2,
@@ -373,6 +390,7 @@ const PLAYER_COUNT_SPAWNER_PRESETS: Dictionary = {
 		"enable_upper_floor": true,
 		"starting_clock_seconds": 240.0,
 		"drawer_first_search_bonus_seconds": 12.0,
+		"ko_reward_bonus_seconds": 15.0,
 		"min_containers": 36,
 		"max_containers": 44,
 		"max_drawers_per_room": 3,
@@ -432,20 +450,65 @@ func set_mouse_settings(new_dpi: int, new_multiplier: float, persist: bool = tru
 	mouse_settings_changed.emit(get_effective_mouse_sensitivity())
 
 
+func set_audio_settings(new_master: float, new_music: float, new_voice: float, new_input_device: String, persist: bool = true) -> void:
+	master_volume = clampf(new_master, 0.0, 1.0)
+	music_volume = clampf(new_music, 0.0, 1.0)
+	voice_volume = clampf(new_voice, 0.0, 1.0)
+	if new_input_device != "":
+		audio_input_device = new_input_device
+	apply_audio_settings()
+	if persist:
+		save_user_settings()
+
+
+func apply_audio_settings() -> void:
+	if Engine.is_editor_hint() or DisplayServer.get_name() == "headless":
+		return
+	if AudioServer.get_bus_index(&"Music") == -1:
+		var m_idx: int = AudioServer.bus_count
+		AudioServer.add_bus(m_idx)
+		AudioServer.set_bus_name(m_idx, &"Music")
+		AudioServer.set_bus_send(m_idx, &"Master")
+	_apply_bus_volume(&"Master", master_volume)
+	_apply_bus_volume(&"Music", music_volume)
+	_apply_bus_volume(&"Voice", voice_volume)
+	if audio_input_device != "" and AudioServer.get_input_device_list().has(audio_input_device):
+		if AudioServer.get_input_device() != audio_input_device:
+			AudioServer.set_input_device(audio_input_device)
+
+
+func _apply_bus_volume(bus_name: StringName, linear_vol: float) -> void:
+	var idx: int = AudioServer.get_bus_index(bus_name)
+	if idx == -1:
+		return
+	AudioServer.set_bus_mute(idx, linear_vol <= 0.001)
+	AudioServer.set_bus_volume_db(idx, linear_to_db(maxf(linear_vol, 0.0001)))
+
+
 func save_user_settings(path: String = USER_SETTINGS_PATH) -> Error:
 	var cfg := ConfigFile.new()
 	cfg.load(path)
 	cfg.set_value("mouse", "dpi", mouse_dpi)
 	cfg.set_value("mouse", "sensitivity_multiplier", mouse_sensitivity_multiplier)
+	cfg.set_value("audio", "master_volume", master_volume)
+	cfg.set_value("audio", "music_volume", music_volume)
+	cfg.set_value("audio", "voice_volume", voice_volume)
+	cfg.set_value("audio", "input_device", audio_input_device)
 	return cfg.save(path)
 
 
 func load_user_settings(path: String = USER_SETTINGS_PATH) -> bool:
 	var cfg := ConfigFile.new()
 	if cfg.load(path) != OK:
+		apply_audio_settings()
 		return false
 	mouse_dpi = int(cfg.get_value("mouse", "dpi", 800))
 	mouse_sensitivity_multiplier = float(cfg.get_value("mouse", "sensitivity_multiplier", 1.0))
+	master_volume = clampf(float(cfg.get_value("audio", "master_volume", 1.0)), 0.0, 1.0)
+	music_volume = clampf(float(cfg.get_value("audio", "music_volume", 1.0)), 0.0, 1.0)
+	voice_volume = clampf(float(cfg.get_value("audio", "voice_volume", 1.0)), 0.0, 1.0)
+	audio_input_device = str(cfg.get_value("audio", "input_device", "Default"))
+	apply_audio_settings()
 	mouse_settings_changed.emit(get_effective_mouse_sensitivity())
 	return true
 
@@ -457,6 +520,7 @@ func get_spawner_config_dict() -> Dictionary:
 		"enable_upper_floor": spawner_enable_upper_floor,
 		"starting_clock_seconds": starting_clock_seconds,
 		"drawer_first_search_bonus_seconds": drawer_first_search_bonus_seconds,
+		"ko_reward_bonus_seconds": ko_reward_bonus_seconds,
 		"min_containers": spawner_min_containers,
 		"max_containers": spawner_max_containers,
 		"min_drawers": spawner_min_containers,
@@ -517,6 +581,8 @@ func apply_spawner_config_dict(cfg_dict: Dictionary) -> void:
 		starting_clock_seconds = clampf(float(cfg_dict["starting_clock_seconds"]), 30.0, 900.0)
 	if cfg_dict.has("drawer_first_search_bonus_seconds"):
 		drawer_first_search_bonus_seconds = clampf(float(cfg_dict["drawer_first_search_bonus_seconds"]), 0.0, 120.0)
+	if cfg_dict.has("ko_reward_bonus_seconds"):
+		ko_reward_bonus_seconds = clampf(float(cfg_dict["ko_reward_bonus_seconds"]), 0.0, 120.0)
 
 	if cfg_dict.has("min_containers"):
 		spawner_min_containers = maxi(int(cfg_dict["min_containers"]), 5)
@@ -625,6 +691,7 @@ func apply_spawner_config_dict(cfg_dict: Dictionary) -> void:
 		"enable_upper_floor": spawner_enable_upper_floor,
 		"starting_clock_seconds": starting_clock_seconds,
 		"drawer_first_search_bonus_seconds": drawer_first_search_bonus_seconds,
+		"ko_reward_bonus_seconds": ko_reward_bonus_seconds,
 		"min_containers": spawner_min_containers,
 		"max_containers": spawner_max_containers,
 		"max_drawers_per_room": spawner_max_drawers_per_room,

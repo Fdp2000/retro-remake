@@ -238,13 +238,11 @@ func try_trip_spy(body: Node) -> bool:
 	if spy_pos.y >= base_y + wire_height - 0.10:
 		return false
 
-	_triggered_or_consumed = true
 	if AudioBridge != null:
 		var snap_rad: float = GameConfig.audio_radius_tripwire_snap if GameConfig != null else 38.0
 		AudioBridge.request_world_cue("tripwire_snap", _safe_global_pos() + Vector3(0.0, 0.35, 0.0), snap_rad, owner_peer_id)
 	if body.has_method("apply_trap_ko"):
 		body.apply_trap_ko("TRIPWIRE", owner_peer_id)
-	_consume_trap()
 	return true
 
 

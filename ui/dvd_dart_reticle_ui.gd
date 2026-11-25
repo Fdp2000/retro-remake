@@ -79,9 +79,11 @@ class CooldownCircleGraphic extends Control:
 var velocity: Vector2 = Vector2(226.27, 226.27)
 var _reticle_graphic: CrosshairGraphic = null
 var _cooldown_graphic: CooldownCircleGraphic = null
+var _prompt_label: Label = null
 var _corner_flash_timer: float = 0.0
 var is_reticle_active: bool = false
 var _cooldown_ratio: float = 0.0
+var _prompt_text: String = ""
 
 
 func _ready() -> void:
@@ -110,15 +112,30 @@ func _build_visual() -> void:
 		_cooldown_graphic.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		_cooldown_graphic.visible = false
 		add_child(_cooldown_graphic)
+	if _prompt_label == null:
+		_prompt_label = Label.new()
+		_prompt_label.name = "DartGunPromptLabel"
+		_prompt_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_prompt_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		_prompt_label.add_theme_font_size_override("font_size", 13)
+		_prompt_label.add_theme_color_override("font_color", Color(0.96, 0.92, 1.0, 0.92))
+		_prompt_label.add_theme_color_override("font_outline_color", OUTLINE_COLOR)
+		_prompt_label.add_theme_constant_override("outline_size", 4)
+		_prompt_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_prompt_label.visible = false
+		add_child(_prompt_label)
 
 
 func _refresh_visibility() -> void:
 	var cd_active: bool = _cooldown_ratio > 0.001
+	var prompt_active: bool = not _prompt_text.is_empty()
 	if _reticle_graphic != null:
 		_reticle_graphic.visible = is_reticle_active
 	if _cooldown_graphic != null:
 		_cooldown_graphic.visible = cd_active
-	visible = is_reticle_active or cd_active
+	if _prompt_label != null:
+		_prompt_label.visible = prompt_active
+	visible = is_reticle_active or cd_active or prompt_active
 
 
 func set_active(active: bool) -> void:
@@ -131,6 +148,16 @@ func set_active(active: bool) -> void:
 	_refresh_visibility()
 
 
+func _clamp_control_center(ctrl: Control, ctrl_size: Vector2, screen_center_pos: Vector2) -> void:
+	var bounds: Vector2 = get_viewport_rect().size if is_inside_tree() else Vector2(1280.0, 720.0)
+	if bounds.x < 100.0 or bounds.y < 100.0:
+		bounds = Vector2(1280.0, 720.0)
+	var top_left: Vector2 = screen_center_pos - ctrl_size * 0.5
+	top_left.x = clampf(top_left.x, 12.0, maxf(bounds.x - ctrl_size.x - 12.0, 12.0))
+	top_left.y = clampf(top_left.y, 12.0, maxf(bounds.y - ctrl_size.y - 12.0, 12.0))
+	ctrl.position = top_left
+
+
 func set_aim_cooldown(remaining: float, duration: float, screen_center_pos: Vector2) -> void:
 	if _cooldown_graphic == null:
 		_build_visual()
@@ -139,13 +166,22 @@ func set_aim_cooldown(remaining: float, duration: float, screen_center_pos: Vect
 	if _cooldown_graphic != null:
 		_cooldown_graphic.set_ratio(_cooldown_ratio)
 		if _cooldown_ratio > 0.001:
-			var bounds: Vector2 = get_viewport_rect().size if is_inside_tree() else Vector2(1280.0, 720.0)
-			if bounds.x < 100.0 or bounds.y < 100.0:
-				bounds = Vector2(1280.0, 720.0)
-			var top_left: Vector2 = screen_center_pos - COOLDOWN_SIZE * 0.5
-			top_left.x = clampf(top_left.x, 12.0, maxf(bounds.x - COOLDOWN_SIZE.x - 12.0, 12.0))
-			top_left.y = clampf(top_left.y, 12.0, maxf(bounds.y - COOLDOWN_SIZE.y - 12.0, 12.0))
-			_cooldown_graphic.position = top_left
+			_clamp_control_center(_cooldown_graphic, COOLDOWN_SIZE, screen_center_pos)
+	_refresh_visibility()
+
+
+func set_aim_prompt(prompt_text: String, screen_center_pos: Vector2, is_aiming: bool = false) -> void:
+	if _prompt_label == null:
+		_build_visual()
+	_prompt_text = prompt_text
+	if _prompt_label != null:
+		if not _prompt_text.is_empty():
+			if _prompt_label.text != _prompt_text:
+				_prompt_label.text = _prompt_text
+				_prompt_label.reset_size()
+			var col: Color = Color(1.0, 0.95, 0.72, 0.96) if is_aiming else Color(0.96, 0.92, 1.0, 0.92)
+			_prompt_label.add_theme_color_override("font_color", col)
+			_clamp_control_center(_prompt_label, _prompt_label.get_combined_minimum_size(), screen_center_pos)
 	_refresh_visibility()
 
 

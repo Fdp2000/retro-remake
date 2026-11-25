@@ -5,7 +5,7 @@ extends Node
 ## All gameplay scripts route acoustic cues through AudioBridge.play_world_cue(...)
 ## or AudioBridge.play_local_cue(...) instead of scattering raw AudioStreamPlayer3D calls.
 
-signal world_cue_emitted(cue_id: String, world_pos: Vector3, radius: float, source_peer_id: int)
+signal world_cue_emitted(cue_id: String, world_pos: Vector3, radius: float, source_peer_id: int, variant_seed: int)
 signal local_cue_emitted(cue_id: String)
 
 const EMITTER_POOL_SIZE: int = 16
@@ -36,7 +36,13 @@ const DEFAULT_CUE_ASSET_PATHS: Dictionary = {
 	"loot_sound": [
 		"res://Assets/SFX/Interact Sound/loot sound.wav",
 	],
+	"ui_click": [
+		"res://Assets/SFX/click1.wav",
+	],
 	"bucket_arm": [
+		"res://Assets/SFX/water bucket/BucketArm.wav",
+	],
+	"bomb_throw": [
 		"res://Assets/SFX/water bucket/BucketArm.wav",
 	],
 	"bucket_spill": [
@@ -46,6 +52,9 @@ const DEFAULT_CUE_ASSET_PATHS: Dictionary = {
 		"res://Assets/SFX/Bomb/BombArm.wav",
 	],
 	"spring_arm": [
+		"res://Assets/SFX/Spring/SpringArm.wav",
+	],
+	"spring_unlatch": [
 		"res://Assets/SFX/Spring/SpringArm.wav",
 	],
 	"tripwire_arm": [
@@ -63,6 +72,14 @@ const DEFAULT_CUE_ASSET_PATHS: Dictionary = {
 	"player_jump": [
 		"res://Assets/SFX/Player/PlayerJump.wav",
 	],
+	"player_giggle": [
+		"res://Assets/SFX/Player/PlayerGiggle_01.wav",
+		"res://Assets/SFX/Player/PlayerGiggle_02.wav",
+		"res://Assets/SFX/Player/PlayerGiggle_03.wav",
+		"res://Assets/SFX/Player/PlayerGiggle_04.wav",
+		"res://Assets/SFX/Player/PlayerGiggle_05.wav",
+		"res://Assets/SFX/Player/PlayerGiggle_06.wav",
+	],
 	"footstep_walk": [
 		"res://Assets/SFX/Player/ConcreteFootstep_01.wav",
 		"res://Assets/SFX/Player/ConcreteFootstep_02.wav",
@@ -75,6 +92,28 @@ const DEFAULT_CUE_ASSET_PATHS: Dictionary = {
 		"res://Assets/SFX/Player/ConcreteFootstep_03.wav",
 		"res://Assets/SFX/Player/ConcreteFootstep_04.wav",
 	],
+	"door_bash": [
+		"res://Assets/SFX/Door/DoorBash_01.wav",
+		"res://Assets/SFX/Door/DoorBash_02.wav",
+		"res://Assets/SFX/Door/DoorBash_03.wav",
+	],
+	"door_open": [
+		"res://Assets/SFX/Door/DoorOpen.wav",
+	],
+	"door_close": [
+		"res://Assets/SFX/Door/DoorClose.wav",
+	],
+	"drawer_slam": [
+		"res://Assets/SFX/Drawer/DrawerSlam_01.wav",
+		"res://Assets/SFX/Drawer/DrawerSlam_02.wav",
+	],
+	"club_slam": [
+		"res://Assets/SFX/Club/ClubBonk.wav",
+	],
+	"club_whoosh": [
+		"res://Assets/SFX/Club/ClubMiss_01.wav",
+		"res://Assets/SFX/Club/ClubMiss_02.wav",
+	],
 	"spring_trigger": [
 		"res://Assets/SFX/Spring/SpringTrigger_01.wav",
 		"res://Assets/SFX/Spring/SpringTrigger_02.wav",
@@ -84,11 +123,16 @@ const DEFAULT_CUE_ASSET_PATHS: Dictionary = {
 }
 
 const EXPLOSION_SMOKE_TEX: Texture2D = preload("res://Assets/Sprites/SmokeParticle.png")
+const MAIN_THEME_PATH: String = "res://Assets/SFX/Agent Main Theme.wav"
+const MUSIC_MENU_VOLUME_DB: float = 0.0
+const MUSIC_MATCH_VOLUME_DB: float = -18.0
+const MUSIC_FADE_SPEED: float = 2.0
 
 var _custom_sound_banks: Dictionary = {} # cue_id -> Array[AudioStream]
 var _emitter_pool: Array = []
 var _pool_cursor: int = 0
 var _local_player: AudioStreamPlayer = null
+var _music_player: AudioStreamPlayer = null
 var _cue_history: Array[Dictionary] = []
 var _explosion_smoke_mat: StandardMaterial3D = null
 var _explosion_spark_mat: StandardMaterial3D = null
@@ -99,6 +143,74 @@ func _ready() -> void:
 	if not Engine.is_editor_hint() and DisplayServer.get_name() != "headless":
 		_register_default_sound_banks()
 		_ensure_explosion_fx_resources()
+		_start_main_theme()
+		_setup_global_button_clicks.call_deferred()
+
+
+func _setup_global_button_clicks() -> void:
+	var tree: SceneTree = get_tree()
+	if tree == null:
+		return
+	if not tree.node_added.is_connected(_on_tree_node_added):
+		tree.node_added.connect(_on_tree_node_added)
+	if tree.root != null:
+		_wire_buttons_recursive(tree.root)
+
+
+func _wire_buttons_recursive(root: Node) -> void:
+	_on_tree_node_added(root)
+	for child in root.get_children():
+		_wire_buttons_recursive(child)
+
+
+func _on_tree_node_added(node: Node) -> void:
+	if node is BaseButton:
+		var btn: BaseButton = node as BaseButton
+		if not btn.pressed.is_connected(_on_ui_button_pressed):
+			btn.pressed.connect(_on_ui_button_pressed)
+
+
+func _on_ui_button_pressed() -> void:
+	play_local_cue("ui_click")
+
+
+func _process(delta: float) -> void:
+	if Engine.is_editor_hint() or _music_player == null or not is_instance_valid(_music_player):
+		return
+	var target_db: float = MUSIC_MATCH_VOLUME_DB if _is_in_match() else MUSIC_MENU_VOLUME_DB
+	_music_player.volume_db = lerpf(_music_player.volume_db, target_db, clampf(delta * MUSIC_FADE_SPEED, 0.0, 1.0))
+
+
+func _is_in_match() -> bool:
+	if MatchManager != null and MatchManager.match_state == MatchManager.MatchState.IN_PROGRESS:
+		return true
+	if get_tree() != null and get_tree().current_scene != null:
+		var scene_path: String = get_tree().current_scene.scene_file_path
+		if scene_path.contains("BuildingComplex") or scene_path.contains("test_gym"):
+			return true
+	return false
+
+
+func _start_main_theme() -> void:
+	if _music_player == null or not ResourceLoader.exists(MAIN_THEME_PATH):
+		return
+	var stream: AudioStream = load(MAIN_THEME_PATH) as AudioStream
+	if stream == null:
+		return
+	if stream is AudioStreamWAV:
+		var wav: AudioStreamWAV = stream as AudioStreamWAV
+		if wav.loop_mode != AudioStreamWAV.LOOP_DISABLED and wav.loop_end <= wav.loop_begin:
+			wav.loop_mode = AudioStreamWAV.LOOP_DISABLED
+	if not _music_player.finished.is_connected(_on_music_finished):
+		_music_player.finished.connect(_on_music_finished)
+	_music_player.stream = stream
+	_music_player.volume_db = MUSIC_MATCH_VOLUME_DB if _is_in_match() else MUSIC_MENU_VOLUME_DB
+	_music_player.play()
+
+
+func _on_music_finished() -> void:
+	if _music_player != null and is_instance_valid(_music_player) and _music_player.stream != null:
+		_music_player.play()
 
 
 func _register_default_sound_banks() -> void:
@@ -123,6 +235,18 @@ func _ensure_nodes() -> void:
 			_local_player.bus = &"SFX"
 		add_child(_local_player)
 
+	if _music_player == null:
+		if AudioServer.get_bus_index(&"Music") == -1:
+			var m_idx: int = AudioServer.bus_count
+			AudioServer.add_bus(m_idx)
+			AudioServer.set_bus_name(m_idx, &"Music")
+			AudioServer.set_bus_send(m_idx, &"Master")
+		_music_player = AudioStreamPlayer.new()
+		_music_player.name = "MusicPlayer"
+		_music_player.bus = &"Music"
+		_music_player.volume_db = MUSIC_MENU_VOLUME_DB
+		add_child(_music_player)
+
 	if _emitter_pool.is_empty():
 		for i in range(EMITTER_POOL_SIZE):
 			var p = OCCLUSION_EMITTER_SCRIPT.new()
@@ -141,32 +265,33 @@ func _ensure_nodes() -> void:
 func request_world_cue(cue_id: String, world_pos: Vector3, radius: float, source_peer_id: int = 0) -> void:
 	if radius <= 0.0:
 		return
+	var variant_seed: int = randi() & 0x7FFFFFFF
 	if multiplayer.has_multiplayer_peer() and multiplayer.multiplayer_peer.get_connection_status() == MultiplayerPeer.CONNECTION_CONNECTED:
 		if cue_id == "bomb_explode":
-			_rpc_emit_reliable_world_cue.rpc(cue_id, world_pos, radius, source_peer_id)
+			_rpc_emit_reliable_world_cue.rpc(cue_id, world_pos, radius, source_peer_id, variant_seed)
 		else:
-			_rpc_emit_world_cue.rpc(cue_id, world_pos, radius, source_peer_id)
+			_rpc_emit_world_cue.rpc(cue_id, world_pos, radius, source_peer_id, variant_seed)
 	else:
-		play_world_cue(cue_id, world_pos, radius, source_peer_id)
+		play_world_cue(cue_id, world_pos, radius, source_peer_id, null, variant_seed)
 
 
 @rpc("any_peer", "call_local", "unreliable")
-func _rpc_emit_world_cue(cue_id: String, world_pos: Vector3, radius: float, source_peer_id: int) -> void:
-	play_world_cue(cue_id, world_pos, radius, source_peer_id)
+func _rpc_emit_world_cue(cue_id: String, world_pos: Vector3, radius: float, source_peer_id: int, variant_seed: int = -1) -> void:
+	play_world_cue(cue_id, world_pos, radius, source_peer_id, null, variant_seed)
 
 
 @rpc("any_peer", "call_local", "reliable")
-func _rpc_emit_reliable_world_cue(cue_id: String, world_pos: Vector3, radius: float, source_peer_id: int) -> void:
-	play_world_cue(cue_id, world_pos, radius, source_peer_id)
+func _rpc_emit_reliable_world_cue(cue_id: String, world_pos: Vector3, radius: float, source_peer_id: int, variant_seed: int = -1) -> void:
+	play_world_cue(cue_id, world_pos, radius, source_peer_id, null, variant_seed)
 
 
 ## Plays a 3D spatial cue locally and evaluates client-side raycast occlusion against Layer 1 (Environment).
-func play_world_cue(cue_id: String, world_pos: Vector3, radius: float, source_peer_id: int = 0, follow_node: Node3D = null) -> void:
+func play_world_cue(cue_id: String, world_pos: Vector3, radius: float, source_peer_id: int = 0, follow_node: Node3D = null, variant_seed: int = -1) -> void:
 	if radius <= 0.0:
 		return
 
 	_record_cue(cue_id, world_pos, radius, source_peer_id)
-	world_cue_emitted.emit(cue_id, world_pos, radius, source_peer_id)
+	world_cue_emitted.emit(cue_id, world_pos, radius, source_peer_id, variant_seed)
 
 	# Skip audio & VFX playback in editor or headless mode
 	if Engine.is_editor_hint() or DisplayServer.get_name() == "headless":
@@ -178,7 +303,7 @@ func play_world_cue(cue_id: String, world_pos: Vector3, radius: float, source_pe
 
 	_ensure_nodes()
 	var resolved_cue: String = resolve_surface_cue(cue_id, world_pos)
-	var stream: AudioStream = _get_stream_for_cue(resolved_cue)
+	var stream: AudioStream = _get_stream_for_cue(resolved_cue, variant_seed)
 	if stream == null:
 		return
 
@@ -186,8 +311,14 @@ func play_world_cue(cue_id: String, world_pos: Vector3, radius: float, source_pe
 	_pool_cursor = (_pool_cursor + 1) % EMITTER_POOL_SIZE
 
 	emitter.set_meta("cue_id", resolved_cue)
+	if follow_node == null and resolved_cue == "player_giggle" and source_peer_id > 0 and get_tree() != null:
+		for p in get_tree().get_nodes_in_group("spy_players"):
+			if p != null and is_instance_valid(p) and p is Node3D and p.name.to_int() == source_peer_id:
+				follow_node = p as Node3D
+				break
+
 	emitter.follow_target = follow_node
-	emitter.global_position = follow_node.global_position if (follow_node != null and is_instance_valid(follow_node) and follow_node.is_inside_tree()) else world_pos
+	emitter.global_position = (follow_node.global_position + Vector3(0.0, 1.55, 0.0)) if (resolved_cue == "player_giggle" and follow_node != null and is_instance_valid(follow_node) and follow_node.is_inside_tree()) else (follow_node.global_position if (follow_node != null and is_instance_valid(follow_node) and follow_node.is_inside_tree()) else world_pos)
 	if resolved_cue == "player_ko":
 		var local_id: int = multiplayer.get_unique_id() if multiplayer.has_multiplayer_peer() else 1
 		var is_self_ko: bool = (source_peer_id != 0 and source_peer_id == local_id)
@@ -208,7 +339,7 @@ func play_world_cue(cue_id: String, world_pos: Vector3, radius: float, source_pe
 		emitter.base_volume_db = 0.0
 		emitter.occluded_cutoff_hz = OCCLUSION_LOWPASS_HZ
 		emitter.occluded_volume_drop_db = OCCLUDED_VOLUME_DROP_DB
-	elif resolved_cue == "bucket_arm" or resolved_cue == "player_jump":
+	elif resolved_cue == "bucket_arm" or resolved_cue == "player_jump" or resolved_cue == "bomb_throw":
 		emitter.unit_size = 1.5
 		emitter.max_db = 2.0
 		emitter.base_volume_db = 0.0
@@ -227,7 +358,7 @@ func play_world_cue(cue_id: String, world_pos: Vector3, radius: float, source_pe
 		emitter.base_volume_db = 2.0
 		emitter.occluded_cutoff_hz = 6000.0
 		emitter.occluded_volume_drop_db = -1.5
-	elif resolved_cue == "spring_arm":
+	elif resolved_cue == "spring_arm" or resolved_cue == "spring_unlatch":
 		emitter.unit_size = 2.5
 		emitter.max_db = 6.0
 		emitter.base_volume_db = 4.0
@@ -257,6 +388,42 @@ func play_world_cue(cue_id: String, world_pos: Vector3, radius: float, source_pe
 		emitter.base_volume_db = -1.0
 		emitter.occluded_cutoff_hz = 5500.0
 		emitter.occluded_volume_drop_db = -1.5
+	elif resolved_cue == "door_bash":
+		emitter.unit_size = 5.0
+		emitter.max_db = 3.0
+		emitter.base_volume_db = -1.0
+		emitter.occluded_cutoff_hz = 5500.0
+		emitter.occluded_volume_drop_db = -2.0
+	elif resolved_cue == "door_open" or resolved_cue == "door_close":
+		emitter.unit_size = 2.0
+		emitter.max_db = -4.0
+		emitter.base_volume_db = -10.0
+		emitter.occluded_cutoff_hz = OCCLUSION_LOWPASS_HZ
+		emitter.occluded_volume_drop_db = OCCLUDED_VOLUME_DROP_DB
+	elif resolved_cue == "drawer_slam":
+		emitter.unit_size = 4.0
+		emitter.max_db = 2.0
+		emitter.base_volume_db = -2.0
+		emitter.occluded_cutoff_hz = 5500.0
+		emitter.occluded_volume_drop_db = -2.0
+	elif resolved_cue == "club_slam":
+		emitter.unit_size = 12.0
+		emitter.max_db = 3.0
+		emitter.base_volume_db = -1.0
+		emitter.occluded_cutoff_hz = 5500.0
+		emitter.occluded_volume_drop_db = -1.5
+	elif resolved_cue == "club_whoosh":
+		emitter.unit_size = 2.0
+		emitter.max_db = 2.0
+		emitter.base_volume_db = -2.0
+		emitter.occluded_cutoff_hz = OCCLUSION_LOWPASS_HZ
+		emitter.occluded_volume_drop_db = OCCLUDED_VOLUME_DROP_DB
+	elif resolved_cue == "player_giggle":
+		emitter.unit_size = 3.0
+		emitter.max_db = 2.0
+		emitter.base_volume_db = -1.0
+		emitter.occluded_cutoff_hz = OCCLUSION_LOWPASS_HZ
+		emitter.occluded_volume_drop_db = OCCLUDED_VOLUME_DROP_DB
 	elif resolved_cue == "footstep_walk" or resolved_cue == "footstep_sprint":
 		var is_sprint: bool = resolved_cue == "footstep_sprint"
 		emitter.unit_size = 4.0 if is_sprint else 1.5
@@ -346,7 +513,8 @@ func play_local_cue(cue_id: String) -> void:
 	if stream == null:
 		return
 	_local_player.stream = stream
-	_local_player.pitch_scale = randf_range(0.92, 1.08) if cue_id == "loot_sound" else 1.0
+	_local_player.volume_db = -4.0 if cue_id == "ui_click" else 0.0
+	_local_player.pitch_scale = randf_range(0.92, 1.08) if cue_id == "loot_sound" else (randf_range(0.97, 1.03) if cue_id == "ui_click" else 1.0)
 	_local_player.play()
 
 
@@ -383,7 +551,7 @@ func _get_active_world_3d() -> World3D:
 	return null
 
 
-func _get_stream_for_cue(cue_id: String) -> AudioStream:
+func _get_stream_for_cue(cue_id: String, variant_seed: int = -1) -> AudioStream:
 	if not _custom_sound_banks.has(cue_id) and DEFAULT_CUE_ASSET_PATHS.has(cue_id):
 		var streams: Array[AudioStream] = []
 		for path_var in DEFAULT_CUE_ASSET_PATHS[cue_id]:
@@ -397,7 +565,8 @@ func _get_stream_for_cue(cue_id: String) -> AudioStream:
 	if _custom_sound_banks.has(cue_id):
 		var bank: Array = _custom_sound_banks[cue_id]
 		if not bank.is_empty():
-			return bank[randi() % bank.size()] as AudioStream
+			var idx: int = posmod(variant_seed, bank.size()) if variant_seed >= 0 else (randi() % bank.size())
+			return bank[idx] as AudioStream
 	return null
 
 

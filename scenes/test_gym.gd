@@ -5,7 +5,6 @@ const PICKUP_SCENE: PackedScene = preload("res://entities/props/world_item_picku
 const EMBASSY_DOOR_SCENE: PackedScene = preload("res://entities/props/embassy_door.tscn")
 const DRAWER_SCENE: PackedScene = preload("res://entities/props/searchable_drawer.tscn")
 const SMALL_DRAWER_SCENE: PackedScene = preload("res://entities/props/searchable_drawer_small.tscn")
-const AIRPORT_EXIT_WALL_BOUNDARY := "Vertical_1_1"
 const AIRPORT_EXIT_SCENE: PackedScene = preload("res://entities/props/airport_exit_door.tscn")
 const MATCH_SPAWNER_SCRIPT = preload("res://core/match_spawner.gd")
 const MATCH_END_UI_SCRIPT = preload("res://ui/match_end_overlay_ui.gd")
@@ -35,7 +34,6 @@ const FULL_MATCH_SPAWN_YAWS: Dictionary = {
 
 @onready var players_container: Node3D = $Players
 @onready var ui_layer: CanvasLayer = $UI
-@onready var role_label: Label = $UI/HUD/RoleBadge/RoleLabel
 @onready var esc_menu: PanelContainer = $UI/EscMenu
 @onready var match_menu: VBoxContainer = $UI/EscMenu/VBoxContainer
 @onready var settings_menu: VBoxContainer = $UI/EscMenu/SettingsMenu
@@ -57,6 +55,10 @@ var _esc_cheatsheet_button: Button = null
 var _esc_rematch_button: Button = null
 var _esc_switch_mode_button: Button = null
 var _esc_debug_bomb_fuse_button: Button = null
+var _esc_debug_airport_exit_button: Button = null
+var _esc_debug_simulate_win_button: Button = null
+var _airport_exit_debug_hud_label: Label = null
+var _airport_exit_placement: Dictionary = {}
 var active_player_spawn_indices: Dictionary = {} # slot (1..4) -> spawn_index (0..3)
 var _cached_player_spawn_transforms: Array[Transform3D] = []
 
@@ -74,7 +76,6 @@ func _ready() -> void:
 
 	_ensure_match_end_ui()
 	_ensure_spawner_cheatsheet_ui()
-	_refresh_role_badge()
 
 	# ESC Menu buttons & Mouse DPI/Sensitivity controls
 	var esc_vbox: VBoxContainer = settings_menu
@@ -117,6 +118,22 @@ func _ready() -> void:
 			_esc_debug_bomb_fuse_button.pressed.connect(_on_debug_bomb_fuse_toggled)
 			esc_vbox.add_child(_esc_debug_bomb_fuse_button)
 		_refresh_debug_bomb_fuse_button_text()
+
+		if _esc_debug_airport_exit_button == null and esc_vbox.get_node_or_null("DebugAirportExitButton") == null:
+			_esc_debug_airport_exit_button = Button.new()
+			_esc_debug_airport_exit_button.name = "DebugAirportExitButton"
+			_esc_debug_airport_exit_button.visible = is_host_or_offline
+			_esc_debug_airport_exit_button.pressed.connect(_on_debug_airport_exit_toggled)
+			esc_vbox.add_child(_esc_debug_airport_exit_button)
+		_refresh_debug_airport_exit_button_text()
+
+		if _esc_debug_simulate_win_button == null and esc_vbox.get_node_or_null("DebugSimulateWinButton") == null:
+			_esc_debug_simulate_win_button = Button.new()
+			_esc_debug_simulate_win_button.name = "DebugSimulateWinButton"
+			_esc_debug_simulate_win_button.text = "Debug: Simulate Win [F4]"
+			_esc_debug_simulate_win_button.visible = is_host_or_offline
+			_esc_debug_simulate_win_button.pressed.connect(_on_debug_simulate_win_pressed)
+			esc_vbox.add_child(_esc_debug_simulate_win_button)
 		esc_vbox.move_child(close_settings_button, -1)
 
 	esc_menu.resized.connect(_center_match_menu)
@@ -234,27 +251,6 @@ func _on_cheatsheet_closed() -> void:
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if (end_vis or esc_vis) else Input.MOUSE_MODE_CAPTURED
 
 
-func _refresh_role_badge() -> void:
-	if role_label == null:
-		return
-	var my_id: int = multiplayer.get_unique_id() if _is_network_active() else 1
-	var mode_tag: String = "SANDBOX GYM" if is_sandbox_mode else "FULL MATCH"
-	var role: int = 0
-	if MatchManager != null and MatchManager.has_method("get_peer_role"):
-		role = MatchManager.get_peer_role(my_id)
-	if role <= 0 and players_container != null:
-		var local_player: Node = players_container.get_node_or_null(str(my_id))
-		if local_player != null:
-			role = int(local_player.get("spy_role"))
-	if role <= 0:
-		role = 1 if my_id == 1 else 2
-
-	var role_name: String = GameConfig.get_spy_role_name(role) if GameConfig != null else ("SPY %d" % role)
-	var suffix: String = " (HOST)" if my_id == 1 else ""
-	role_label.text = "ROLE: %s%s — %s" % [role_name, suffix, mode_tag]
-	role_label.modulate = GameConfig.get_spy_role_badge_color(role) if GameConfig != null else Color.WHITE
-
-
 func _refresh_esc_mode_button_text() -> void:
 	if _esc_switch_mode_button != null:
 		_esc_switch_mode_button.text = (
@@ -279,16 +275,145 @@ func _refresh_debug_bomb_fuse_button_text() -> void:
 	_esc_debug_bomb_fuse_button.text = "Debug Bomb Fuse (%.1fs): %s" % [secs, "ON" if enabled else "OFF"]
 
 
-func _ensure_shared_airport_exit() -> void:
-	$BuildingComplex3/LadderLayout.reserved_lower_boundary = AIRPORT_EXIT_WALL_BOUNDARY
-	if get_node_or_null("SharedAirportExit") != null:
+func _on_debug_airport_exit_toggled() -> void:
+	if GameConfig == null:
 		return
-	var exit_door := AIRPORT_EXIT_SCENE.instantiate() as StaticBody3D
-	exit_door.name = "SharedAirportExit"
-	add_child(exit_door)
-	# Room_2_2 West Wall is at X = -9.0 (center Z = -4.5). Place flush against interior West wall facing East (+X).
-	exit_door.position = Vector3(-8.82, 0.0, -4.5)
-	exit_door.rotation.y = deg_to_rad(90.0)
+	GameConfig.debug_show_airport_exit = not GameConfig.debug_show_airport_exit
+	_refresh_debug_airport_exit_button_text()
+	_refresh_airport_exit_debug_visuals()
+
+
+func _refresh_debug_airport_exit_button_text() -> void:
+	if _esc_debug_airport_exit_button == null:
+		return
+	var enabled: bool = GameConfig != null and GameConfig.debug_show_airport_exit
+	_esc_debug_airport_exit_button.text = "Debug Airport Exit [F3]: %s" % ("ON" if enabled else "OFF")
+
+
+func _on_debug_simulate_win_pressed() -> void:
+	if _is_network_active() and not multiplayer.is_server():
+		return
+	if MatchManager == null:
+		return
+	if MatchManager.match_state == MatchManager.MatchState.ENDED:
+		return
+	if MatchManager.match_state != MatchManager.MatchState.IN_PROGRESS:
+		MatchManager.start_new_match(_get_active_match_peer_ids())
+	var winner_peer_id: int = multiplayer.get_unique_id() if _is_network_active() else 1
+	if MatchManager.eliminated_peers.get(winner_peer_id, false):
+		for pid in _get_active_match_peer_ids():
+			if not MatchManager.eliminated_peers.get(pid, false):
+				winner_peer_id = pid
+				break
+	var req_count: int = GameConfig.required_objectives_count if GameConfig != null else 4
+	MatchManager.report_airport_exit_reached(winner_peer_id, req_count)
+
+
+func _ensure_shared_airport_exit() -> void:
+	var exit_door := get_node_or_null("SharedAirportExit") as StaticBody3D
+	if exit_door == null:
+		exit_door = AIRPORT_EXIT_SCENE.instantiate() as StaticBody3D
+		exit_door.name = "SharedAirportExit"
+		add_child(exit_door)
+
+	var ladder_layout := get_node_or_null("BuildingComplex3/LadderLayout")
+	if ladder_layout != null:
+		if ladder_layout.has_signal("airport_exit_placed") and not ladder_layout.is_connected("airport_exit_placed", _on_airport_exit_placed):
+			ladder_layout.connect("airport_exit_placed", _on_airport_exit_placed)
+		if ladder_layout.has_method("get_airport_exit_placement"):
+			var placement: Dictionary = ladder_layout.call("get_airport_exit_placement")
+			if not placement.is_empty():
+				_on_airport_exit_placed(placement)
+				return
+	_refresh_airport_exit_debug_visuals()
+
+
+func _on_airport_exit_placed(placement: Dictionary) -> void:
+	_airport_exit_placement = placement.duplicate()
+	var exit_door := get_node_or_null("SharedAirportExit") as StaticBody3D
+	if exit_door != null and placement.has("world_transform"):
+		exit_door.global_transform = placement["world_transform"] as Transform3D
+	_refresh_airport_exit_debug_visuals()
+
+
+func _refresh_airport_exit_debug_visuals() -> void:
+	var enabled: bool = GameConfig != null and GameConfig.debug_show_airport_exit
+	var summary := "%s | %s (%s)" % [
+		String(_airport_exit_placement.get("room_name", "Pending")),
+		String(_airport_exit_placement.get("boundary", "?")),
+		String(_airport_exit_placement.get("facing", "?")),
+	]
+
+	var exit_door := get_node_or_null("SharedAirportExit") as Node3D
+	if exit_door != null:
+		var beacon := exit_door.get_node_or_null("AirportExitDebugBeacon") as Node3D
+		if enabled:
+			if beacon == null:
+				beacon = Node3D.new()
+				beacon.name = "AirportExitDebugBeacon"
+				exit_door.add_child(beacon)
+
+				var pillar := MeshInstance3D.new()
+				pillar.name = "Pillar"
+				var cyl := CylinderMesh.new()
+				cyl.top_radius = 0.14
+				cyl.bottom_radius = 0.22
+				cyl.height = 4.5
+				pillar.mesh = cyl
+				pillar.position = Vector3(0.0, 2.25, 0.25)
+				var mat := StandardMaterial3D.new()
+				mat.albedo_color = Color(1.0, 0.85, 0.15, 0.55)
+				mat.emission_enabled = true
+				mat.emission = Color(1.0, 0.78, 0.10, 1.0)
+				mat.emission_energy_multiplier = 2.0
+				mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+				mat.no_depth_test = true
+				mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+				pillar.material_override = mat
+				beacon.add_child(pillar)
+
+				var lbl := Label3D.new()
+				lbl.name = "BeaconLabel"
+				lbl.position = Vector3(0.0, 3.2, 0.25)
+				lbl.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+				lbl.no_depth_test = true
+				lbl.fixed_size = true
+				lbl.pixel_size = 0.0045
+				lbl.font_size = 36
+				lbl.outline_size = 10
+				lbl.modulate = Color(1.0, 0.90, 0.22, 1.0)
+				beacon.add_child(lbl)
+
+			var lbl_node := beacon.get_node_or_null("BeaconLabel") as Label3D
+			if lbl_node != null:
+				lbl_node.text = "AIRPORT EXIT\n" + summary
+			beacon.visible = true
+		elif beacon != null:
+			beacon.visible = false
+
+	var target_ui: CanvasLayer = ui_layer if ui_layer != null else get_node_or_null("UI") as CanvasLayer
+	if target_ui != null:
+		if _airport_exit_debug_hud_label == null or not is_instance_valid(_airport_exit_debug_hud_label):
+			_airport_exit_debug_hud_label = target_ui.get_node_or_null("AirportExitDebugHUDLabel") as Label
+		if enabled:
+			if _airport_exit_debug_hud_label == null:
+				_airport_exit_debug_hud_label = Label.new()
+				_airport_exit_debug_hud_label.name = "AirportExitDebugHUDLabel"
+				_airport_exit_debug_hud_label.anchor_left = 0.5
+				_airport_exit_debug_hud_label.anchor_right = 0.5
+				_airport_exit_debug_hud_label.offset_left = -220.0
+				_airport_exit_debug_hud_label.offset_right = 220.0
+				_airport_exit_debug_hud_label.offset_top = 14.0
+				_airport_exit_debug_hud_label.offset_bottom = 42.0
+				_airport_exit_debug_hud_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+				_airport_exit_debug_hud_label.add_theme_color_override("font_color", Color(1.0, 0.90, 0.22, 1.0))
+				_airport_exit_debug_hud_label.add_theme_color_override("font_outline_color", Color(0.05, 0.06, 0.08, 1.0))
+				_airport_exit_debug_hud_label.add_theme_constant_override("outline_size", 4)
+				target_ui.add_child(_airport_exit_debug_hud_label)
+			_airport_exit_debug_hud_label.text = "[DEBUG F3] Airport Exit: " + summary
+			_airport_exit_debug_hud_label.visible = true
+		elif _airport_exit_debug_hud_label != null:
+			_airport_exit_debug_hud_label.visible = false
 
 
 func _configure_level_props_for_mode(sandbox: bool) -> void:
@@ -647,6 +772,9 @@ func _resolve_spawn_yaw(slot: int) -> float:
 
 
 func _on_match_started(seed_value: int) -> void:
+	var ladder_layout := get_node_or_null("BuildingComplex3/LadderLayout")
+	if ladder_layout != null and ladder_layout.has_method("relocate_airport_exit_for_seed"):
+		ladder_layout.call("relocate_airport_exit_for_seed", seed_value)
 	_assign_random_player_spawns(seed_value)
 	if not is_sandbox_mode:
 		var p_root: Node = players_container if players_container != null else get_node_or_null("Players")
@@ -677,9 +805,6 @@ func _on_match_started(seed_value: int) -> void:
 
 
 func _on_match_ended(winner_peer_id: int, reason: String) -> void:
-	if role_label != null:
-		role_label.text = reason
-		role_label.modulate = Color(0.35, 1.0, 0.45)
 	if players_container != null:
 		for child in players_container.get_children():
 			var container: Variant = child.get("active_container")
@@ -699,10 +824,27 @@ func _on_match_ended(winner_peer_id: int, reason: String) -> void:
 				actions = MatchEndOverlayUI.Actions.LOCAL_HOST
 			elif SessionManager.current_room_code not in ["", "NONE"]:
 				actions = MatchEndOverlayUI.Actions.PRIVATE_HOST
-		_match_end_ui.show_match_result(winner_peer_id, my_id, reason, actions, is_sandbox_mode)
+		var totg_clips: Array[Dictionary] = []
+		for p in get_tree().get_nodes_in_group("spy_players"):
+			if p != null and is_instance_valid(p) and (not _is_network_active() or p.is_multiplayer_authority()):
+				if p.has_method("get_crt_replay_ui"):
+					var crt_ui: CRTReplayMonitorUI = p.get_crt_replay_ui()
+					if crt_ui != null:
+						totg_clips = crt_ui.get_match_archive()
+				break
+		_match_end_ui.show_match_result(winner_peer_id, my_id, reason, actions, is_sandbox_mode, totg_clips)
 
 
 func _input(event: InputEvent) -> void:
+	if event is InputEventKey and event.pressed and not event.is_echo() and event.keycode == KEY_F3:
+		_on_debug_airport_exit_toggled()
+		get_viewport().set_input_as_handled()
+		return
+	if event is InputEventKey and event.pressed and not event.is_echo() and event.keycode == KEY_F4:
+		if not _is_network_active() or multiplayer.is_server():
+			_on_debug_simulate_win_pressed()
+		get_viewport().set_input_as_handled()
+		return
 	if event is InputEventKey and event.pressed and not event.is_echo() and event.keycode == KEY_F12:
 		if _is_network_active() and not multiplayer.is_server():
 			return
@@ -754,6 +896,7 @@ func _open_match_menu(show_settings: bool) -> void:
 	if show_settings:
 		_refresh_esc_mode_button_text()
 		_refresh_debug_bomb_fuse_button_text()
+		_refresh_debug_airport_exit_button_text()
 	esc_menu.show()
 	esc_menu.reset_size()
 	_center_match_menu()
@@ -821,7 +964,6 @@ func _rpc_prepare_arena_round(next_sandbox_mode: bool) -> void:
 	if esc_menu != null:
 		esc_menu.visible = false
 	_refresh_esc_mode_button_text()
-	_refresh_role_badge()
 
 	_clear_dynamic_round_entities()
 	_reset_all_doors_for_round()
@@ -1000,8 +1142,6 @@ func _spawn_all_players() -> void:
 
 	if is_inside_tree() and _is_network_active():
 		_rpc_prepare_arena_round.rpc(is_sandbox_mode)
-	elif is_inside_tree():
-		_refresh_role_badge()
 
 	if MatchManager != null and is_inside_tree():
 		MatchManager.start_new_match(participants)

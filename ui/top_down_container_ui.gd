@@ -16,11 +16,6 @@ var _player: Node = null
 var _container: Node = null
 var _local_peer_id: int = 1
 
-var _top_bar: PanelContainer = null
-var _title_label: Label = null
-var _push_clutter_btn: Button = null
-var _close_btn: Button = null
-
 var _left_panel: PanelContainer = null
 var _left_title_label: Label = null
 var _left_content_box: VBoxContainer = null
@@ -158,7 +153,7 @@ func is_dragging_item() -> bool:
 
 
 func is_point_over_ui_panel(screen_pos: Vector2) -> bool:
-	for panel in [_top_bar, _left_panel, _right_panel]:
+	for panel in [_left_panel, _right_panel]:
 		if panel != null and panel.is_visible_in_tree() and panel.get_global_rect().has_point(screen_pos):
 			return true
 	return false
@@ -327,7 +322,7 @@ func cancel_drag() -> void:
 func refresh_slide_progress() -> void:
 	if not visible or _container == null or not is_instance_valid(_container):
 		return
-	if _title_label == null:
+	if _left_panel == null:
 		return
 	var is_briefcase: bool = bool(_container.get("is_briefcase_container"))
 	var c_id: String = str(_container.get("container_id"))
@@ -346,13 +341,6 @@ func refresh_slide_progress() -> void:
 		_mid_slide_trap_revealed = true
 		refresh_view()
 		return
-	if _close_btn != null:
-		_close_btn.disabled = slow_opening
-		_close_btn.text = "Opening..." if slow_opening else "Close [S]"
-	if slow_opening:
-		var pct_slow: int = int(round(vis_ratio * 100.0))
-		var slow_name: String = "BRIEFCASE" if is_briefcase else (c_id.to_upper() + (" + BRIEFCASE" if holding_briefcase else ""))
-		_title_label.text = "%s — Slow Opening... (%d%%) [Committed]" % [slow_name, pct_slow]
 	_refresh_status_label(is_briefcase, vis_ratio)
 	_update_carried_briefcase_lid_overlay()
 
@@ -360,45 +348,11 @@ func refresh_slide_progress() -> void:
 func refresh_view() -> void:
 	if not visible or _container == null or not is_instance_valid(_container):
 		return
-	if _title_label == null:
+	if _left_panel == null:
 		_build_layout()
 
 	var is_briefcase: bool = bool(_container.get("is_briefcase_container"))
-	var c_id: String = str(_container.get("container_id"))
 	var vis_ratio: float = float(_container.get("drawer_visual_ratio"))
-	var slow_opening: bool = bool(_container.get("is_slow_opening"))
-	var holding_briefcase: bool = (_player != null and str(_player.get("left_hand_item_id")).to_upper() == "BRIEFCASE")
-
-	if _close_btn != null:
-		_close_btn.disabled = slow_opening
-		_close_btn.text = "Opening..." if slow_opening else "Close [S]"
-
-	if slow_opening:
-		var pct_slow: int = int(round(vis_ratio * 100.0))
-		var slow_name: String = "BRIEFCASE" if is_briefcase else (c_id.to_upper() + (" + BRIEFCASE" if holding_briefcase else ""))
-		_title_label.text = "%s — Slow Opening... (%d%%) [Committed]" % [slow_name, pct_slow]
-	elif vis_ratio < 0.15:
-		if is_briefcase:
-			_title_label.text = "BRIEFCASE (0%% Open) — [Tap E] Fast Snap Open | [Hold E] Committed Slow Open | [A / S / D / ESC] Step Back"
-		elif holding_briefcase:
-			_title_label.text = "%s + BRIEFCASE (0%% Open) — [Tap E] Fast Open Both | [Hold E] Committed Slow Open Both | [A / S / D / ESC] Step Back" % c_id.to_upper()
-		else:
-			_title_label.text = "%s (0%% Open) — [Tap E] Fast Yank Open | [Hold E] Committed Slow Open | [A / S / D / ESC] Step Back" % c_id.to_upper()
-	elif vis_ratio < 0.88:
-		var pct: int = int(round(vis_ratio * 100.0))
-		var label_name: String = "BRIEFCASE" if is_briefcase else (c_id.to_upper() + (" + BRIEFCASE" if holding_briefcase else ""))
-		_title_label.text = "%s (%d%% Open) — Inspect or close | [A / S / D / ESC] Close" % [label_name, pct]
-	else:
-		if is_briefcase:
-			_title_label.text = "COMPACT BRIEFCASE — Drag items anywhere inside or drag to Left Hand | [A / S / D / ESC] Close"
-		elif holding_briefcase:
-			_title_label.text = "%s + BRIEFCASE — Drag Objectives ↔ Open Briefcase (Left) anywhere & Traps ↔ Coat (Right) | [A / S / D / ESC] Close" % c_id.to_upper()
-		else:
-			_title_label.text = "%s — Drag 3D junk aside | Drag Objectives → Left Hand & Gadgets ↔ Inner Coat | [A / S / D / ESC] Close" % c_id.to_upper()
-
-	if _push_clutter_btn != null:
-		var clutter_arr: Array = _container.get("clutter_positions") as Array
-		_push_clutter_btn.visible = (not is_briefcase) and (not slow_opening) and vis_ratio >= 0.55 and clutter_arr != null and not clutter_arr.is_empty()
 
 	_refresh_left_panel(is_briefcase, vis_ratio)
 	_refresh_status_label(is_briefcase, vis_ratio)
@@ -444,65 +398,7 @@ func _build_layout() -> void:
 	_center_drop_label.text = "Drop into Container"
 	_center_drop_frame.add_child(_center_drop_label)
 
-	# 2. Top Non-Blocking Instruction Banner
-	_top_bar = PanelContainer.new()
-	_top_bar.name = "TopBanner"
-	_top_bar.anchor_left = 0.03
-	_top_bar.anchor_right = 0.97
-	_top_bar.anchor_top = 0.0
-	_top_bar.anchor_bottom = 0.0
-	_top_bar.offset_top = 10.0
-	_top_bar.offset_bottom = 56.0
-	_top_bar.mouse_filter = Control.MOUSE_FILTER_STOP
-	add_child(_top_bar)
-
-	var header_row := HBoxContainer.new()
-	header_row.add_theme_constant_override("separation", 10)
-	_top_bar.add_child(header_row)
-
-	_title_label = Label.new()
-	_title_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_title_label.add_theme_font_size_override("font_size", 14)
-	_title_label.text = "SEARCH MODE"
-	header_row.add_child(_title_label)
-
-	_push_clutter_btn = Button.new()
-	_push_clutter_btn.focus_mode = Control.FOCUS_NONE
-	_push_clutter_btn.text = "Push All Clutter Aside"
-	_push_clutter_btn.pressed.connect(func():
-		if _container == null or not is_instance_valid(_container):
-			return
-		var pos_arr: Array = _container.get("clutter_positions") as Array
-		if pos_arr == null:
-			return
-		var corners: Array[Vector2] = [
-			Vector2(0.08, 0.12),
-			Vector2(0.92, 0.12),
-			Vector2(0.08, 0.88),
-			Vector2(0.92, 0.88),
-			Vector2(0.08, 0.50),
-			Vector2(0.92, 0.50)
-		]
-		for i in range(pos_arr.size()):
-			_container.request_move_clutter(_local_peer_id, i, corners[i % corners.size()])
-	)
-	header_row.add_child(_push_clutter_btn)
-
-	_close_btn = Button.new()
-	_close_btn.focus_mode = Control.FOCUS_NONE
-	_close_btn.text = "Close [S]"
-	_close_btn.pressed.connect(func():
-		if _container != null and is_instance_valid(_container) and bool(_container.get("is_slow_opening")):
-			return
-		if _player != null and _player.has_method("flush_active_3d_slides"):
-			_player.flush_active_3d_slides(true)
-		flush_active_briefcase_slides()
-		if _container != null and is_instance_valid(_container) and _container.has_method("request_close_container"):
-			_container.request_close_container(_local_peer_id)
-	)
-	header_row.add_child(_close_btn)
-
-	# 3. LEFT SIDE PANEL — Visual Left Hand OR Simultaneous Open Carried Briefcase
+	# 2. LEFT SIDE PANEL — Visual Left Hand OR Simultaneous Open Carried Briefcase
 	_left_panel = PanelContainer.new()
 	_left_panel.name = "LeftHandPanel"
 	_left_panel.anchor_left = 0.0
@@ -555,7 +451,7 @@ func _build_layout() -> void:
 	_briefcase_lid_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_briefcase_lid_label.add_theme_font_size_override("font_size", 14)
 	_briefcase_lid_label.modulate = Color(0.95, 0.84, 0.56)
-	_briefcase_lid_label.text = "BRIEFCASE CLOSED (0%)\nOpens with Drawer\n[Tap E] Fast  |  [Hold E] Slow"
+	_briefcase_lid_label.text = "BRIEFCASE CLOSED\nOpens with Drawer\n[Tap E] Fast  |  [Hold E] Slow"
 	_briefcase_lid_cover.add_child(_briefcase_lid_label)
 
 	# 4. RIGHT SIDE PANEL — Visual 3-Slot Inner Trenchcoat Jacket
@@ -961,12 +857,11 @@ func _update_carried_briefcase_lid_overlay() -> void:
 	)
 	_briefcase_lid_cover.mouse_filter = Control.MOUSE_FILTER_IGNORE if held_spring_visible else Control.MOUSE_FILTER_STOP
 	if _briefcase_lid_label != null:
-		var pct: int = int(round(vis_ratio * 100.0))
 		_briefcase_lid_label.visible = (1.0 - vis_ratio) > 0.25
 		if slow_opening:
-			_briefcase_lid_label.text = "BRIEFCASE (%d%% Open)\nSlow Opening with Drawer..." % pct
+			_briefcase_lid_label.text = "BRIEFCASE\nSlow Opening with Drawer..."
 		else:
-			_briefcase_lid_label.text = "BRIEFCASE (%d%% Open)\nOpens with Drawer\n[Tap E] Fast  |  [Hold E] Slow" % pct
+			_briefcase_lid_label.text = "BRIEFCASE\nOpens with Drawer\n[Tap E] Fast  |  [Hold E] Slow"
 
 
 # ==========================================
@@ -996,7 +891,7 @@ func _refresh_status_label(is_briefcase: bool, vis_ratio: float) -> void:
 			_container_status_label.text = "SPRING VISIBLE! Click Trap to Unlatch!"
 	elif slow_opening:
 		_container_status_label.modulate = Color(0.85, 0.92, 0.65)
-		_container_status_label.text = "Slowly easing open %s... (%d%%)" % [label_name, int(round(vis_ratio * 100.0))]
+		_container_status_label.text = "Slowly easing open %s..." % label_name
 	elif bool(_container.get("spring_unlatched")):
 		_container_status_label.modulate = Color(0.35, 0.95, 0.85)
 		_container_status_label.text = "Spring Unlatched — Drag → Coat or RMB Re-Arm"
@@ -1011,7 +906,7 @@ func _refresh_status_label(is_briefcase: bool, vis_ratio: float) -> void:
 		_container_status_label.text = "Bomb Planted Inside (Arms on Close)"
 	elif vis_ratio < 0.15:
 		_container_status_label.modulate = Color(0.78, 0.84, 0.88)
-		_container_status_label.text = "%s Closed (0%%) — Tap E or Hold E" % label_name
+		_container_status_label.text = "%s Closed — Tap E or Hold E" % label_name
 	else:
 		_container_status_label.modulate = Color(0.78, 0.84, 0.88)
 		_container_status_label.text = "Drag Spring / Bomb ← into %s to rig!" % label_name
@@ -1201,7 +1096,7 @@ func _update_drop_zone_highlights(screen_pos: Vector2) -> void:
 	var over_left: bool = _left_panel != null and _left_panel.get_global_rect().has_point(screen_pos)
 	var over_felt: bool = _briefcase_felt_canvas != null and is_instance_valid(_briefcase_felt_canvas) and _briefcase_felt_canvas.is_visible_in_tree() and _briefcase_felt_canvas.get_global_rect().has_point(screen_pos)
 	var over_right: bool = _right_panel != null and _right_panel.get_global_rect().has_point(screen_pos)
-	var over_center: bool = not over_left and not over_right and not (_top_bar != null and _top_bar.get_global_rect().has_point(screen_pos))
+	var over_center: bool = not over_left and not over_right
 
 	# Show center drop guide whenever dragging INTO the 3D container
 	var coat_can_drop_center: bool = (
@@ -1336,8 +1231,7 @@ func _finish_drag(release_pos: Vector2) -> void:
 	var holding_briefcase: bool = (str(_player.get("left_hand_item_id")).to_upper() == "BRIEFCASE")
 	var over_left: bool = _left_panel != null and _left_panel.get_global_rect().has_point(release_pos)
 	var over_right: bool = _right_panel != null and _right_panel.get_global_rect().has_point(release_pos)
-	var over_top: bool = _top_bar != null and _top_bar.get_global_rect().has_point(release_pos)
-	var over_center: bool = not over_left and not over_right and not over_top
+	var over_center: bool = not over_left and not over_right
 	var target_coat_slot: int = _find_coat_slot_at_pos(release_pos)
 
 	match src:

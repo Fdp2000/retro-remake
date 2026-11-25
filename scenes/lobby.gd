@@ -5,6 +5,7 @@ const MAX_NAME_LENGTH := 24
 
 const TEST_GYM_SCENE_PATH: String = "res://scenes/test_gym.tscn"
 const SPAWNER_CHEATSHEET_UI_SCRIPT = preload("res://ui/spawner_cheatsheet_ui.gd")
+const MAIN_MENU_OPTIONS_UI_SCRIPT = preload("res://ui/main_menu_options_ui.gd")
 
 # State Dictionary: slot (1..4) -> {"slot": int, "role": int, "peer_id": int, "ready": bool, "name": String}
 var lobby_state: Dictionary = {}
@@ -28,6 +29,8 @@ var _is_launching: bool = false
 var is_in_matchmaking_queue: bool = false
 var matchmaking_search_elapsed: float = 0.0
 var _spawner_cheatsheet_ui: Control = null
+var _options_ui: MainMenuOptionsUI = null
+var _options_cog_button: Button = null
 var _slot_cards: Dictionary = {} # slot (1..4) -> {"card": PanelContainer, "title": Label, "swatch": ColorRect, "name": Label, "status": Label}
 
 # UI References
@@ -81,6 +84,7 @@ func _ready() -> void:
 	copy_room_code_button.pressed.connect(_copy_staging_room_code)
 
 	_setup_developer_tools()
+	_setup_options_menu()
 
 	_profile.load(PROFILE_PATH)
 	player_name_input.text = str(_profile.get_value("player", "name", "")).left(MAX_NAME_LENGTH)
@@ -872,6 +876,33 @@ func _ensure_spawner_cheatsheet_ui() -> void:
 		add_child(_spawner_cheatsheet_ui)
 
 
+func _setup_options_menu() -> void:
+	if _options_ui == null:
+		_options_ui = MAIN_MENU_OPTIONS_UI_SCRIPT.new()
+		_options_ui.name = "MainMenuOptionsUI"
+		add_child(_options_ui)
+
+	if _options_cog_button == null:
+		_options_cog_button = Button.new()
+		_options_cog_button.name = "OptionsCogButton"
+		_options_cog_button.text = "⚙"
+		_options_cog_button.tooltip_text = "Options"
+		_options_cog_button.anchor_left = 1.0
+		_options_cog_button.anchor_top = 1.0
+		_options_cog_button.anchor_right = 1.0
+		_options_cog_button.anchor_bottom = 1.0
+		_options_cog_button.offset_left = -58.0
+		_options_cog_button.offset_top = -58.0
+		_options_cog_button.offset_right = -16.0
+		_options_cog_button.offset_bottom = -16.0
+		_options_cog_button.add_theme_font_size_override("font_size", 24)
+		_options_cog_button.pressed.connect(func() -> void:
+			if _options_ui != null:
+				_options_ui.open_options()
+		)
+		add_child(_options_cog_button)
+
+
 func open_spawner_cheatsheet() -> void:
 	_ensure_spawner_cheatsheet_ui()
 	if _spawner_cheatsheet_ui != null:
@@ -885,6 +916,11 @@ func _input(event: InputEvent) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if _options_ui != null and _options_ui.visible:
+		if event.is_action_pressed("ui_cancel") or (event is InputEventKey and event.pressed and not event.is_echo() and event.keycode == KEY_ESCAPE):
+			_options_ui.close_options()
+			get_viewport().set_input_as_handled()
+			return
 	if developer_container.visible and event is InputEventKey and event.pressed and not event.is_echo() and event.keycode == KEY_F2:
 		_ensure_spawner_cheatsheet_ui()
 		if _spawner_cheatsheet_ui != null:

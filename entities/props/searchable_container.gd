@@ -1012,8 +1012,8 @@ func unlatch_spring(peer_id: int) -> bool:
 	armed_spring = false
 	staged_spring_on_lip = false
 	spring_unlatched = true
-	if AudioBridge != null:
-		AudioBridge.request_world_cue("spring_unlatch", _safe_global_pos(), 5.0, peer_id)
+	if AudioBridge != null and GameConfig != null:
+		AudioBridge.request_world_cue("spring_unlatch", _safe_global_pos(), GameConfig.audio_radius_spring_arm, peer_id)
 	_sync_state_to_peers()
 	return true
 

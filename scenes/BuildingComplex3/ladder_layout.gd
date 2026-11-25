@@ -8,6 +8,9 @@ const TILE_SIDE := 3.0
 const SHAFT_WIDTH := INTERACTIVE_LADDER.SHAFT_WIDTH
 const SHAFT_LINER_THICKNESS := 0.02
 const LADDER_HEIGHT := 2.87
+const AIRPORT_EXIT_WALL_OFFSET := 0.18
+
+signal airport_exit_placed(placement: Dictionary)
 
 @export_range(11, 17) var min_doors_per_floor: int = 11
 @export_range(11, 17) var max_doors_per_floor: int = 15
@@ -17,6 +20,7 @@ const LADDER_HEIGHT := 2.87
 
 var reserved_lower_boundary := ""
 var _layout_built := false
+var _airport_exit_placement: Dictionary = {}
 
 @onready var building: Node3D = get_parent()
 
@@ -106,7 +110,21 @@ func _build_layout(seed_value: int) -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = seed_value
 	var grid_size: Vector2i = building.get_meta("grid_size")
+
+	var airport_rng := RandomNumberGenerator.new()
+	airport_rng.seed = seed_value ^ 0x414952
+	var candidates: Array[String] = DOOR_LAYOUT.get_all_boundaries(grid_size)
+	var exit_boundary := reserved_lower_boundary
+	if exit_boundary.is_empty() and not candidates.is_empty():
+		exit_boundary = candidates[airport_rng.randi_range(0, candidates.size() - 1)]
+	reserved_lower_boundary = exit_boundary
+	var exit_side_sign: float = 1.0 if airport_rng.randi_range(0, 1) == 0 else -1.0
+
 	var lower_doors := DOOR_LAYOUT.randomize_floor(building, grid_size, rng, min_doors_per_floor, max_doors_per_floor, reserved_lower_boundary)
+	_airport_exit_placement = _compute_airport_exit_placement(exit_boundary, exit_side_sign)
+	if not _airport_exit_placement.is_empty():
+		airport_exit_placed.emit(_airport_exit_placement)
+
 	var upper_doors := 0
 	var ladders := 0
 	var upper_floor := building.get_node_or_null("SecondFloor") as Node3D
@@ -117,9 +135,88 @@ func _build_layout(seed_value: int) -> void:
 	elif upper_floor != null:
 		building.remove_child(upper_floor)
 		upper_floor.queue_free()
-	print("BuildingComplex3: seed %d opened %d downstairs doors, %d upstairs doors, and %d ladder shafts (upper_floor=%s)." % [
-		seed_value, lower_doors, upper_doors, ladders, str(_is_upper_floor_enabled())
+	print("BuildingComplex3: seed %d opened %d downstairs doors, %d upstairs doors, and %d ladder shafts (upper_floor=%s, airport_exit=%s)." % [
+		seed_value, lower_doors, upper_doors, ladders, str(_is_upper_floor_enabled()),
+		"%s %s (%s)" % [
+			String(_airport_exit_placement.get("room_name", "?")),
+			String(_airport_exit_placement.get("boundary", "?")),
+			String(_airport_exit_placement.get("facing", "?"))
+		]
 	])
+
+
+func get_airport_exit_placement() -> Dictionary:
+	return _airport_exit_placement.duplicate()
+
+
+func relocate_airport_exit_for_seed(seed_value: int) -> Dictionary:
+	if not _layout_built or building == null:
+		return _airport_exit_placement.duplicate()
+	var grid_size: Vector2i = building.get_meta("grid_size")
+	var doors_node := building.get_node_or_null("Doors")
+	var walls_node := building.get_node_or_null("Walls")
+	var solid_boundaries: Array[String] = []
+	for boundary_name in DOOR_LAYOUT.get_all_boundaries(grid_size):
+		var wall_node := walls_node.get_node_or_null(NodePath(boundary_name + "_1")) if walls_node != null else null
+		var door_node := doors_node.get_node_or_null(NodePath(boundary_name + "_1")) if doors_node != null else null
+		if wall_node != null and door_node == null:
+			solid_boundaries.append(boundary_name)
+	if solid_boundaries.is_empty():
+		return _airport_exit_placement.duplicate()
+	var airport_rng := RandomNumberGenerator.new()
+	airport_rng.seed = seed_value ^ 0x414952
+	var chosen_boundary: String = solid_boundaries[airport_rng.randi_range(0, solid_boundaries.size() - 1)]
+	var side_sign: float = 1.0 if airport_rng.randi_range(0, 1) == 0 else -1.0
+	reserved_lower_boundary = chosen_boundary
+	_airport_exit_placement = _compute_airport_exit_placement(chosen_boundary, side_sign)
+	if not _airport_exit_placement.is_empty():
+		airport_exit_placed.emit(_airport_exit_placement)
+	return _airport_exit_placement.duplicate()
+
+
+func _compute_airport_exit_placement(boundary_name: String, side_sign: float) -> Dictionary:
+	if building == null or boundary_name.is_empty():
+		return {}
+	var walls_node := building.get_node_or_null("Walls") as Node3D
+	if walls_node == null:
+		return {}
+	var wall_tile := walls_node.get_node_or_null(NodePath(boundary_name + "_1")) as Node3D
+	if wall_tile == null:
+		return {}
+	var outward_normal: Vector3 = (wall_tile.transform.basis.z * side_sign).normalized()
+	var local_origin: Vector3 = wall_tile.transform.origin + outward_normal * AIRPORT_EXIT_WALL_OFFSET
+	var local_basis: Basis = wall_tile.transform.basis if side_sign >= 0.0 else wall_tile.transform.basis.rotated(Vector3.UP, PI)
+	var local_xform := Transform3D(local_basis, local_origin)
+	var world_xform: Transform3D = walls_node.global_transform * local_xform if walls_node.is_inside_tree() else building.transform * local_xform
+	var room_info := _resolve_room_and_facing(boundary_name, outward_normal)
+	return {
+		"boundary": boundary_name,
+		"side_sign": side_sign,
+		"room_name": room_info["room_name"],
+		"facing": room_info["facing"],
+		"local_transform": local_xform,
+		"world_transform": world_xform,
+	}
+
+
+func _resolve_room_and_facing(boundary_name: String, outward_normal: Vector3) -> Dictionary:
+	var parts := boundary_name.split("_")
+	var room_name := "Unknown"
+	if parts.size() == 3:
+		var b := parts[1].to_int()
+		var idx := parts[2].to_int()
+		if parts[0] == "Vertical":
+			var col := b if outward_normal.x >= 0.0 else (b - 1)
+			room_name = "Room_%d_%d" % [idx + 1, col + 1]
+		elif parts[0] == "Horizontal":
+			var row := b if outward_normal.z >= 0.0 else (b - 1)
+			room_name = "Room_%d_%d" % [row + 1, idx + 1]
+	var facing := "Unknown"
+	if absf(outward_normal.x) >= absf(outward_normal.z):
+		facing = "East" if outward_normal.x >= 0.0 else "West"
+	else:
+		facing = "South" if outward_normal.z >= 0.0 else "North"
+	return {"room_name": room_name, "facing": facing}
 
 
 func _spawn_ladders(rng: RandomNumberGenerator) -> int:

@@ -15,6 +15,9 @@ extends AudioStreamPlayer3D
 @export var use_dedicated_lowpass_bus: bool = true
 @export var always_evaluate_occlusion: bool = false
 var follow_target: Node3D = null
+var force_muffled: bool = false
+var forced_muffle_cutoff_hz: float = 650.0
+var forced_muffle_volume_drop_db: float = -4.5
 
 var _dedicated_bus_name: StringName = &""
 var _lowpass_effect: AudioEffectLowPassFilter = null
@@ -136,6 +139,9 @@ func evaluate_occlusion_now() -> bool:
 
 	_target_cutoff_hz = occluded_cutoff_hz if _is_occluded else unoccluded_cutoff_hz
 	_target_occlusion_db = occluded_volume_drop_db if _is_occluded else 0.0
+	if force_muffled:
+		_target_cutoff_hz = minf(_target_cutoff_hz, forced_muffle_cutoff_hz)
+		_target_occlusion_db = minf(_target_occlusion_db, forced_muffle_volume_drop_db)
 	return _is_occluded
 
 

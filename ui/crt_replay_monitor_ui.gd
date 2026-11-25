@@ -3,12 +3,14 @@ class_name CRTReplayMonitorUI
 extends Control
 
 ## Zero-Bandwidth 3.0s CRT Trap-Cam Replay Monitor (AGENTS.md §4.6, Doc 6 §4).
-## Attaches a local 240x135 SubViewport Camera3D to each remote rival's spine.006 head anchor,
-## records 12 FPS frames into per-rival circular ring buffers without streaming video over RPC,
-## and plays back 2.0s pre-impact + 1.0s post-impact ragdoll footage inside a retro CRT bezel.
+## Attaches a local SubViewport Camera3D to each remote rival's spine.006 head anchor,
+## captures staggered 12 FPS frames into per-rival circular ring buffers without streaming video over RPC,
+## queues back-to-back hits, and plays back pre-impact + post-impact ragdoll footage inside a retro CRT bezel.
 
-const DEFAULT_MAX_FRAMES: int = 36
-const CAPTURE_SIZE := Vector2i(240, 135)
+const DEFAULT_MAX_FRAMES: int = 96
+const DEFAULT_MAX_QUEUE: int = 4
+const CAPTURE_SIZE := Vector2i(426, 240)
+const DISPLAY_SIZE := Vector2(288.0, 162.0)
 
 const CRT_SHADER_CODE: String = """shader_type canvas_item;
 
@@ -19,24 +21,25 @@ uniform float time_seed = 0.0;
 void fragment() {
 	vec2 centered = UV - vec2(0.5);
 	float r2 = dot(centered, centered);
-	vec2 warped_uv = UV + centered * (r2 * 0.14);
+	vec2 warped_uv = UV + centered * (r2 * 0.13);
 
 	if (warped_uv.x < 0.0 || warped_uv.x > 1.0 || warped_uv.y < 0.0 || warped_uv.y > 1.0) {
 		COLOR = vec4(0.02, 0.04, 0.02, 1.0);
 	} else {
-		float shift = 0.0022 + static_amount * 0.008;
+		vec2 tex_res = max(vec2(textureSize(TEXTURE, 0)), vec2(160.0, 90.0));
+		float shift = 0.0020 + static_amount * 0.0075;
 		float r_ch = texture(TEXTURE, clamp(warped_uv + vec2(shift, 0.0), vec2(0.001), vec2(0.999))).r;
 		float g_ch = texture(TEXTURE, clamp(warped_uv, vec2(0.001), vec2(0.999))).g;
 		float b_ch = texture(TEXTURE, clamp(warped_uv - vec2(shift, 0.0), vec2(0.001), vec2(0.999))).b;
 		vec3 col = vec3(r_ch, g_ch, b_ch) * vec3(0.92, 1.04, 0.90);
 
-		float scan = 0.88 + 0.12 * sin(warped_uv.y * 135.0 * 6.2831853);
+		float scan = 0.89 + 0.11 * sin(warped_uv.y * tex_res.y * 6.2831853);
 		col *= scan;
 
-		float vig = clamp(1.0 - r2 * 1.15, 0.25, 1.0);
+		float vig = clamp(1.0 - r2 * 1.12, 0.28, 1.0);
 		col *= vig;
 
-		vec2 cell = floor(warped_uv * vec2(240.0, 135.0)) + vec2(time_seed * 61.3, time_seed * 17.7);
+		vec2 cell = floor(warped_uv * tex_res) + vec2(time_seed * 61.3, time_seed * 17.7);
 		float snow = fract(sin(dot(cell, vec2(12.9898, 78.233))) * 43758.5453);
 		col = mix(col, vec3(snow * 0.85, snow, snow * 0.88), clamp(static_amount, 0.0, 1.0));
 		col += impact_flash * vec3(0.45, 0.20, 0.12);
@@ -49,12 +52,17 @@ void fragment() {
 var _owner_player: Node3D = null
 var _owner_peer_id: int = 0
 var _rig_container: Node = null
-var _rival_rigs: Dictionary = {} # rival_id (int) -> {rival, viewport, camera, frames, visual_layer, pending_readback, frames_waited}
+var _rival_rigs: Dictionary = {} # rival_id (int) -> {rival, viewport, camera, frames, positions, visual_layer, pending_readback, frames_waited, capture_accum}
 var _fallback_frames: Array[Image] = []
 
-var _capture_accum: float = 0.0
 var _sync_accum: float = 0.0
 var _last_spy_count: int = -1
+var _debug_include_self: bool = false
+
+var _audio_cue_buffer: Array[Dictionary] = []
+var _voice_packet_buffer: Array[Dictionary] = []
+var _latest_voip_headers: Dictionary = {} # peer_id -> PackedByteArray
+var _match_archive: Array[Dictionary] = []
 
 var _is_playing: bool = false
 var _active_victim_peer_id: int = 0
@@ -65,10 +73,12 @@ var _play_idx: int = 0
 var _impact_frame_idx: int = 0
 var _post_capture_remaining: int = 0
 var _playback_frames: Array[Image] = []
+var _replay_queue: Array[Dictionary] = []
 
 var _panel: PanelContainer = null
+var _header_row: HBoxContainer = null
 var _header_label: Label = null
-var _footer_label: Label = null
+var _queue_label: Label = null
 var _texture_rect: TextureRect = null
 var _display_tex: ImageTexture = null
 var _crt_material: ShaderMaterial = null
@@ -79,8 +89,13 @@ func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_ensure_rig_container()
 	_build_layout()
-	if not Engine.is_editor_hint() and _owner_player != null:
-		sync_rival_rigs()
+	if not Engine.is_editor_hint():
+		if AudioBridge != null and AudioBridge.has_signal("world_cue_emitted") and not AudioBridge.world_cue_emitted.is_connected(_on_world_cue_emitted):
+			AudioBridge.world_cue_emitted.connect(_on_world_cue_emitted)
+		if VoiceChatManager != null and VoiceChatManager.has_signal("voip_packet_captured") and not VoiceChatManager.voip_packet_captured.is_connected(_on_voip_packet_captured):
+			VoiceChatManager.voip_packet_captured.connect(_on_voip_packet_captured)
+		if _owner_player != null:
+			sync_rival_rigs()
 
 
 func _ensure_rig_container() -> void:
@@ -92,9 +107,35 @@ func _ensure_rig_container() -> void:
 		add_child(_rig_container)
 
 
+func _get_capture_size() -> Vector2i:
+	if GameConfig != null:
+		var sz: Vector2i = GameConfig.crt_viewport_size
+		if sz.x > 0 and sz.y > 0:
+			return sz
+	return CAPTURE_SIZE
+
+
+func _get_display_size() -> Vector2:
+	if GameConfig != null:
+		var ds: Vector2 = GameConfig.crt_display_size
+		if ds.x >= 160.0 and ds.y >= 90.0:
+			return ds
+	return DISPLAY_SIZE
+
+
+func _get_max_queue() -> int:
+	if GameConfig != null and GameConfig.crt_replay_max_queue >= 1:
+		return GameConfig.crt_replay_max_queue
+	return DEFAULT_MAX_QUEUE
+
+
 func _build_layout() -> void:
 	if _panel != null:
 		return
+
+	var disp_size: Vector2 = _get_display_size()
+	var bezel_w: float = disp_size.x + 28.0
+	var bezel_h: float = disp_size.y + 36.0
 
 	_panel = PanelContainer.new()
 	_panel.name = "CRTMonitorBezel"
@@ -102,10 +143,11 @@ func _build_layout() -> void:
 	_panel.anchor_right = 1.0
 	_panel.anchor_top = 0.0
 	_panel.anchor_bottom = 0.0
-	_panel.offset_left = -284.0
+	_panel.offset_left = -(bezel_w + 14.0)
 	_panel.offset_right = -14.0
-	_panel.offset_top = 54.0
-	_panel.offset_bottom = 250.0
+	_panel.offset_top = 52.0
+	_panel.offset_bottom = 52.0 + bezel_h
+	_panel.custom_minimum_size = Vector2(bezel_w, bezel_h)
 	_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_panel.visible = false
 
@@ -115,8 +157,8 @@ func _build_layout() -> void:
 	outer_style.set_border_width_all(3)
 	outer_style.set_corner_radius_all(8)
 	outer_style.set_content_margin_all(10)
-	outer_style.shadow_size = 6
-	outer_style.shadow_color = Color(0.0, 0.0, 0.0, 0.55)
+	outer_style.shadow_size = 8
+	outer_style.shadow_color = Color(0.0, 0.0, 0.0, 0.60)
 	_panel.add_theme_stylebox_override("panel", outer_style)
 	add_child(_panel)
 
@@ -125,12 +167,29 @@ func _build_layout() -> void:
 	vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_panel.add_child(vbox)
 
+	_header_row = HBoxContainer.new()
+	_header_row.custom_minimum_size = Vector2(disp_size.x, 0.0)
+	_header_row.add_theme_constant_override("separation", 6)
+	_header_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	vbox.add_child(_header_row)
+
 	_header_label = Label.new()
 	_header_label.text = "▶ TRAP-CAM • STANDBY"
+	_header_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_header_label.clip_text = true
+	_header_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	_header_label.add_theme_font_size_override("font_size", 12)
 	_header_label.modulate = Color(1.0, 0.42, 0.30)
 	_header_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	vbox.add_child(_header_label)
+	_header_row.add_child(_header_label)
+
+	_queue_label = Label.new()
+	_queue_label.text = ""
+	_queue_label.visible = false
+	_queue_label.add_theme_font_size_override("font_size", 11)
+	_queue_label.modulate = Color(1.0, 0.82, 0.35)
+	_queue_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_header_row.add_child(_queue_label)
 
 	var screen_frame := PanelContainer.new()
 	screen_frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -144,9 +203,10 @@ func _build_layout() -> void:
 	vbox.add_child(screen_frame)
 
 	_texture_rect = TextureRect.new()
-	_texture_rect.custom_minimum_size = Vector2(float(CAPTURE_SIZE.x), float(CAPTURE_SIZE.y))
+	_texture_rect.custom_minimum_size = disp_size
 	_texture_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	_texture_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	_texture_rect.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 	_texture_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 	var shader := Shader.new()
@@ -159,21 +219,27 @@ func _build_layout() -> void:
 	_texture_rect.material = _crt_material
 	screen_frame.add_child(_texture_rect)
 
-	_footer_label = Label.new()
-	_footer_label.text = "-02.0s  APPROACH"
-	_footer_label.add_theme_font_size_override("font_size", 11)
-	_footer_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	_footer_label.modulate = Color(0.62, 0.95, 0.68)
-	_footer_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	vbox.add_child(_footer_label)
 
-
-func _get_capture_size() -> Vector2i:
-	if GameConfig != null:
-		var sz: Vector2i = GameConfig.crt_viewport_size
-		if sz.x > 0 and sz.y > 0:
-			return sz
-	return CAPTURE_SIZE
+func apply_live_config() -> void:
+	var disp_size: Vector2 = _get_display_size()
+	var cap_size: Vector2i = _get_capture_size()
+	if _panel != null:
+		var bezel_w: float = disp_size.x + 28.0
+		var bezel_h: float = disp_size.y + 36.0
+		_panel.offset_left = -(bezel_w + 14.0)
+		_panel.offset_right = -14.0
+		_panel.offset_top = 52.0
+		_panel.offset_bottom = 52.0 + bezel_h
+		_panel.custom_minimum_size = Vector2(bezel_w, bezel_h)
+		_panel.size = Vector2(bezel_w, bezel_h)
+	if _header_row != null:
+		_header_row.custom_minimum_size = Vector2(disp_size.x, 0.0)
+	if _texture_rect != null:
+		_texture_rect.custom_minimum_size = disp_size
+	for rid in _rival_rigs.keys():
+		var vp: SubViewport = _rival_rigs[rid].get("viewport") as SubViewport
+		if vp != null and is_instance_valid(vp) and vp.size != cap_size:
+			vp.size = cap_size
 
 
 func setup_for_owner(owner_player: Node3D) -> void:
@@ -186,19 +252,38 @@ func setup_for_owner(owner_player: Node3D) -> void:
 		sync_rival_rigs()
 
 
+func set_debug_include_self(enabled: bool) -> void:
+	if _debug_include_self == enabled:
+		return
+	_debug_include_self = enabled
+	sync_rival_rigs()
+
+
+func is_debug_include_self() -> bool:
+	return _debug_include_self
+
+
+func _resolve_candidate_id(candidate: Node) -> int:
+	if candidate.name.is_valid_int():
+		return candidate.name.to_int()
+	return int(candidate.get_instance_id())
+
+
 func sync_rival_rigs() -> void:
 	if not is_inside_tree() or get_tree() == null:
 		return
 	_ensure_rig_container()
 
+	var include_self: bool = _debug_include_self or (GameConfig != null and GameConfig.crt_archive_enabled)
 	var found_rigs: Dictionary = {}
 	for candidate in get_tree().get_nodes_in_group("spy_players"):
 		if candidate == null or not is_instance_valid(candidate) or not (candidate is Node3D):
 			continue
-		if candidate == _owner_player:
-			continue
-		var cand_id: int = candidate.name.to_int() if candidate.name.is_valid_int() else int(candidate.get_instance_id())
-		if _owner_peer_id != 0 and cand_id == _owner_peer_id:
+		var is_self: bool = (candidate == _owner_player)
+		var cand_id: int = _resolve_candidate_id(candidate)
+		if not is_self and _owner_peer_id != 0 and cand_id == _owner_peer_id:
+			is_self = true
+		if is_self and not include_self:
 			continue
 		found_rigs[cand_id] = candidate as Node3D
 
@@ -229,18 +314,24 @@ func sync_rival_rigs() -> void:
 		owner_world = get_viewport().world_3d
 
 	var all_layers: int = GameConfig.VISUAL_LAYER_ALL if GameConfig != null else 0xFFFFF
+	var local_fp_layer: int = GameConfig.VISUAL_LAYER_LOCAL_SPY_BODY if GameConfig != null else (1 << 10)
+	var fp_only_bit: int = GameConfig.VISUAL_LAYER_LOCAL_FP_BODY if GameConfig != null else (1 << 14)
 	var cap_size: Vector2i = _get_capture_size()
+	var fps: int = maxi(GameConfig.crt_replay_fps if GameConfig != null else 12, 1)
+	var step_sec: float = 1.0 / float(fps)
+	var total_rivals: int = maxi(rival_ids.size(), 1)
 
 	for slot_idx in range(rival_ids.size()):
 		var rival_id: int = rival_ids[slot_idx]
 		var rival: Node3D = found_rigs[rival_id] as Node3D
-		var layer_bit: int = (
+		var is_owner_self: bool = (rival == _owner_player)
+		var layer_bit: int = local_fp_layer if is_owner_self else (
 			GameConfig.get_remote_spy_visual_layer(slot_idx)
 			if GameConfig != null
 			else (1 << (11 + posmod(slot_idx, 3)))
 		)
 
-		if rival.has_method("set_crt_body_visual_layer"):
+		if not is_owner_self and rival.has_method("set_crt_body_visual_layer"):
 			var cur_layer: int = int(rival.call("get_crt_body_visual_layer")) if rival.has_method("get_crt_body_visual_layer") else 1
 			if cur_layer != layer_bit:
 				rival.call("set_crt_body_visual_layer", layer_bit)
@@ -271,14 +362,18 @@ func sync_rival_rigs() -> void:
 			_rig_container.add_child(vp)
 
 			var frames_arr: Array[Image] = []
+			var pos_arr: Array[Vector3] = []
+			var stagger_phase: float = (float(slot_idx) / float(total_rivals)) * step_sec
 			_rival_rigs[rival_id] = {
 				"rival": rival,
 				"viewport": vp,
 				"camera": cam,
 				"frames": frames_arr,
+				"positions": pos_arr,
 				"visual_layer": layer_bit,
 				"pending_readback": false,
-				"frames_waited": 0
+				"frames_waited": 0,
+				"capture_accum": stagger_phase
 			}
 		else:
 			var rig: Dictionary = _rival_rigs[rival_id]
@@ -293,16 +388,18 @@ func sync_rival_rigs() -> void:
 			if owner_world != null and vp.world_3d != owner_world:
 				vp.world_3d = owner_world
 		if cam != null:
-			var fp_only_bit: int = GameConfig.VISUAL_LAYER_LOCAL_FP_BODY if GameConfig != null else (1 << 14)
 			cam.cull_mask = all_layers & ~layer_bit & ~fp_only_bit
 
 
-func update_rival_camera_transforms() -> void:
+func update_rival_camera_transforms(only_ids: Array[int] = []) -> void:
 	var owner_world: World3D = null
 	if _owner_player != null and is_instance_valid(_owner_player) and _owner_player.is_inside_tree():
 		owner_world = _owner_player.get_world_3d()
 
-	for rid in _rival_rigs.keys():
+	var target_ids: Array = only_ids if not only_ids.is_empty() else _rival_rigs.keys()
+	for rid in target_ids:
+		if not _rival_rigs.has(rid):
+			continue
 		var rig: Dictionary = _rival_rigs[rid]
 		var rival: Node3D = rig.get("rival") as Node3D
 		var vp: SubViewport = rig.get("viewport") as SubViewport
@@ -332,6 +429,10 @@ func get_tracked_rival_ids() -> Array[int]:
 		ids.append(int(k))
 	ids.sort()
 	return ids
+
+
+func get_replay_queue_size() -> int:
+	return _replay_queue.size()
 
 
 func _process(delta: float) -> void:
@@ -376,43 +477,50 @@ func _process(delta: float) -> void:
 				img.resize(cap_size.x, cap_size.y, Image.INTERPOLATE_NEAREST)
 			push_frame(img, rival_id)
 
-	# Phase B: Advance active 3.0s CRT replay playback
+	# Phase B: Advance active CRT replay playback
 	if _is_playing:
 		step_replay_playback(delta)
 
-	# Phase C: Trigger UPDATE_ONCE at 12 FPS on remote rival SubViewports
-	var fps: int = GameConfig.crt_replay_fps if GameConfig != null else 12
-	var step_sec: float = 1.0 / float(maxi(fps, 1))
-	_capture_accum += delta
-	if _capture_accum >= step_sec:
-		_capture_accum = fmod(_capture_accum, step_sec)
-		var capture_ids: Array[int] = []
-		if not _is_playing:
-			capture_ids = get_tracked_rival_ids()
-		elif _post_capture_remaining > 0 and _rival_rigs.has(_active_victim_peer_id):
-			capture_ids.append(_active_victim_peer_id)
+	# Phase C: Staggered round-robin UPDATE_ONCE at configured FPS across all tracked rivals
+	# Keeps capturing all rivals even while a replay is playing so back-to-back hits have fresh pre-impact buffers.
+	var fps: int = maxi(GameConfig.crt_replay_fps if GameConfig != null else 12, 1)
+	var step_sec: float = 1.0 / float(fps)
+	var capture_ids: Array[int] = []
+	for rival_id in get_tracked_rival_ids():
+		var rig: Dictionary = _rival_rigs[rival_id]
+		var accum: float = float(rig.get("capture_accum", 0.0)) + delta
+		if accum >= step_sec:
+			accum = fmod(accum, step_sec)
+			if not bool(rig.get("pending_readback", false)):
+				capture_ids.append(rival_id)
+		rig["capture_accum"] = accum
 
-		if not capture_ids.is_empty():
-			update_rival_camera_transforms()
-			if not is_headless:
-				for rival_id in capture_ids:
-					var rig: Dictionary = _rival_rigs[rival_id]
-					var vp: SubViewport = rig.get("viewport") as SubViewport
-					if vp != null and is_instance_valid(vp):
-						rig["pending_readback"] = true
-						rig["frames_waited"] = 0
-						vp.render_target_update_mode = SubViewport.UPDATE_ONCE
+	if not capture_ids.is_empty():
+		update_rival_camera_transforms(capture_ids)
+		if not is_headless:
+			for rival_id in capture_ids:
+				var rig: Dictionary = _rival_rigs[rival_id]
+				var vp: SubViewport = rig.get("viewport") as SubViewport
+				if vp != null and is_instance_valid(vp):
+					rig["pending_readback"] = true
+					rig["frames_waited"] = 0
+					vp.render_target_update_mode = SubViewport.UPDATE_ONCE
 
 
 func push_frame(img: Image, rival_peer_id: int = 0) -> void:
 	if img == null or img.is_empty():
 		return
 	var max_frames: int = maxi(GameConfig.crt_replay_frame_count if GameConfig != null else DEFAULT_MAX_FRAMES, 1)
+	var cur_pos: Vector3 = _get_rig_world_pos(rival_peer_id)
 	if rival_peer_id > 0 and _rival_rigs.has(rival_peer_id):
 		var frames: Array[Image] = _rival_rigs[rival_peer_id]["frames"]
+		var positions: Array[Vector3] = _rival_rigs[rival_peer_id]["positions"]
 		frames.append(img)
+		positions.append(cur_pos)
 		while frames.size() > max_frames:
 			frames.remove_at(0)
+			if not positions.is_empty():
+				positions.remove_at(0)
 	else:
 		_fallback_frames.append(img)
 		while _fallback_frames.size() > max_frames:
@@ -421,6 +529,20 @@ func push_frame(img: Image, rival_peer_id: int = 0) -> void:
 	if _is_playing and rival_peer_id == _active_victim_peer_id and _post_capture_remaining > 0:
 		_playback_frames.append(img)
 		_post_capture_remaining -= 1
+
+	for queued in _replay_queue:
+		if int(queued.get("victim_peer_id", 0)) == rival_peer_id and int(queued.get("post_capture_remaining", 0)) > 0:
+			var q_frames: Array[Image] = queued["playback_frames"]
+			q_frames.append(img)
+			queued["post_capture_remaining"] = int(queued["post_capture_remaining"]) - 1
+
+	for archived in _match_archive:
+		if int(archived.get("victim_peer_id", 0)) == rival_peer_id and int(archived.get("post_capture_remaining", 0)) > 0:
+			var a_frames: Array[Image] = archived["playback_frames"]
+			var a_positions: Array[Vector3] = archived["victim_positions"]
+			a_frames.append(img)
+			a_positions.append(cur_pos)
+			archived["post_capture_remaining"] = int(archived["post_capture_remaining"]) - 1
 
 
 func get_buffer_size(rival_peer_id: int = 0) -> int:
@@ -448,15 +570,10 @@ func is_replaying() -> bool:
 	return _is_playing
 
 
-func trigger_replay(reason: String, victim_peer_id: int) -> void:
-	if _panel == null:
-		_build_layout()
-	sync_rival_rigs()
-	update_rival_camera_transforms()
-
+func _build_replay_snapshot(reason: String, victim_peer_id: int) -> Dictionary:
 	var max_frames: int = maxi(GameConfig.crt_replay_frame_count if GameConfig != null else DEFAULT_MAX_FRAMES, 4)
 	var fps: int = maxi(GameConfig.crt_replay_fps if GameConfig != null else 12, 1)
-	var post_sec: float = clampf(GameConfig.crt_replay_post_hit_seconds if GameConfig != null else 1.0, 0.0, 2.0)
+	var post_sec: float = clampf(GameConfig.crt_replay_post_hit_seconds if GameConfig != null else 2.5, 0.0, 3.5)
 	var post_frames: int = clampi(int(round(post_sec * float(fps))), 0, maxi(max_frames - 4, 0))
 	var pre_budget: int = maxi(max_frames - post_frames, 1)
 
@@ -464,30 +581,44 @@ func trigger_replay(reason: String, victim_peer_id: int) -> void:
 	if _rival_rigs.has(victim_peer_id):
 		source_frames = _rival_rigs[victim_peer_id]["frames"]
 
-	_playback_frames.clear()
+	var snap_frames: Array[Image] = []
+	var impact_idx: int = 0
 	if not source_frames.is_empty():
 		var start_idx: int = maxi(source_frames.size() - pre_budget, 0)
 		for i in range(start_idx, source_frames.size()):
-			_playback_frames.append(source_frames[i])
-		_impact_frame_idx = _playback_frames.size()
+			snap_frames.append(source_frames[i])
+		impact_idx = snap_frames.size()
 	else:
 		var cap_size: Vector2i = _get_capture_size()
 		var standby := Image.create(cap_size.x, cap_size.y, false, Image.FORMAT_RGB8)
 		standby.fill(Color(0.08, 0.18, 0.11))
-		_playback_frames.append(standby)
-		_impact_frame_idx = 0
+		snap_frames.append(standby)
+		impact_idx = 0
 
-	_active_victim_peer_id = victim_peer_id
-	_active_reason = reason.to_upper()
-	_post_capture_remaining = post_frames
+	return {
+		"reason": reason.to_upper(),
+		"victim_peer_id": victim_peer_id,
+		"playback_frames": snap_frames,
+		"impact_frame_idx": impact_idx,
+		"post_capture_remaining": post_frames
+	}
+
+
+func _start_replay_entry(entry: Dictionary) -> void:
+	_playback_frames = entry.get("playback_frames", [] as Array[Image])
+	_impact_frame_idx = int(entry.get("impact_frame_idx", 0))
+	_active_victim_peer_id = int(entry.get("victim_peer_id", 0))
+	_active_reason = str(entry.get("reason", "TRAP"))
+	_post_capture_remaining = int(entry.get("post_capture_remaining", 0))
 	_is_playing = true
 	_play_elapsed = 0.0
 	_play_accum = 0.0
 	_play_idx = 0
 
-	var spy_label: String = _resolve_spy_display_name(victim_peer_id)
+	var spy_label: String = _resolve_spy_display_name(_active_victim_peer_id)
 	if _header_label != null:
 		_header_label.text = "▶ TRAP-CAM • %s HIT %s!" % [_active_reason, spy_label]
+	_refresh_queue_badge()
 	if _panel != null:
 		_panel.visible = true
 	if not _playback_frames.is_empty():
@@ -495,13 +626,48 @@ func trigger_replay(reason: String, victim_peer_id: int) -> void:
 	_update_crt_visuals()
 
 
+func _refresh_queue_badge() -> void:
+	if _queue_label == null:
+		return
+	if _replay_queue.is_empty():
+		_queue_label.visible = false
+		_queue_label.text = ""
+	else:
+		_queue_label.visible = true
+		_queue_label.text = "+%d QUEUED" % _replay_queue.size()
+
+
+func trigger_replay(reason: String, victim_peer_id: int) -> void:
+	if _panel == null:
+		_build_layout()
+	apply_live_config()
+	sync_rival_rigs()
+	update_rival_camera_transforms()
+
+	var entry: Dictionary = _build_replay_snapshot(reason, victim_peer_id)
+	if _is_playing:
+		var max_q: int = _get_max_queue()
+		if _replay_queue.size() < max_q:
+			_replay_queue.append(entry)
+			_refresh_queue_badge()
+		return
+
+	_start_replay_entry(entry)
+
+
 func step_replay_playback(delta: float) -> void:
 	if not _is_playing:
 		return
 	_play_elapsed += delta
 	var dur: float = GameConfig.crt_replay_duration if GameConfig != null else 3.0
-	if _play_elapsed >= dur:
-		stop_replay(true)
+	if _play_elapsed >= dur and (_post_capture_remaining <= 0 or _play_elapsed >= dur + 0.6):
+		if not _replay_queue.is_empty():
+			var next_entry: Dictionary = _replay_queue.pop_front()
+			_start_replay_entry(next_entry)
+			if AudioBridge != null:
+				AudioBridge.play_local_cue("crt_static")
+		else:
+			stop_replay(true)
 		return
 
 	var fps: int = maxi(GameConfig.crt_replay_fps if GameConfig != null else 12, 1)
@@ -523,42 +689,200 @@ func stop_replay(emit_click_off: bool = false) -> void:
 	_active_reason = ""
 	_post_capture_remaining = 0
 	_playback_frames.clear()
+	_refresh_queue_badge()
 	if _panel != null:
 		_panel.visible = false
 	if was_playing and emit_click_off and AudioBridge != null:
 		AudioBridge.play_local_cue("crt_click_off")
 
 
+func clear_queue_and_stop(emit_click_off: bool = false) -> void:
+	_replay_queue.clear()
+	stop_replay(emit_click_off)
+
+
+func get_debug_snapshot() -> Dictionary:
+	var rig_buffers: Dictionary = {}
+	for rid in get_tracked_rival_ids():
+		rig_buffers[rid] = (_rival_rigs[rid]["frames"] as Array).size()
+	return {
+		"is_playing": _is_playing,
+		"active_victim_peer_id": _active_victim_peer_id,
+		"active_reason": _active_reason,
+		"queue_size": _replay_queue.size(),
+		"archive_count": _match_archive.size(),
+		"voice_buffer_count": _voice_packet_buffer.size(),
+		"cue_buffer_count": _audio_cue_buffer.size(),
+		"playback_idx": _play_idx,
+		"playback_total": _playback_frames.size(),
+		"post_capture_remaining": _post_capture_remaining,
+		"play_elapsed": _play_elapsed,
+		"rig_buffers": rig_buffers,
+		"capture_size": _get_capture_size(),
+		"display_size": _get_display_size(),
+		"debug_include_self": _debug_include_self
+	}
+
+
+func _now_sec() -> float:
+	return float(Time.get_ticks_msec()) * 0.001
+
+
+func _get_rig_world_pos(peer_id: int) -> Vector3:
+	if _rival_rigs.has(peer_id):
+		var rival: Node3D = _rival_rigs[peer_id].get("rival") as Node3D
+		if rival != null and is_instance_valid(rival) and rival.is_inside_tree():
+			return rival.global_position + Vector3(0.0, 1.5, 0.0)
+	return Vector3.ZERO
+
+
+func _on_world_cue_emitted(cue_id: String, world_pos: Vector3, radius: float, source_peer_id: int, variant_seed: int = -1) -> void:
+	var t: float = _now_sec()
+	var entry: Dictionary = {
+		"time_sec": t,
+		"cue_id": cue_id,
+		"world_pos": world_pos,
+		"radius": radius,
+		"source_peer_id": source_peer_id,
+		"variant_seed": variant_seed
+	}
+	_audio_cue_buffer.append(entry)
+	var keep_sec: float = (GameConfig.crt_replay_duration if GameConfig != null else 3.0) + 2.0
+	while not _audio_cue_buffer.is_empty() and t - float(_audio_cue_buffer[0]["time_sec"]) > keep_sec:
+		_audio_cue_buffer.remove_at(0)
+
+	for archived in _match_archive:
+		if t <= float(archived.get("post_window_end_sec", 0.0)):
+			var clip_start: float = float(archived.get("clip_start_sec", t))
+			var cues: Array[Dictionary] = archived["audio_cues"]
+			var rel_cue: Dictionary = entry.duplicate()
+			rel_cue["rel_sec"] = maxf(t - clip_start, 0.0)
+			cues.append(rel_cue)
+
+
+func _on_voip_packet_captured(sender_peer_id: int, packet: PackedByteArray) -> void:
+	if packet.is_empty():
+		return
+	var t: float = _now_sec()
+	var is_header: bool = packet.size() > 3 and packet[0] == 123 and packet[-1] == 125
+	if is_header:
+		var parsed: Variant = JSON.parse_string(packet.get_string_from_ascii())
+		if parsed is Dictionary and (parsed as Dictionary).has("talkingtimestart"):
+			_latest_voip_headers[sender_peer_id] = packet.duplicate()
+
+	var pkt_entry: Dictionary = {
+		"time_sec": t,
+		"sender_peer_id": sender_peer_id,
+		"packet": packet.duplicate(),
+		"sender_pos": _get_rig_world_pos(sender_peer_id),
+		"is_header": is_header
+	}
+	_voice_packet_buffer.append(pkt_entry)
+	var keep_sec: float = (GameConfig.crt_replay_duration if GameConfig != null else 3.0) + 2.0
+	while not _voice_packet_buffer.is_empty() and t - float(_voice_packet_buffer[0]["time_sec"]) > keep_sec:
+		_voice_packet_buffer.remove_at(0)
+
+	for archived in _match_archive:
+		if t <= float(archived.get("post_window_end_sec", 0.0)):
+			var clip_start: float = float(archived.get("clip_start_sec", t))
+			var pkts: Array[Dictionary] = archived["voice_packets"]
+			var rel_pkt: Dictionary = pkt_entry.duplicate()
+			rel_pkt["rel_sec"] = maxf(t - clip_start, 0.0)
+			pkts.append(rel_pkt)
+
+
+func archive_trap_hit(reason: String, victim_peer_id: int, attacker_peer_id: int = 0) -> void:
+	if GameConfig != null and not GameConfig.crt_archive_enabled:
+		return
+	sync_rival_rigs()
+	var snap: Dictionary = _build_replay_snapshot(reason, victim_peer_id)
+	var now: float = _now_sec()
+	var fps: int = maxi(GameConfig.crt_replay_fps if GameConfig != null else 24, 1)
+	var pre_frames_count: int = (snap["playback_frames"] as Array).size()
+	var pre_sec: float = float(pre_frames_count) / float(fps)
+	var post_sec: float = clampf(GameConfig.crt_replay_post_hit_seconds if GameConfig != null else 2.5, 0.0, 3.5)
+	var clip_start: float = now - pre_sec
+
+	var victim_positions: Array[Vector3] = []
+	if _rival_rigs.has(victim_peer_id):
+		var src_pos: Array[Vector3] = _rival_rigs[victim_peer_id]["positions"]
+		var start_idx: int = maxi(src_pos.size() - pre_frames_count, 0)
+		for i in range(start_idx, src_pos.size()):
+			victim_positions.append(src_pos[i])
+	while victim_positions.size() < pre_frames_count:
+		victim_positions.append(_get_rig_world_pos(victim_peer_id))
+
+	var cues: Array[Dictionary] = []
+	for c in _audio_cue_buffer:
+		var ct: float = float(c["time_sec"])
+		if ct >= clip_start and ct <= now:
+			var rel_c: Dictionary = c.duplicate()
+			rel_c["rel_sec"] = ct - clip_start
+			cues.append(rel_c)
+
+	var v_pkts: Array[Dictionary] = []
+	for p in _voice_packet_buffer:
+		var pt: float = float(p["time_sec"])
+		if pt >= clip_start and pt <= now:
+			var rel_p: Dictionary = p.duplicate()
+			rel_p["rel_sec"] = pt - clip_start
+			v_pkts.append(rel_p)
+
+	var max_clips: int = maxi(GameConfig.crt_archive_max_clips if GameConfig != null else 8, 1)
+	var entry: Dictionary = {
+		"reason": reason.to_upper(),
+		"victim_peer_id": victim_peer_id,
+		"attacker_peer_id": attacker_peer_id,
+		"victim_label": _resolve_spy_display_name(victim_peer_id),
+		"attacker_label": _resolve_spy_display_name(attacker_peer_id) if attacker_peer_id > 0 else "TRAP",
+		"playback_frames": snap["playback_frames"],
+		"victim_positions": victim_positions,
+		"impact_frame_idx": snap["impact_frame_idx"],
+		"post_capture_remaining": snap["post_capture_remaining"],
+		"audio_cues": cues,
+		"voice_packets": v_pkts,
+		"voice_headers": _latest_voip_headers.duplicate(),
+		"clip_start_sec": clip_start,
+		"post_window_end_sec": now + post_sec,
+		"fps": fps,
+		"duration": GameConfig.crt_replay_duration if GameConfig != null else 3.0
+	}
+	_match_archive.append(entry)
+	while _match_archive.size() > max_clips:
+		_match_archive.remove_at(0)
+
+
+func get_match_archive() -> Array[Dictionary]:
+	return _match_archive
+
+
+func get_match_archive_count() -> int:
+	return _match_archive.size()
+
+
+func clear_match_archive() -> void:
+	_match_archive.clear()
+
+
 func _update_crt_visuals() -> void:
 	var dur: float = GameConfig.crt_replay_duration if GameConfig != null else 3.0
-	var fps: int = maxi(GameConfig.crt_replay_fps if GameConfig != null else 12, 1)
 	var burst_sec: float = 0.18
 	var static_val: float = 0.03
 	if _play_elapsed < burst_sec:
 		static_val = 1.0 - (_play_elapsed / burst_sec)
-	elif _play_elapsed > dur - burst_sec:
+	elif _play_elapsed > dur - burst_sec and _replay_queue.is_empty():
 		static_val = (_play_elapsed - (dur - burst_sec)) / burst_sec
 
 	var impact_flash_val: float = 0.0
-	if _impact_frame_idx > 0 and (_play_idx == _impact_frame_idx or _play_idx == _impact_frame_idx - 1):
-		impact_flash_val = 0.85
+	if _impact_frame_idx > 0:
+		var frames_past_impact: int = _play_idx - _impact_frame_idx
+		if frames_past_impact >= -1 and frames_past_impact <= 3:
+			impact_flash_val = clampf(0.85 - float(maxi(frames_past_impact, 0)) * 0.25, 0.0, 0.85)
 
 	if _crt_material != null:
 		_crt_material.set_shader_parameter("static_amount", clampf(static_val, 0.02, 1.0))
 		_crt_material.set_shader_parameter("impact_flash", impact_flash_val)
 		_crt_material.set_shader_parameter("time_seed", _play_elapsed)
-
-	if _footer_label != null:
-		var rel_sec: float = float(_play_idx - _impact_frame_idx) / float(fps)
-		if rel_sec < -0.04:
-			_footer_label.text = "%.1fs  APPROACH" % rel_sec
-			_footer_label.modulate = Color(0.62, 0.95, 0.68)
-		elif absf(rel_sec) <= 0.12:
-			_footer_label.text = "● 00.0s  IMPACT!"
-			_footer_label.modulate = Color(1.0, 0.45, 0.28)
-		else:
-			_footer_label.text = "+%.1fs  KO RAGDOLL" % rel_sec
-			_footer_label.modulate = Color(0.95, 0.85, 0.45)
 
 
 func _resolve_spy_display_name(victim_peer_id: int) -> String:
@@ -566,16 +890,15 @@ func _resolve_spy_display_name(victim_peer_id: int) -> String:
 		var rival: Node3D = _rival_rigs[victim_peer_id].get("rival") as Node3D
 		if rival != null and is_instance_valid(rival):
 			var role_val: int = int(rival.get("spy_role"))
-			if GameConfig != null and role_val >= 1 and role_val <= 4:
-				return GameConfig.get_spy_role_name(role_val)
-			if role_val == 1:
-				return "SPY GREEN"
-			if role_val == 2:
-				return "SPY PURPLE"
-			if role_val == 3:
-				return "SPY BLUE"
-			if role_val == 4:
-				return "SPY RED"
+			match role_val:
+				1:
+					return "GREEN SPY"
+				2:
+					return "PURPLE SPY"
+				3:
+					return "BLUE SPY"
+				4:
+					return "RED SPY"
 	return "SPY %d" % victim_peer_id
 
 

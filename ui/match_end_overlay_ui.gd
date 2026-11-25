@@ -10,6 +10,8 @@ signal rematch_requested()
 signal switch_mode_requested()
 signal return_to_lobby_requested()
 
+const TRAP_OF_THE_GAME_UI_SCRIPT = preload("res://ui/trap_of_the_game_ui.gd")
+
 var last_winner_peer_id: int = 0
 var last_reason: String = ""
 var last_outcome_kind: String = "" # "VICTORY", "DEFEAT", or "DRAW"
@@ -19,9 +21,15 @@ var _panel: PanelContainer = null
 var _title_label: Label = null
 var _subtitle_label: Label = null
 var _meta_label: Label = null
+var _totg_label: Label = null
 var _rematch_button: Button = null
 var _switch_mode_button: Button = null
 var _lobby_button: Button = null
+
+var _totg_ui: TrapOfTheGameUI = null
+var _pending_totg_clips: Array[Dictionary] = []
+var _totg_waiting: bool = false
+var _totg_countdown: float = 0.0
 
 
 func _ready() -> void:
@@ -84,24 +92,41 @@ func _build_layout() -> void:
 	_meta_label.modulate = Color(0.75, 0.80, 0.85)
 	vbox.add_child(_meta_label)
 
+	_totg_label = Label.new()
+	_totg_label.text = ""
+	_totg_label.visible = false
+	_totg_label.add_theme_font_size_override("font_size", 13)
+	_totg_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_totg_label.modulate = Color(1.0, 0.84, 0.32)
+	vbox.add_child(_totg_label)
+
 	vbox.add_child(HSeparator.new())
 
 	_rematch_button = Button.new()
 	_rematch_button.name = "RematchButton"
 	_rematch_button.text = "Rematch"
-	_rematch_button.pressed.connect(func() -> void: rematch_requested.emit())
+	_rematch_button.pressed.connect(func() -> void:
+		_cancel_totg_countdown()
+		rematch_requested.emit()
+	)
 	vbox.add_child(_rematch_button)
 
 	_switch_mode_button = Button.new()
 	_switch_mode_button.name = "SwitchModeButton"
 	_switch_mode_button.text = "Switch to Dev Sandbox Gym"
-	_switch_mode_button.pressed.connect(func() -> void: switch_mode_requested.emit())
+	_switch_mode_button.pressed.connect(func() -> void:
+		_cancel_totg_countdown()
+		switch_mode_requested.emit()
+	)
 	vbox.add_child(_switch_mode_button)
 
 	_lobby_button = Button.new()
 	_lobby_button.name = "ReturnToLobbyButton"
 	_lobby_button.text = "Return to Lobby"
-	_lobby_button.pressed.connect(func() -> void: return_to_lobby_requested.emit())
+	_lobby_button.pressed.connect(func() -> void:
+		_cancel_totg_countdown()
+		return_to_lobby_requested.emit()
+	)
 	vbox.add_child(_lobby_button)
 
 
@@ -110,7 +135,8 @@ func show_match_result(
 	local_peer_id: int,
 	reason: String,
 	actions: Actions,
-	is_sandbox: bool
+	is_sandbox: bool,
+	totg_clips: Array[Dictionary] = []
 ) -> void:
 	_build_layout()
 	last_winner_peer_id = winner_peer_id
@@ -142,7 +168,52 @@ func show_match_result(
 	)
 
 	visible = true
+	_pending_totg_clips = totg_clips.duplicate()
+	if not _pending_totg_clips.is_empty():
+		_totg_countdown = GameConfig.crt_totg_delay_seconds if GameConfig != null else 3.5
+		_totg_waiting = true
+		if _totg_label != null:
+			_totg_label.visible = true
+			_totg_label.text = "★ Trap of the Game in %ds..." % int(ceil(_totg_countdown))
+	else:
+		_cancel_totg_countdown()
+
+
+func _process(delta: float) -> void:
+	if Engine.is_editor_hint() or not _totg_waiting:
+		return
+	_totg_countdown -= delta
+	if _totg_countdown <= 0.0:
+		_totg_waiting = false
+		if _totg_label != null:
+			_totg_label.visible = false
+		_launch_trap_of_the_game(_pending_totg_clips)
+	elif _totg_label != null:
+		_totg_label.text = "★ Trap of the Game in %ds..." % maxi(int(ceil(_totg_countdown)), 1)
+
+
+func _cancel_totg_countdown() -> void:
+	_totg_waiting = false
+	_pending_totg_clips.clear()
+	if _totg_label != null:
+		_totg_label.visible = false
+
+
+func _launch_trap_of_the_game(clips: Array[Dictionary]) -> void:
+	if clips.is_empty():
+		return
+	if _totg_ui == null:
+		_totg_ui = TRAP_OF_THE_GAME_UI_SCRIPT.new()
+		_totg_ui.name = "TrapOfTheGameUI"
+		add_child(_totg_ui)
+		_totg_ui.skip_to_lobby_requested.connect(func() -> void:
+			return_to_lobby_requested.emit()
+		)
+	_totg_ui.start_compilation(clips)
 
 
 func hide_overlay() -> void:
+	_cancel_totg_countdown()
+	if _totg_ui != null:
+		_totg_ui.stop_compilation(false)
 	visible = false

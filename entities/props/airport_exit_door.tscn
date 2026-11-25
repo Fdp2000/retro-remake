@@ -1,30 +1,257 @@
-[gd_scene format=3]
+[gd_scene load_steps=20 format=3]
 
 [ext_resource type="Script" path="res://entities/props/airport_exit_door.gd" id="1_exit"]
+[ext_resource type="Texture2D" uid="uid://c8m7v4n0xp1qe" path="res://Assets/Models/Import/Interiors_A/texture/Updated_Textures/Texture_Ceiling.png" id="2_detail_tex"]
+
+[sub_resource type="Shader" id="Shader_comic_airport_door"]
+code = "shader_type spatial;
+render_mode cull_back, diffuse_toon, specular_toon;
+
+uniform sampler2D detail_tex : source_color, filter_linear_mipmap, repeat_enable;
+uniform vec4 base_tint : source_color = vec4(0.11, 0.44, 0.36, 1.0);
+uniform vec4 accent_tint : source_color = vec4(0.96, 0.80, 0.18, 1.0);
+uniform vec4 ink_color : source_color = vec4(0.05, 0.06, 0.08, 1.0);
+uniform vec3 box_half_extents = vec3(0.66, 1.065, 0.04);
+uniform int part_mode = 0; // 0 = door leaf w/ plane medallion, 1 = steel frame, 2 = security badge/pad, 3 = steel hardware, 4 = overhead departure sign
+
+varying vec3 local_pos;
+varying vec3 local_norm;
+
+float sd_segment(vec2 p, vec2 a, vec2 b) {
+	vec2 pa = p - a;
+	vec2 ba = b - a;
+	float h = clamp(dot(pa, ba) / max(dot(ba, ba), 0.0001), 0.0, 1.0);
+	return length(pa - ba * h);
+}
+
+float plane_mask(vec2 p, float scale) {
+	// Rotate by -45 degrees so nose points up-right (classic airport departure icon)
+	float c = 0.70710678;
+	float s = 0.70710678;
+	vec2 q = vec2(p.x * c + p.y * s, -p.x * s + p.y * c) / max(scale, 0.001);
+	float u = q.x;
+	float v = abs(q.y);
+
+	// Fuselage with tapered nose cone
+	float fuse_r = mix(0.028, 0.006, smoothstep(0.08, 0.22, u));
+	float d_fuse = sd_segment(vec2(u, v), vec2(-0.19, 0.0), vec2(0.21, 0.0)) - fuse_r;
+
+	// Main swept wings
+	float w_lead = 0.045 - 0.52 * v;
+	float w_trail = -0.045 - 0.32 * v;
+	float d_wing = max(max(w_trail - u, u - w_lead), v - 0.215);
+
+	// Horizontal tailplane stabilizers
+	float t_lead = -0.130 - 0.45 * v;
+	float t_trail = -0.190 - 0.25 * v;
+	float d_tail = max(max(t_trail - u, u - t_lead), v - 0.085);
+
+	float d = min(d_fuse, min(d_wing, d_tail));
+	return 1.0 - smoothstep(-0.004, 0.004, d);
+}
+
+float chevron_mask(vec2 p, vec2 center, float size) {
+	vec2 q = (p - center) / max(size, 0.001);
+	float d1 = sd_segment(q, vec2(-0.35, -0.55), vec2(0.35, 0.0));
+	float d2 = sd_segment(q, vec2(-0.35, 0.55), vec2(0.35, 0.0));
+	float d = min(d1, d2) - 0.16;
+	return 1.0 - smoothstep(-0.03, 0.03, d);
+}
+
+void vertex() {
+	local_pos = VERTEX;
+	local_norm = NORMAL;
+}
+
+void fragment() {
+	if (part_mode == 4) {
+		// Overhead illuminated Airport Departure Sign
+		float nx = abs(local_pos.x) / max(box_half_extents.x, 0.001);
+		float ny = abs(local_pos.y) / max(box_half_extents.y, 0.001);
+		float nz = abs(local_pos.z) / max(box_half_extents.z, 0.001);
+		float is_face = step(0.85, nz);
+		float border = step(0.92, nx) + step(0.80, ny);
+		border = clamp(border, 0.0, 1.0);
+
+		float icon_plane = plane_mask(local_pos.xy - vec2(-0.22, 0.0), 0.40);
+		float chev_1 = chevron_mask(local_pos.xy, vec2(0.14, 0.0), 0.085);
+		float chev_2 = chevron_mask(local_pos.xy, vec2(0.28, 0.0), 0.085);
+		float graphics = clamp(icon_plane + chev_1 + chev_2, 0.0, 1.0) * is_face;
+
+		vec3 sign_bg = mix(vec3(0.16, 0.20, 0.25), accent_tint.rgb, is_face * (1.0 - border));
+		vec3 final_col = mix(sign_bg, ink_color.rgb, clamp(border + graphics, 0.0, 1.0));
+		ALBEDO = final_col;
+		EMISSION = sign_bg * is_face * (1.0 - border) * (1.0 - graphics) * 0.75;
+		ROUGHNESS = 0.35;
+		METALLIC = 0.15;
+	} else if (part_mode == 3) {
+		// Brushed steel hardware (push bar, hinges, mounts) with comic rim outline
+		float rim = 1.0 - clamp(dot(NORMAL, VIEW), 0.0, 1.0);
+		float outline = smoothstep(0.68, 0.78, rim);
+		vec3 metal = base_tint.rgb * (0.92 + 0.18 * NORMAL.y);
+		ALBEDO = mix(metal, ink_color.rgb, outline);
+		ROUGHNESS = 0.30;
+		METALLIC = 0.45;
+	} else if (part_mode == 2) {
+		// Security scanner / accent plate with comic ink border
+		float nx = abs(local_pos.x) / max(box_half_extents.x, 0.001);
+		float ny = abs(local_pos.y) / max(box_half_extents.y, 0.001);
+		float border = step(0.82, max(nx, ny));
+		float led = step(length(local_pos.xy - vec2(0.0, 0.035)), 0.012);
+		vec3 plate_col = base_tint.rgb * (0.95 + 0.10 * (local_pos.y / max(box_half_extents.y, 0.01)));
+		vec3 led_col = vec3(0.22, 0.96, 0.48);
+		vec3 col = mix(plate_col, led_col, led);
+		ALBEDO = mix(col, ink_color.rgb, border);
+		EMISSION = led_col * led * (1.0 - border) * 1.2;
+		ROUGHNESS = 0.32;
+		METALLIC = 0.35;
+	} else if (part_mode == 0) {
+		// Airport Exit Door Leaf: painted steel panel + departure medallion + plane silhouette
+		vec2 face_uv = vec2(
+			(local_pos.x / max(box_half_extents.x, 0.001)) * 0.5 + 0.5,
+			(local_pos.y / max(box_half_extents.y, 0.001)) * 0.5 + 0.5
+		);
+		vec3 tex_det = texture(detail_tex, face_uv * 1.3).rgb;
+		float nx = abs(local_pos.x) / max(box_half_extents.x, 0.001);
+		float ny = abs(local_pos.y) / max(box_half_extents.y, 0.001);
+		float nz = abs(local_pos.z) / max(box_half_extents.z, 0.001);
+		float is_face = step(0.85, nz);
+
+		// Base painted steel door color with subtle comic shading
+		vec3 leaf_col = base_tint.rgb * mix(0.92, 1.06, tex_det.r) * (0.96 + 0.08 * face_uv.y);
+
+		// Bottom kickplate / hazard-stripe accent band
+		float in_kick = step(local_pos.y, -0.68);
+		float stripe_diag = step(0.5, fract((local_pos.x + local_pos.y) * 5.0));
+		float kick_border = step(abs(local_pos.y + 0.68), 0.012);
+		vec3 kick_col = mix(vec3(0.12, 0.15, 0.19), accent_tint.rgb * 0.88, stripe_diag * step(local_pos.y, -0.82) * step(-0.94, local_pos.y));
+		leaf_col = mix(leaf_col, kick_col, in_kick * is_face);
+
+		// Recessed vertical panel seam lines
+		float seam_x = step(abs(abs(local_pos.x) - 0.50), 0.006) * step(-0.62, local_pos.y) * step(local_pos.y, 0.92);
+		float seam_top = step(abs(local_pos.y - 0.92), 0.006) * step(abs(local_pos.x), 0.506);
+		float seam_bot = step(abs(local_pos.y + 0.62), 0.006) * step(abs(local_pos.x), 0.506);
+		float seams = clamp(seam_x + seam_top + seam_bot, 0.0, 1.0) * is_face;
+
+		// Bold circular Departure Medallion in upper-center of door with Plane Silhouette
+		vec2 badge_center = vec2(0.0, 0.30);
+		float badge_dist = length(local_pos.xy - badge_center);
+		float badge_fill = (1.0 - smoothstep(0.345, 0.355, badge_dist)) * is_face;
+		float badge_ring = (smoothstep(0.325, 0.335, badge_dist) * (1.0 - smoothstep(0.355, 0.365, badge_dist))) * is_face;
+		float inner_ring = (smoothstep(0.285, 0.292, badge_dist) * (1.0 - smoothstep(0.300, 0.307, badge_dist))) * is_face;
+
+		float plane_sil = plane_mask(local_pos.xy - badge_center, 1.15) * is_face;
+
+		vec3 col = mix(leaf_col, accent_tint.rgb, badge_fill);
+
+		// Outer perimeter comic ink border
+		float outer_border = step(0.955, max(nx, ny));
+		float total_ink = clamp(outer_border + kick_border * is_face + seams * 0.75 + badge_ring + inner_ring * 0.65 + plane_sil, 0.0, 1.0);
+
+		ALBEDO = mix(col, ink_color.rgb, total_ink);
+		EMISSION = accent_tint.rgb * badge_fill * (1.0 - plane_sil) * (1.0 - badge_ring) * 0.14;
+		ROUGHNESS = 0.58;
+		METALLIC = 0.15;
+	} else {
+		// Heavy gunmetal steel frame with comic edge outline
+		vec3 tex_det = texture(detail_tex, vec2(local_pos.y * 0.8, (local_pos.x + local_pos.z) * 1.4)).rgb;
+		float nx = abs(local_pos.x) / max(box_half_extents.x, 0.001);
+		float ny = abs(local_pos.y) / max(box_half_extents.y, 0.001);
+		float nz = abs(local_pos.z) / max(box_half_extents.z, 0.001);
+		float edge_count = step(0.82, nx) + step(0.985, ny) + step(0.86, nz);
+		float outer_b = step(1.5, edge_count);
+		vec3 frame_col = base_tint.rgb * mix(0.88, 1.10, tex_det.r);
+		ALBEDO = mix(frame_col, ink_color.rgb, outer_b);
+		ROUGHNESS = 0.55;
+		METALLIC = 0.35;
+	}
+}
+"
+
+[sub_resource type="ShaderMaterial" id="Mat_leaf"]
+shader = SubResource("Shader_comic_airport_door")
+shader_parameter/detail_tex = ExtResource("2_detail_tex")
+shader_parameter/base_tint = Color(0.11, 0.44, 0.36, 1)
+shader_parameter/accent_tint = Color(0.96, 0.80, 0.18, 1)
+shader_parameter/ink_color = Color(0.05, 0.06, 0.08, 1)
+shader_parameter/box_half_extents = Vector3(0.66, 1.065, 0.04)
+shader_parameter/part_mode = 0
+
+[sub_resource type="ShaderMaterial" id="Mat_frame_jamb"]
+shader = SubResource("Shader_comic_airport_door")
+shader_parameter/detail_tex = ExtResource("2_detail_tex")
+shader_parameter/base_tint = Color(0.17, 0.21, 0.27, 1)
+shader_parameter/ink_color = Color(0.04, 0.05, 0.07, 1)
+shader_parameter/box_half_extents = Vector3(0.055, 1.12, 0.11)
+shader_parameter/part_mode = 1
+
+[sub_resource type="ShaderMaterial" id="Mat_frame_header"]
+shader = SubResource("Shader_comic_airport_door")
+shader_parameter/detail_tex = ExtResource("2_detail_tex")
+shader_parameter/base_tint = Color(0.17, 0.21, 0.27, 1)
+shader_parameter/ink_color = Color(0.04, 0.05, 0.07, 1)
+shader_parameter/box_half_extents = Vector3(0.77, 0.055, 0.11)
+shader_parameter/part_mode = 1
+
+[sub_resource type="ShaderMaterial" id="Mat_scanner_plate"]
+shader = SubResource("Shader_comic_airport_door")
+shader_parameter/base_tint = Color(0.22, 0.27, 0.34, 1)
+shader_parameter/ink_color = Color(0.05, 0.06, 0.08, 1)
+shader_parameter/box_half_extents = Vector3(0.035, 0.065, 0.015)
+shader_parameter/part_mode = 2
+
+[sub_resource type="ShaderMaterial" id="Mat_steel_hardware"]
+shader = SubResource("Shader_comic_airport_door")
+shader_parameter/base_tint = Color(0.76, 0.80, 0.85, 1)
+shader_parameter/ink_color = Color(0.05, 0.06, 0.08, 1)
+shader_parameter/part_mode = 3
+
+[sub_resource type="ShaderMaterial" id="Mat_push_pad"]
+shader = SubResource("Shader_comic_airport_door")
+shader_parameter/base_tint = Color(0.86, 0.22, 0.18, 1)
+shader_parameter/ink_color = Color(0.05, 0.06, 0.08, 1)
+shader_parameter/part_mode = 3
+
+[sub_resource type="ShaderMaterial" id="Mat_departure_sign"]
+shader = SubResource("Shader_comic_airport_door")
+shader_parameter/base_tint = Color(0.17, 0.21, 0.27, 1)
+shader_parameter/accent_tint = Color(0.98, 0.82, 0.18, 1)
+shader_parameter/ink_color = Color(0.05, 0.06, 0.08, 1)
+shader_parameter/box_half_extents = Vector3(0.58, 0.14, 0.07)
+shader_parameter/part_mode = 4
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_door"]
 size = Vector3(1.6, 2.3, 0.3)
 
-[sub_resource type="BoxMesh" id="BoxMesh_door"]
-size = Vector3(1.5, 2.2, 0.2)
-
-[sub_resource type="StandardMaterial3D" id="Mat_exit"]
-albedo_color = Color(0.18, 0.72, 0.35, 1)
-emission_enabled = true
-emission = Color(0.10, 0.45, 0.18, 1)
-emission_energy_multiplier = 0.6
-
-[sub_resource type="BoxMesh" id="BoxMesh_sign"]
-size = Vector3(1.6, 0.35, 0.25)
-
-[sub_resource type="StandardMaterial3D" id="Mat_sign"]
-albedo_color = Color(0.95, 0.80, 0.18, 1)
-emission_enabled = true
-emission = Color(0.75, 0.60, 0.10, 1)
-emission_energy_multiplier = 0.8
-
 [sub_resource type="BoxShape3D" id="BoxShape3D_touch"]
 size = Vector3(1.8, 2.3, 1.2)
+
+[sub_resource type="BoxMesh" id="BoxMesh_jamb"]
+size = Vector3(0.11, 2.24, 0.22)
+
+[sub_resource type="BoxMesh" id="BoxMesh_header"]
+size = Vector3(1.54, 0.11, 0.22)
+
+[sub_resource type="BoxMesh" id="BoxMesh_leaf"]
+size = Vector3(1.32, 2.13, 0.08)
+
+[sub_resource type="BoxMesh" id="BoxMesh_sign"]
+size = Vector3(1.16, 0.28, 0.14)
+
+[sub_resource type="BoxMesh" id="BoxMesh_push_mount"]
+size = Vector3(0.06, 0.08, 0.05)
+
+[sub_resource type="BoxMesh" id="BoxMesh_push_rail"]
+size = Vector3(0.98, 0.048, 0.036)
+
+[sub_resource type="BoxMesh" id="BoxMesh_scanner"]
+size = Vector3(0.07, 0.13, 0.03)
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_hinge"]
+top_radius = 0.022
+bottom_radius = 0.022
+height = 0.14
+radial_segments = 12
 
 [node name="AirportExitDoor" type="StaticBody3D"]
 collision_layer = 3
@@ -35,15 +262,65 @@ script = ExtResource("1_exit")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.15, 0)
 shape = SubResource("BoxShape3D_door")
 
+[node name="LeftJamb" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.715, 1.12, 0)
+mesh = SubResource("BoxMesh_jamb")
+surface_material_override/0 = SubResource("Mat_frame_jamb")
+
+[node name="RightJamb" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.715, 1.12, 0)
+mesh = SubResource("BoxMesh_jamb")
+surface_material_override/0 = SubResource("Mat_frame_jamb")
+
+[node name="TopHeader" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.185, 0)
+mesh = SubResource("BoxMesh_header")
+surface_material_override/0 = SubResource("Mat_frame_header")
+
 [node name="ExitDoorMesh" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.1, 0)
-mesh = SubResource("BoxMesh_door")
-surface_material_override/0 = SubResource("Mat_exit")
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.065, 0)
+mesh = SubResource("BoxMesh_leaf")
+surface_material_override/0 = SubResource("Mat_leaf")
 
 [node name="ExitSignMesh" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.42, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.38, 0.02)
 mesh = SubResource("BoxMesh_sign")
-surface_material_override/0 = SubResource("Mat_sign")
+surface_material_override/0 = SubResource("Mat_departure_sign")
+
+[node name="PushBarMountLeft" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.48, 0.96, 0.065)
+mesh = SubResource("BoxMesh_push_mount")
+surface_material_override/0 = SubResource("Mat_steel_hardware")
+
+[node name="PushBarMountRight" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.48, 0.96, 0.065)
+mesh = SubResource("BoxMesh_push_mount")
+surface_material_override/0 = SubResource("Mat_steel_hardware")
+
+[node name="PushBarRail" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.96, 0.095)
+mesh = SubResource("BoxMesh_push_rail")
+surface_material_override/0 = SubResource("Mat_push_pad")
+
+[node name="SecurityScanner" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.715, 1.24, 0.12)
+mesh = SubResource("BoxMesh_scanner")
+surface_material_override/0 = SubResource("Mat_scanner_plate")
+
+[node name="HingeTop" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.66, 1.82, 0.045)
+mesh = SubResource("CylinderMesh_hinge")
+surface_material_override/0 = SubResource("Mat_steel_hardware")
+
+[node name="HingeMid" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.66, 1.08, 0.045)
+mesh = SubResource("CylinderMesh_hinge")
+surface_material_override/0 = SubResource("Mat_steel_hardware")
+
+[node name="HingeBot" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.66, 0.34, 0.045)
+mesh = SubResource("CylinderMesh_hinge")
+surface_material_override/0 = SubResource("Mat_steel_hardware")
 
 [node name="ExitTouchArea" type="Area3D" parent="."]
 collision_layer = 16

@@ -6,6 +6,7 @@ extends Node
 
 signal peer_speaking_changed(peer_id: int, is_speaking: bool)
 signal local_transmit_changed(is_transmitting: bool)
+signal voip_packet_captured(sender_peer_id: int, packet: PackedByteArray)
 
 const TWO_VOIP_MIC_SCRIPT = preload("res://addons/twovoip/voiphelper/two_voip_mic.gd")
 const TWO_VOIP_SPEAKER_SCRIPT = preload("res://addons/twovoip/voiphelper/two_voip_speaker.gd")
@@ -97,6 +98,23 @@ func set_local_loopback(enabled: bool) -> void:
 	local_loopback_enabled = enabled
 
 
+func set_input_device(device_name: String) -> void:
+	if device_name == "" or not AudioServer.get_input_device_list().has(device_name):
+		return
+	var was_on: bool = (_mic_on_btn != null and _mic_on_btn.button_pressed)
+	if was_on:
+		_mic_on_btn.set_pressed(false)
+	AudioServer.set_input_device(device_name)
+	if was_on:
+		_mic_on_btn.set_pressed(true)
+
+
+func get_live_mic_level() -> float:
+	if _mic != null and is_instance_valid(_mic):
+		return clampf(float(_mic.get("last_chunkmax")), 0.0, 1.0)
+	return 0.0
+
+
 func is_peer_speaking(peer_id: int) -> bool:
 	return bool(_peer_speaking.get(peer_id, false))
 
@@ -152,21 +170,24 @@ func _on_mic_audio_packet(opus_packet: PackedByteArray, opus_frame_count: int) -
 				_rpc_receive_voip_header.rpc_id(peer_id, mid_header)
 		_peers_needing_header.clear()
 
+	var local_id: int = multiplayer.get_unique_id() if _is_network_connected() else 1
+	voip_packet_captured.emit(local_id, opus_packet)
+
 	if _is_network_connected():
 		_rpc_receive_voip_audio.rpc(opus_packet)
 	elif local_loopback_enabled:
-		var local_id: int = multiplayer.get_unique_id() if multiplayer.has_multiplayer_peer() else 1
-		_ingest_voip_packet(local_id, opus_packet)
+		_ingest_voip_packet(local_id, opus_packet, false)
 
 
 func _send_voip_header_packet(header_bytes: PackedByteArray, _frame_count: int) -> void:
 	if not voice_enabled or is_muted:
 		return
+	var local_id: int = multiplayer.get_unique_id() if _is_network_connected() else 1
+	voip_packet_captured.emit(local_id, header_bytes)
 	if _is_network_connected():
 		_rpc_receive_voip_header.rpc(header_bytes)
 	elif local_loopback_enabled:
-		var local_id: int = multiplayer.get_unique_id() if multiplayer.has_multiplayer_peer() else 1
-		_ingest_voip_packet(local_id, header_bytes)
+		_ingest_voip_packet(local_id, header_bytes, false)
 
 
 func _is_network_connected() -> bool:
@@ -193,9 +214,11 @@ func _rpc_receive_voip_audio(opus_packet: PackedByteArray) -> void:
 	_ingest_voip_packet(sender_id, opus_packet)
 
 
-func _ingest_voip_packet(sender_peer_id: int, packet: PackedByteArray) -> void:
+func _ingest_voip_packet(sender_peer_id: int, packet: PackedByteArray, emit_capture: bool = true) -> void:
 	if packet.is_empty():
 		return
+	if emit_capture:
+		voip_packet_captured.emit(sender_peer_id, packet)
 
 	var speaker: Node = _get_or_create_speaker(sender_peer_id)
 	if speaker == null:

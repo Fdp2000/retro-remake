@@ -128,6 +128,27 @@ func award_first_search_bonus(peer_id: int) -> void:
 		AudioBridge.play_local_cue("clock_bonus_ding")
 
 
+## Awards bonus seconds (GameConfig.ko_reward_bonus_seconds) to a spy's private clock when they KO another player.
+func award_ko_bonus(peer_id: int) -> void:
+	if match_state != MatchState.IN_PROGRESS:
+		return
+	if _is_network_connected() and not multiplayer.is_server():
+		return
+	if eliminated_peers.get(peer_id, false) or not peer_clocks.has(peer_id):
+		return
+
+	var bonus: float = GameConfig.ko_reward_bonus_seconds if GameConfig != null else 15.0
+	if bonus <= 0.0:
+		return
+	peer_clocks[peer_id] = float(peer_clocks[peer_id]) + bonus
+
+	if _is_network_connected() and (peer_id == 1 or peer_id in multiplayer.get_peers()):
+		_rpc_update_private_clock.rpc_id(peer_id, peer_id, peer_clocks[peer_id], bonus)
+	else:
+		clock_updated.emit(peer_id, peer_clocks[peer_id], bonus)
+		AudioBridge.play_local_cue("clock_bonus_ding")
+
+
 ## Validates Airport Exit victory: touching the Airport Exit Door while holding the Briefcase with all 4 Objectives.
 func report_airport_exit_reached(peer_id: int, packed_objectives_count: int) -> bool:
 	if match_state != MatchState.IN_PROGRESS:

@@ -24,6 +24,7 @@ var _auto_preset_check: CheckBox = null
 var _enable_upper_floor_check: CheckBox = null
 var _starting_clock_spin: SpinBox = null
 var _first_search_bonus_spin: SpinBox = null
+var _ko_bonus_spin: SpinBox = null
 
 var _min_drawers_spin: SpinBox = null
 var _max_drawers_spin: SpinBox = null
@@ -206,6 +207,7 @@ func _build_layout() -> void:
 	_add_section_header(controls_vbox, "1. Match Clock & Time Economy (Per Player)")
 	_starting_clock_spin = _create_single_spin_row(controls_vbox, "Starting Clock Time per Player (sec):", 30, 900, 180, 5)
 	_first_search_bonus_spin = _create_single_spin_row(controls_vbox, "First Container Search Bonus (+sec):", 0, 120, 10, 1)
+	_ko_bonus_spin = _create_single_spin_row(controls_vbox, "KO Opponent Clock Bonus (+sec):", 0, 120, 15, 1)
 
 	controls_vbox.add_child(HSeparator.new())
 
@@ -455,6 +457,8 @@ func refresh_from_config() -> void:
 		_starting_clock_spin.value = GameConfig.starting_clock_seconds
 	if _first_search_bonus_spin != null:
 		_first_search_bonus_spin.value = GameConfig.drawer_first_search_bonus_seconds
+	if _ko_bonus_spin != null:
+		_ko_bonus_spin.value = GameConfig.ko_reward_bonus_seconds
 
 	_min_drawers_spin.value = GameConfig.spawner_min_containers
 	_max_drawers_spin.value = GameConfig.spawner_max_containers
@@ -512,6 +516,7 @@ func collect_ui_config_dict() -> Dictionary:
 		"enable_upper_floor": _enable_upper_floor_check.button_pressed if _enable_upper_floor_check != null else ((GameConfig.spawner_active_preset_players > 2) if GameConfig != null else false),
 		"starting_clock_seconds": float(_starting_clock_spin.value) if _starting_clock_spin != null else 180.0,
 		"drawer_first_search_bonus_seconds": float(_first_search_bonus_spin.value) if _first_search_bonus_spin != null else 10.0,
+		"ko_reward_bonus_seconds": float(_ko_bonus_spin.value) if _ko_bonus_spin != null else 15.0,
 		"min_containers": min_c,
 		"max_containers": max_c,
 		"min_drawers": min_c,

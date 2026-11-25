@@ -164,33 +164,13 @@ func step(
 func get_prompt_text() -> String:
 	match current_step:
 		Step.PLACING_FIRST_POLE:
-			if not has_aim_hit:
-				return ""
 			if aim_valid:
-				return "[Hold LMB] Place First Pole"
-			if invalid_reason == InvalidReason.OUT_OF_REACH:
-				return "Out of Reach"
-			if invalid_reason == InvalidReason.TOO_CLOSE_TO_LADDER:
-				return "Too Close to Ladder"
-			return "Invalid Surface (Aim at Floor)"
+				return "[LMB] Place Pole"
+			return ""
 		Step.PLACING_SECOND_POLE:
 			if aim_valid:
-				return "[Hold LMB] Connect Wire (%.2fm)  |  [RMB] Cancel" % span_distance
-			match invalid_reason:
-				InvalidReason.TOO_CLOSE:
-					return "Too Close (%.2fm)  |  [RMB] Cancel" % span_distance
-				InvalidReason.TOO_FAR:
-					return "Too Far (%.2fm)  |  [RMB] Cancel" % span_distance
-				InvalidReason.OBSTRUCTED:
-					return "Wire Obstructed  |  [RMB] Cancel"
-				InvalidReason.TOO_CLOSE_TO_LADDER:
-					return "Too Close to Ladder  |  [RMB] Cancel"
-				InvalidReason.OUT_OF_REACH:
-					return "Out of Reach  |  [RMB] Cancel"
-				InvalidReason.INVALID_SURFACE:
-					return "Aim at Flat Floor  |  [RMB] Cancel"
-				_:
-					return "Aim at Floor  |  [RMB] Cancel"
+				return "[LMB] Connect  |  [RMB] Cancel"
+			return "[RMB] Cancel"
 		_:
 			return ""
 

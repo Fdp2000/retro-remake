@@ -120,7 +120,6 @@ var _ink_layers: Array[RoomInk] = []
 var _active_ink: RoomInk
 var _player: Node = null
 var _selected_cue_idx: int = 0
-var _status_lbl: Label = null
 var _map_panel: PanelContainer = null
 var _floor_maps: BoxContainer = null
 var is_map_open: bool = false
@@ -173,32 +172,11 @@ func _process(_delta: float) -> void:
 
 func setup_for_player(player_node: Node) -> void:
 	_player = player_node
-	_refresh_labels()
 
 
 func _build_layout() -> void:
-	if _status_lbl != null:
+	if _map_panel != null:
 		return
-
-	var pill := PanelContainer.new()
-	pill.anchor_left = 0.0
-	pill.anchor_right = 0.0
-	pill.anchor_top = 1.0
-	pill.anchor_bottom = 1.0
-	pill.offset_left = 14.0
-	pill.offset_right = 410.0
-	pill.offset_top = -104.0
-	pill.offset_bottom = -64.0
-	pill.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(pill)
-
-	var hbox := HBoxContainer.new()
-	hbox.add_theme_constant_override("separation", 10)
-	pill.add_child(hbox)
-
-	_status_lbl = Label.new()
-	_status_lbl.add_theme_font_size_override("font_size", 13)
-	hbox.add_child(_status_lbl)
 
 	_map_shade = ColorRect.new()
 	_map_shade.color = Color(0.025, 0.05, 0.05, 0.36)
@@ -254,12 +232,9 @@ func _build_layout() -> void:
 	_ladder_hint.add_theme_color_override("font_color", MAP_AMBER)
 	content.add_child(_ladder_hint)
 
-	_refresh_labels()
-
 
 func cycle_cue() -> String:
 	_selected_cue_idx = (_selected_cue_idx + 1) % BLUFF_CUES.size()
-	_refresh_labels()
 	return get_selected_cue_id()
 
 
@@ -282,11 +257,6 @@ func set_map_open(opened: bool) -> void:
 	_active_ink = null
 	if opened:
 		_rebuild_room_buttons()
-
-
-func _refresh_labels() -> void:
-	if _status_lbl != null:
-		_status_lbl.text = "WATCH [C]: %s | [B] Bluff | [Tab] Map" % get_selected_cue_label()
 
 
 func _rebuild_room_buttons() -> void:
