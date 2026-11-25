@@ -26,6 +26,7 @@ const BRIEFCASE_BUILDER = preload("res://entities/props/briefcase_visual_builder
 const SHOVE_PHYSICS = preload("res://entities/props/container_shove_physics.gd")
 const TOP_DOWN_UI_SCRIPT = preload("res://ui/top_down_container_ui.gd")
 const DVD_RETICLE_UI_SCRIPT = preload("res://ui/dvd_dart_reticle_ui.gd")
+const KO_RADIAL_UI_SCRIPT = preload("res://ui/ko_radial_ui.gd")
 const CLUB_QTE_UI_SCRIPT = preload("res://ui/club_qte_bar_ui.gd")
 const CLUB_HIT_GIZMO_SCRIPT = preload("res://entities/player/club_hit_gizmo.gd")
 const WATCH_BLUFF_UI_SCRIPT = preload("res://ui/spy_watch_bluff_ui.gd")
@@ -159,6 +160,7 @@ var is_charging_club: bool:
 @onready var left_hand_socket: Marker3D = get_node_or_null("Head/Camera3D/LeftHandSocket")
 @onready var right_hand_socket: Marker3D = get_node_or_null("Head/Camera3D/RightHandSocket")
 @onready var hud: CanvasLayer = $HUD
+@onready var crosshair_container: Control = get_node_or_null("HUD/CrosshairContainer") as Control
 @onready var prompt_label: Label = $HUD/PromptLabel
 @onready var hold_progress_bar: ProgressBar = get_node_or_null("HUD/HoldProgressBar")
 @onready var status_bar: InventorySlotBarUI = get_node_or_null("HUD/StatusBar") as InventorySlotBarUI
@@ -173,6 +175,7 @@ var _active_ladder: INTERACTIVE_LADDER
 var _ladder_side := 1.0
 var _ladder_level_forward := 1
 var _last_dismounted_ladder: INTERACTIVE_LADDER
+var _ladder_ignored_bodies: Array[PhysicsBody3D] = []
 
 var _target_position: Vector3 = Vector3.ZERO
 var _target_yaw: float = 0.0
@@ -189,6 +192,7 @@ var _interact_target: Object = null
 var active_container: Node = null
 var _container_ui: TopDownContainerUI = null
 var _dvd_reticle_ui: DVDDartReticleUI = null
+var _ko_radial_ui: KoRadialUI = null
 var _club_qte_ui: ClubQTEBarUI = null
 var _club_hit_gizmo: ClubHitGizmo = null
 var _watch_bluff_ui: SpyWatchBluffUI = null
@@ -208,6 +212,7 @@ var _camera_tween: Tween = null
 var _bonus_toast_timer: float = 0.0
 var _countdown_label: Label = null
 var _last_countdown_step: int = -1
+var _ko_total_seconds: float = 0.0
 var _countdown_go_timer: float = 0.0
 var _dart_aim_cooldown: float = 0.0
 var _was_aiming_dart_gun: bool = false
@@ -215,6 +220,7 @@ var _dart_shot_pending_consume: bool = false
 var _dart_shot_pending_timer: float = 0.0
 var ko_remaining_seconds: float = 0.0
 var is_clock_eliminated: bool = false
+var _spectate_target: Node = null
 var wakeup_immunity_remaining: float = 0.0
 var _pelvis_sync_accum: float = 0.0
 var _last_ko_reason: String = ""
@@ -526,6 +532,10 @@ func ensure_overlay_uis() -> void:
 		_dvd_reticle_ui = DVD_RETICLE_UI_SCRIPT.new()
 		_dvd_reticle_ui.name = "DVDDartReticleUI"
 		target_hud.add_child(_dvd_reticle_ui)
+	if _ko_radial_ui == null:
+		_ko_radial_ui = KO_RADIAL_UI_SCRIPT.new()
+		_ko_radial_ui.name = "KoRadialUI"
+		target_hud.add_child(_ko_radial_ui)
 	if _club_qte_ui == null:
 		_club_qte_ui = CLUB_QTE_UI_SCRIPT.new()
 		_club_qte_ui.name = "ClubQTEBarUI"
@@ -680,9 +690,9 @@ func cancel_tripwire_placement(require_lmb_release: bool = false) -> void:
 		hold_progress_bar.visible = false
 
 
-func pickup_item(new_item_id: String, extra_briefcase_items: Array = [], extra_briefcase_positions: Dictionary = {}) -> Dictionary:
+func pickup_item(new_item_id: String, extra_briefcase_items: Array = [], extra_briefcase_positions: Dictionary = {}, tripwire_ko_count: int = 0) -> Dictionary:
 	var upper_id: String = new_item_id.to_upper()
-	var res: Dictionary = _inv().pickup_item(new_item_id, extra_briefcase_items, extra_briefcase_positions)
+	var res: Dictionary = _inv().pickup_item(new_item_id, extra_briefcase_items, extra_briefcase_positions, tripwire_ko_count)
 	if bool(res["picked"]):
 		if PICKUP_SCRIPT.is_gadget_item(upper_id) or upper_id == "LIVE_BOMB":
 			cancel_tripwire_placement()
@@ -1164,10 +1174,11 @@ func apply_trap_ko(_reason: String, _attacker_peer_id: int = 0, custom_impulse: 
 				bool(entry.get("dropped_briefcase_armed_spring", false)),
 				int(entry.get("dropped_briefcase_spring_owner", 0)),
 				entry.get("dropped_briefcase_item_positions", {}),
-				entry.get("dropped_briefcase_bomb_pos", BRIEFCASE_BUILDER.DEFAULT_BOMB_NORM_POS)
+				entry.get("dropped_briefcase_bomb_pos", BRIEFCASE_BUILDER.DEFAULT_BOMB_NORM_POS),
+				int(entry.get("dropped_tripwire_kos", 0))
 			)
 
-	var ko_dur: float = GameConfig.ko_ragdoll_duration if GameConfig != null else 15.0
+	var ko_dur: float = GameConfig.get_random_ko_duration() if GameConfig != null else randf_range(12.0, 14.0)
 	var start_pos: Vector3 = _safe_global_pos()
 	if _is_peer_connected():
 		_rpc_apply_ko_state.rpc(ko_dur, 0.0, true, start_pos, rotation.y, kick_impulse, _reason)
@@ -1327,7 +1338,12 @@ func _rpc_apply_ko_state(
 			rotation.y = sync_yaw
 			_target_yaw = sync_yaw
 		velocity = Vector3.ZERO
+		is_charging_club = false
+		_club_charge_exit_lerp_active = false
+		if _club_qte_ui != null:
+			_club_qte_ui.cancel_charge()
 		ko_remaining_seconds = 9999.0 if is_clock_eliminated else ko_sec
+		_ko_total_seconds = 0.0 if is_clock_eliminated else maxf(ko_sec, 0.001)
 		wakeup_immunity_remaining = 0.0
 		_pelvis_sync_accum = 0.0
 		_last_ko_reason = reason
@@ -1504,25 +1520,145 @@ func apply_clock_elimination() -> Array[Dictionary]:
 		return [] as Array[Dictionary]
 	is_clock_eliminated = true
 	wakeup_immunity_remaining = 0.0
+	is_charging_club = false
+	_club_charge_exit_lerp_active = false
+	if _club_qte_ui != null:
+		_club_qte_ui.cancel_charge()
 	var drops: Array[Dictionary] = []
 	var ko_stance: int = GameConfig.Stance.KO if GameConfig != null else 4
 	if stance_state != ko_stance and (not _is_peer_connected() or multiplayer.is_server()):
 		drops = apply_trap_ko("CLOCK_EXPIRED", 0, Vector3(0.0, -4.0, 0.0))
 	ko_remaining_seconds = 9999.0
+	_ko_total_seconds = 0.0
+	if _ko_radial_ui != null:
+		_ko_radial_ui.set_ko_progress(0.0, 0.0)
 	if is_inside_tree() and is_multiplayer_authority():
 		if prompt_label != null:
 			prompt_label.hide()
 		if clock_label != null:
 			clock_label.text = "CLOCK: 00:00 [OUT]"
 			clock_label.modulate = Color(1.0, 0.25, 0.25)
+		_enter_spectator_mode()
 	return drops
 
 
+func _get_alive_spectate_candidates() -> Array[Node]:
+	var candidates: Array[Node] = []
+	if not is_inside_tree() or get_tree() == null:
+		return candidates
+	for node in get_tree().get_nodes_in_group("spy_players"):
+		if node == null or not is_instance_valid(node) or node == self:
+			continue
+		if bool(node.get("is_clock_eliminated")):
+			continue
+		var pid: int = node.name.to_int()
+		if MatchManager != null and MatchManager.is_peer_eliminated(pid):
+			continue
+		candidates.append(node)
+	candidates.sort_custom(func(a: Node, b: Node) -> bool:
+		return a.name.to_int() < b.name.to_int()
+	)
+	return candidates
+
+
+func _enter_spectator_mode() -> void:
+	if not is_multiplayer_authority() or not is_clock_eliminated:
+		return
+	if MatchManager != null and MatchManager.match_state == MatchManager.MatchState.ENDED:
+		return
+	var candidates: Array[Node] = _get_alive_spectate_candidates()
+	if candidates.is_empty():
+		_exit_spectator_mode()
+		return
+	_set_spectate_target(candidates[0])
+
+
+func _cycle_spectate_target(direction: int) -> void:
+	if not is_multiplayer_authority() or not is_clock_eliminated:
+		return
+	var candidates: Array[Node] = _get_alive_spectate_candidates()
+	if candidates.is_empty():
+		_exit_spectator_mode()
+		return
+	var cur_idx: int = candidates.find(_spectate_target)
+	if cur_idx == -1:
+		_set_spectate_target(candidates[0])
+		return
+	var next_idx: int = posmod(cur_idx + direction, candidates.size())
+	_set_spectate_target(candidates[next_idx])
+
+
+func _set_spectate_target(target: Node) -> void:
+	if _spectate_target != null and is_instance_valid(_spectate_target) and _spectate_target != target:
+		var old_cam: Camera3D = _spectate_target.get("camera") as Camera3D
+		if old_cam != null:
+			old_cam.current = false
+		if _spectate_target.has_method("apply_local_camera_cull_mask"):
+			_spectate_target.call("apply_local_camera_cull_mask")
+
+	_spectate_target = target
+	if _spectate_target == null or not is_instance_valid(_spectate_target):
+		return
+
+	var target_cam: Camera3D = _spectate_target.get("camera") as Camera3D
+	if target_cam != null:
+		var all_layers: int = GameConfig.VISUAL_LAYER_ALL if GameConfig != null else 0xFFFFF
+		var fp_only_bit: int = GameConfig.VISUAL_LAYER_LOCAL_FP_BODY if GameConfig != null else (1 << 14)
+		var target_body_bit: int = int(_spectate_target.call("get_crt_body_visual_layer")) if _spectate_target.has_method("get_crt_body_visual_layer") else 0
+		target_cam.cull_mask = all_layers & ~fp_only_bit & ~target_body_bit
+		target_cam.make_current()
+
+	if prompt_label != null:
+		var role: int = int(_spectate_target.get("spy_role"))
+		var target_label: String = GameConfig.get_spy_role_name(role) if (GameConfig != null and role > 0) else ("Agent %s" % _spectate_target.name)
+		prompt_label.text = "SPECTATING: %s  |  [LMB] Next   [RMB] Prev" % target_label
+		prompt_label.visible = true
+
+
+func _step_spectator_mode() -> void:
+	if not is_multiplayer_authority() or not is_clock_eliminated:
+		return
+	if MatchManager != null and MatchManager.match_state == MatchManager.MatchState.ENDED:
+		_exit_spectator_mode()
+		return
+	var target_dead: bool = (
+		_spectate_target == null
+		or not is_instance_valid(_spectate_target)
+		or bool(_spectate_target.get("is_clock_eliminated"))
+		or (MatchManager != null and MatchManager.is_peer_eliminated(_spectate_target.name.to_int()))
+	)
+	if target_dead:
+		_cycle_spectate_target(1)
+
+
+func _exit_spectator_mode() -> void:
+	if _spectate_target != null and is_instance_valid(_spectate_target):
+		var old_cam: Camera3D = _spectate_target.get("camera") as Camera3D
+		if old_cam != null:
+			old_cam.current = false
+		if _spectate_target.has_method("apply_local_camera_cull_mask"):
+			_spectate_target.call("apply_local_camera_cull_mask")
+	_spectate_target = null
+	if is_multiplayer_authority() and is_inside_tree():
+		if camera != null:
+			camera.make_current()
+		apply_local_camera_cull_mask()
+		if prompt_label != null and is_clock_eliminated:
+			prompt_label.hide()
+
+
 func reset_for_rematch(spawn_local_pos: Vector3, spawn_yaw: float = 0.0) -> void:
+	var is_auth: bool = (not _is_peer_connected()) or is_multiplayer_authority()
+	var is_srv: bool = (not _is_peer_connected()) or multiplayer.is_server()
+	if is_auth:
+		_exit_spectator_mode()
 	_requested_ladder = null
 	_release_ladder()
 	is_clock_eliminated = false
 	ko_remaining_seconds = 0.0
+	_ko_total_seconds = 0.0
+	if _ko_radial_ui != null:
+		_ko_radial_ui.set_ko_progress(0.0, 0.0)
 	wakeup_immunity_remaining = 0.0
 	live_bomb_remaining = 0.0
 	live_bomb_owner_peer_id = 0
@@ -1539,30 +1675,36 @@ func reset_for_rematch(spawn_local_pos: Vector3, spawn_yaw: float = 0.0) -> void
 	anti_camp_sniffle_warned = false
 	head_pitch = 0.0
 
-	if active_container != null and is_instance_valid(active_container) and active_container.has_method("close_container"):
+	if is_srv and active_container != null and is_instance_valid(active_container) and active_container.has_method("close_container"):
 		active_container.close_container(name.to_int(), self, true)
 	elif stance_state == (GameConfig.Stance.DRAWER_LOCK if GameConfig != null else 3):
 		exit_container_view()
+	else:
+		active_container = null
 
-	_was_aiming_dart_gun = false
-	_dart_aim_cooldown = 0.0
-	_dart_shot_pending_consume = false
-	_dart_shot_pending_timer = 0.0
-	_clear_dart_reticle_ui()
-	if _club_qte_ui != null:
-		_club_qte_ui.cancel_charge()
-	if _watch_bluff_ui != null and _watch_bluff_ui.is_map_open:
-		_watch_bluff_ui.set_map_open(false)
-	if _crt_replay_ui != null:
-		_crt_replay_ui.clear_queue_and_stop(false)
-		_crt_replay_ui.clear_match_archive()
-	_last_countdown_step = -1
-	_countdown_go_timer = 0.0
-	if _countdown_label != null and is_instance_valid(_countdown_label):
-		_countdown_label.visible = false
+	if is_auth:
+		_was_aiming_dart_gun = false
+		_dart_aim_cooldown = 0.0
+		_dart_shot_pending_consume = false
+		_dart_shot_pending_timer = 0.0
+		_clear_dart_reticle_ui()
+		if _club_qte_ui != null:
+			_club_qte_ui.cancel_charge()
+		if _watch_bluff_ui != null and _watch_bluff_ui.is_map_open:
+			_watch_bluff_ui.set_map_open(false)
+		if _crt_replay_ui != null:
+			_crt_replay_ui.clear_queue_and_stop(false)
+			_crt_replay_ui.clear_match_archive()
+		_last_countdown_step = -1
+		_countdown_go_timer = 0.0
+		if _countdown_label != null and is_instance_valid(_countdown_label):
+			_countdown_label.visible = false
 
-	force_drop_all_hands()
-	_sync_inventory_state_to_peers()
+	if is_srv:
+		force_drop_all_hands()
+		_sync_inventory_state_to_peers()
+	elif _inv() != null:
+		_inv().force_drop_all_hands()
 
 	if _ragdoll_ctrl != null:
 		_ragdoll_ctrl.stop_ragdoll()
@@ -1622,6 +1764,7 @@ func tick_ko_and_immunity(delta: float) -> void:
 	if stance_state == ko_stance:
 		if is_clock_eliminated:
 			ko_remaining_seconds = 9999.0
+			_ko_total_seconds = 0.0
 			if is_local_auth:
 				_sync_camera_to_ragdoll_head()
 				if _is_peer_connected():
@@ -1631,6 +1774,10 @@ func tick_ko_and_immunity(delta: float) -> void:
 						_rpc_sync_ragdoll_pelvis.rpc(get_ragdoll_pelvis_world_position())
 				if prompt_label != null:
 					prompt_label.hide()
+				if _ko_radial_ui != null:
+					_ko_radial_ui.set_ko_progress(0.0, 0.0)
+				if crosshair_container != null:
+					crosshair_container.visible = false
 			return
 		ko_remaining_seconds -= delta
 		if is_local_auth:
@@ -1642,10 +1789,20 @@ func tick_ko_and_immunity(delta: float) -> void:
 					_rpc_sync_ragdoll_pelvis.rpc(get_ragdoll_pelvis_world_position())
 			if prompt_label != null:
 				prompt_label.visible = false
+			if _ko_radial_ui != null:
+				_ko_radial_ui.set_ko_progress(ko_remaining_seconds, _ko_total_seconds)
+			if crosshair_container != null:
+				crosshair_container.visible = false
 		if ko_remaining_seconds <= 0.0:
 			if not _is_peer_connected() or is_local_auth or (is_inside_tree() and multiplayer.is_server()):
 				wake_up_from_ko()
 		return
+
+	if is_local_auth:
+		if _ko_radial_ui != null:
+			_ko_radial_ui.set_ko_progress(0.0, 0.0)
+		if crosshair_container != null:
+			crosshair_container.visible = true
 
 	if wakeup_immunity_remaining > 0.0:
 		wakeup_immunity_remaining = maxf(wakeup_immunity_remaining - delta, 0.0)
@@ -1680,9 +1837,10 @@ func server_pickup_world_item(
 	item_id: String,
 	extra_briefcase_items: Array,
 	pickup_pos: Vector3,
-	extra_briefcase_positions: Dictionary = {}
+	extra_briefcase_positions: Dictionary = {},
+	tripwire_ko_count: int = 0
 ) -> bool:
-	var res: Dictionary = pickup_item(item_id, extra_briefcase_items, extra_briefcase_positions)
+	var res: Dictionary = pickup_item(item_id, extra_briefcase_items, extra_briefcase_positions, tripwire_ko_count)
 	if not bool(res["picked"]):
 		return false
 
@@ -1700,7 +1858,8 @@ func server_pickup_world_item(
 			bool(res.get("dropped_briefcase_armed_spring", false)),
 			int(res.get("dropped_briefcase_spring_owner", 0)),
 			res.get("dropped_briefcase_item_positions", {}),
-			res.get("dropped_briefcase_bomb_pos", BRIEFCASE_BUILDER.DEFAULT_BOMB_NORM_POS)
+			res.get("dropped_briefcase_bomb_pos", BRIEFCASE_BUILDER.DEFAULT_BOMB_NORM_POS),
+			int(res.get("dropped_tripwire_kos", 0))
 		)
 
 	if AudioBridge != null:
@@ -1753,7 +1912,8 @@ func server_request_hand_action(action_type: String, slot_arg: int = 0) -> void:
 					bool(entry.get("dropped_briefcase_armed_spring", false)),
 					int(entry.get("dropped_briefcase_spring_owner", 0)),
 					entry.get("dropped_briefcase_item_positions", {}),
-					entry.get("dropped_briefcase_bomb_pos", BRIEFCASE_BUILDER.DEFAULT_BOMB_NORM_POS)
+					entry.get("dropped_briefcase_bomb_pos", BRIEFCASE_BUILDER.DEFAULT_BOMB_NORM_POS),
+					int(entry.get("dropped_tripwire_kos", 0))
 				)
 
 	if str(res["dropped_item_id"]) != "NONE":
@@ -1768,7 +1928,8 @@ func server_request_hand_action(action_type: String, slot_arg: int = 0) -> void:
 			bool(res.get("dropped_briefcase_armed_spring", false)),
 			int(res.get("dropped_briefcase_spring_owner", 0)),
 			res.get("dropped_briefcase_item_positions", {}),
-			res.get("dropped_briefcase_bomb_pos", BRIEFCASE_BUILDER.DEFAULT_BOMB_NORM_POS)
+			res.get("dropped_briefcase_bomb_pos", BRIEFCASE_BUILDER.DEFAULT_BOMB_NORM_POS),
+			int(res.get("dropped_tripwire_kos", 0))
 		)
 
 	_sync_inventory_state_to_peers()
@@ -1846,14 +2007,15 @@ func _server_spawn_floor_drop(
 	b_armed_spring: bool = false,
 	b_spring_owner: int = 0,
 	b_item_positions: Dictionary = {},
-	b_bomb_pos: Vector2 = BRIEFCASE_BUILDER.DEFAULT_BOMB_NORM_POS
+	b_bomb_pos: Vector2 = BRIEFCASE_BUILDER.DEFAULT_BOMB_NORM_POS,
+	tripwire_kos: int = 0
 ) -> void:
 	_drop_counter += 1
 	var drop_name: String = "Dropped_%s_%s_%d" % [name, dropped_id, _drop_counter]
 	if _is_peer_connected():
-		_rpc_spawn_dropped_pickup.rpc(dropped_id, b_objs.duplicate(), world_pos, drop_name, b_armed_bomb, b_bomb_owner, b_armed_spring, b_spring_owner, b_item_positions.duplicate(), b_bomb_pos)
+		_rpc_spawn_dropped_pickup.rpc(dropped_id, b_objs.duplicate(), world_pos, drop_name, b_armed_bomb, b_bomb_owner, b_armed_spring, b_spring_owner, b_item_positions.duplicate(), b_bomb_pos, tripwire_kos)
 	else:
-		_rpc_spawn_dropped_pickup(dropped_id, b_objs.duplicate(), world_pos, drop_name, b_armed_bomb, b_bomb_owner, b_armed_spring, b_spring_owner, b_item_positions.duplicate(), b_bomb_pos)
+		_rpc_spawn_dropped_pickup(dropped_id, b_objs.duplicate(), world_pos, drop_name, b_armed_bomb, b_bomb_owner, b_armed_spring, b_spring_owner, b_item_positions.duplicate(), b_bomb_pos, tripwire_kos)
 
 
 @rpc("any_peer", "call_local", "reliable")
@@ -1867,7 +2029,8 @@ func _rpc_spawn_dropped_pickup(
 	b_armed_spring: bool = false,
 	b_spring_owner: int = 0,
 	b_item_positions: Dictionary = {},
-	b_bomb_pos: Vector2 = BRIEFCASE_BUILDER.DEFAULT_BOMB_NORM_POS
+	b_bomb_pos: Vector2 = BRIEFCASE_BUILDER.DEFAULT_BOMB_NORM_POS,
+	tripwire_kos: int = 0
 ) -> void:
 	if not _is_authorized_state_rpc():
 		return
@@ -1894,6 +2057,7 @@ func _rpc_spawn_dropped_pickup(
 	pickup.set("spring_owner_peer_id", b_spring_owner)
 	pickup.set("armed_bomb", b_armed_bomb)
 	pickup.set("bomb_owner_peer_id", b_bomb_owner)
+	pickup.set("tripwire_ko_count", tripwire_kos)
 	target_root.add_child(pickup)
 	pickup.global_position = Vector3(world_pos.x, maxf(world_pos.y, 0.0), world_pos.z)
 
@@ -2096,6 +2260,7 @@ func _rpc_server_deploy_tripwire(pole1_pos: Vector3, pole2_pos: Vector3) -> void
 		var exclude: Array[RID] = [get_rid()]
 		if TripwirePlacementController.is_wire_obstructed(pole1_pos, pole2_pos, get_world_3d(), exclude):
 			return
+	var carried_tripwire_kos: int = _inv().get_active_tripwire_kos()
 	if _inv().consume_active_jacket_slot("TRIPWIRE") == "NONE":
 		return
 	_sync_inventory_state_to_peers()
@@ -2106,19 +2271,19 @@ func _rpc_server_deploy_tripwire(pole1_pos: Vector3, pole2_pos: Vector3) -> void
 		var pole_rad: float = GameConfig.audio_radius_tripwire_arm if GameConfig != null else 4.0
 		AudioBridge.request_world_cue("tripwire_arm", pole2_pos + Vector3(0.0, 0.25, 0.0), pole_rad, name.to_int())
 	if _is_peer_connected():
-		_rpc_spawn_tripwire.rpc(trap_name, pole1_pos, pole2_pos, name.to_int())
+		_rpc_spawn_tripwire.rpc(trap_name, pole1_pos, pole2_pos, name.to_int(), carried_tripwire_kos)
 	else:
-		_spawn_tripwire_local(trap_name, pole1_pos, pole2_pos, name.to_int())
+		_spawn_tripwire_local(trap_name, pole1_pos, pole2_pos, name.to_int(), carried_tripwire_kos)
 
 
 @rpc("any_peer", "call_local", "reliable")
-func _rpc_spawn_tripwire(trap_name: String, pole1_pos: Vector3, pole2_pos: Vector3, owner_id: int) -> void:
+func _rpc_spawn_tripwire(trap_name: String, pole1_pos: Vector3, pole2_pos: Vector3, owner_id: int, initial_trigger_count: int = 0) -> void:
 	if not _is_authorized_state_rpc():
 		return
-	_spawn_tripwire_local(trap_name, pole1_pos, pole2_pos, owner_id)
+	_spawn_tripwire_local(trap_name, pole1_pos, pole2_pos, owner_id, initial_trigger_count)
 
 
-func _spawn_tripwire_local(trap_name: String, pole1_pos: Vector3, pole2_pos: Vector3, owner_id: int) -> Node:
+func _spawn_tripwire_local(trap_name: String, pole1_pos: Vector3, pole2_pos: Vector3, owner_id: int, initial_trigger_count: int = 0) -> Node:
 	var target_root: Node = get_tree().current_scene if (is_inside_tree() and get_tree() != null) else null
 	if target_root == null:
 		var parent_node: Node = get_parent()
@@ -2131,6 +2296,7 @@ func _spawn_tripwire_local(trap_name: String, pole1_pos: Vector3, pole2_pos: Vec
 	var trap: StaticBody3D = TRIPWIRE_SCRIPT.new() as StaticBody3D
 	trap.name = trap_name
 	trap.set("owner_peer_id", owner_id)
+	trap.set("trigger_count", initial_trigger_count)
 	trap.call("configure_endpoints", pole1_pos, pole2_pos)
 	target_root.add_child(trap)
 	return trap
@@ -2490,10 +2656,11 @@ func _rpc_server_club_overcharge() -> void:
 
 
 func _server_execute_club_overcharge() -> void:
-	var ragdoll_dur: float = GameConfig.club_overcharge_stumble_duration if GameConfig != null else 5.0
+	var ragdoll_dur: float = GameConfig.get_random_club_overcharge_duration() if GameConfig != null else randf_range(3.5, 5.0)
 	club_overcharge_stumble_remaining = ragdoll_dur
 	if AudioBridge != null:
-		AudioBridge.request_world_cue("club_stumble", _safe_global_pos(), 8.0, name.to_int())
+		var stumble_rad: float = GameConfig.audio_radius_club_stumble if GameConfig != null else 5.5
+		AudioBridge.request_world_cue("club_stumble", _safe_global_pos(), stumble_rad, name.to_int())
 	var back_dir: Vector3 = Vector3(global_transform.basis.z.x, 0.0, global_transform.basis.z.z).normalized() if is_inside_tree() else Vector3(0.0, 0.0, 1.0)
 	if back_dir.length_squared() < 0.01:
 		back_dir = Vector3(0.0, 0.0, 1.0)
@@ -2558,20 +2725,12 @@ func step_anti_camp(delta: float, room_override: String = "") -> String:
 		var sneeze_rad: float = GameConfig.audio_radius_sneeze if GameConfig != null else 22.0
 		if AudioBridge != null:
 			AudioBridge.request_world_cue("sneeze", _safe_global_pos(), sneeze_rad, name.to_int())
-		if bonus_toast_label != null:
-			bonus_toast_label.text = "ACHOO! (Position Revealed 22m)"
-			bonus_toast_label.visible = true
-			_bonus_toast_timer = 2.0
 		return "SNEEZE"
 
 	if anti_camp_timer >= warn_sec and not anti_camp_sniffle_warned:
 		anti_camp_sniffle_warned = true
 		if AudioBridge != null:
 			AudioBridge.play_local_cue("sniffle_warning")
-		if bonus_toast_label != null:
-			bonus_toast_label.text = "*Sniffle* Move rooms soon!"
-			bonus_toast_label.visible = true
-			_bonus_toast_timer = 1.8
 		return "SNIFFLE"
 
 	return ""
@@ -4316,6 +4475,15 @@ func _unhandled_input(event: InputEvent) -> void:
 	if Engine.is_editor_hint() or not is_multiplayer_authority():
 		return
 
+	if is_clock_eliminated and (MatchManager == null or MatchManager.match_state != MatchManager.MatchState.ENDED):
+		if event is InputEventMouseButton and event.pressed and not event.is_echo() and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
+			if event.button_index == MOUSE_BUTTON_LEFT:
+				_cycle_spectate_target(1)
+				return
+			elif event.button_index == MOUSE_BUTTON_RIGHT:
+				_cycle_spectate_target(-1)
+				return
+
 	var lock_stance: int = GameConfig.Stance.DRAWER_LOCK if GameConfig != null else 3
 	var ko_stance: int = GameConfig.Stance.KO if GameConfig != null else 4
 	if stance_state == lock_stance or stance_state == ko_stance:
@@ -4551,18 +4719,62 @@ func _try_mount_ladder(ladder: INTERACTIVE_LADDER) -> void:
 
 
 func _set_ladder_collision_exceptions(ladder: INTERACTIVE_LADDER, ignore: bool) -> void:
-	for body in [ladder.climb_body, ladder.shaft_guard]:
-		if not is_instance_valid(body):
-			continue
-		if ignore:
-			add_collision_exception_with(body)
-		else:
-			remove_collision_exception_with(body)
+	if is_instance_valid(ladder):
+		for body in [ladder.climb_body, ladder.shaft_guard]:
+			if not is_instance_valid(body):
+				continue
+			if ignore:
+				add_collision_exception_with(body)
+			else:
+				remove_collision_exception_with(body)
+	if ignore:
+		for body in _ladder_ignored_bodies:
+			if is_instance_valid(body):
+				remove_collision_exception_with(body)
+		_ladder_ignored_bodies.clear()
+		if is_instance_valid(ladder):
+			for body in _find_ladder_carpet_bodies(ladder):
+				add_collision_exception_with(body)
+				_ladder_ignored_bodies.append(body)
+	else:
+		for body in _ladder_ignored_bodies:
+			if is_instance_valid(body):
+				remove_collision_exception_with(body)
+		_ladder_ignored_bodies.clear()
+
+
+func _find_ladder_carpet_bodies(ladder: INTERACTIVE_LADDER) -> Array[PhysicsBody3D]:
+	var result: Array[PhysicsBody3D] = []
+	var world := get_world_3d()
+	if world == null:
+		return result
+	var space_state := world.direct_space_state
+	if space_state == null:
+		return result
+	var box := BoxShape3D.new()
+	box.size = Vector3(INTERACTIVE_LADDER.SHAFT_WIDTH + 1.0, 0.6, INTERACTIVE_LADDER.LANDING_OFFSET * 2.0 + 1.0)
+	var query := PhysicsShapeQueryParameters3D.new()
+	query.shape = box
+	query.collision_mask = 1
+	query.collide_with_areas = false
+	query.collide_with_bodies = true
+	query.exclude = [get_rid()]
+	var rot_basis := Basis(ladder.global_transform.basis.get_rotation_quaternion())
+	for landing_y in [ladder.lower_landing_y, ladder.upper_landing_y]:
+		var center := ladder.global_position
+		center.y = landing_y
+		query.transform = Transform3D(rot_basis, center)
+		for hit in space_state.intersect_shape(query, 32):
+			var body := hit.get("collider", null) as PhysicsBody3D
+			if body == null or result.has(body):
+				continue
+			if SurfaceDetector.identify_collider_surface(body) == SurfaceDetector.SURFACE_CARPET:
+				result.append(body)
+	return result
 
 
 func _release_ladder() -> void:
-	if is_instance_valid(_active_ladder):
-		_set_ladder_collision_exceptions(_active_ladder, false)
+	_set_ladder_collision_exceptions(_active_ladder, false)
 	_active_ladder = null
 	is_climbing_ladder = false
 	_climb_vertical_speed = 0.0
@@ -4631,6 +4843,8 @@ func _physics_process(delta: float) -> void:
 			_ragdoll_ctrl.step_remote_pelvis_pull(delta)
 		elif is_multiplayer_authority():
 			_sync_camera_to_ragdoll_head()
+			if is_clock_eliminated:
+				_step_spectator_mode()
 		_sync_visual_rig_sockets_to_skeleton()
 		_update_voice_eye_pop(delta)
 		return
@@ -4799,12 +5013,14 @@ func _ensure_audio_components() -> void:
 		_proximity_voice_emitter = OCCLUSION_EMITTER_SCRIPT.new()
 		_proximity_voice_emitter.name = "ProximityVoiceEmitter"
 		_proximity_voice_emitter.parent_bus = &"Voice"
-		_proximity_voice_emitter.unit_size = 6.5
+		_proximity_voice_emitter.base_volume_db = 5.0
+		_proximity_voice_emitter.max_db = 8.0
+		_proximity_voice_emitter.unit_size = 12.0
 		_proximity_voice_emitter.max_distance = GameConfig.audio_radius_proximity_voice if GameConfig != null else 24.0
 		_proximity_voice_emitter.panning_strength = 1.5
 		_proximity_voice_emitter.emission_angle_enabled = true
 		_proximity_voice_emitter.emission_angle_degrees = 75.0
-		_proximity_voice_emitter.emission_angle_filter_attenuation_db = -6.0
+		_proximity_voice_emitter.emission_angle_filter_attenuation_db = -1.5
 		_proximity_voice_emitter.doppler_tracking = AudioStreamPlayer3D.DOPPLER_TRACKING_DISABLED
 		var attach_parent: Node = head if head != null else self
 		attach_parent.add_child(_proximity_voice_emitter)

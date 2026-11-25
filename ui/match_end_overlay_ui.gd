@@ -111,15 +111,6 @@ func _build_layout() -> void:
 	)
 	vbox.add_child(_rematch_button)
 
-	_switch_mode_button = Button.new()
-	_switch_mode_button.name = "SwitchModeButton"
-	_switch_mode_button.text = "Switch to Dev Sandbox Gym"
-	_switch_mode_button.pressed.connect(func() -> void:
-		_cancel_totg_countdown()
-		switch_mode_requested.emit()
-	)
-	vbox.add_child(_switch_mode_button)
-
 	_lobby_button = Button.new()
 	_lobby_button.name = "ReturnToLobbyButton"
 	_lobby_button.text = "Return to Lobby"
@@ -160,12 +151,6 @@ func show_match_result(
 
 	_rematch_button.visible = actions != Actions.LEAVE_ONLY
 	_lobby_button.text = "Leave Game" if actions == Actions.LEAVE_ONLY else "Return to Lobby"
-	_switch_mode_button.visible = actions == Actions.LOCAL_HOST
-	_switch_mode_button.text = (
-		"Switch to Full Match (Seeded Embassy)"
-		if is_sandbox
-		else "Switch to Dev Sandbox Gym"
-	)
 
 	visible = true
 	_pending_totg_clips = totg_clips.duplicate()

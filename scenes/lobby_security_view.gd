@@ -57,6 +57,8 @@ func _build_preview() -> void:
 	_rest_yaw = _camera.rotation.y
 
 	await RenderingServer.frame_post_draw
+	if not is_inside_tree() or _viewport == null or not is_instance_valid(_viewport):
+		return
 	var monitor := ShaderMaterial.new()
 	monitor.shader = MONITOR_SHADER
 	material = monitor
@@ -65,6 +67,8 @@ func _build_preview() -> void:
 
 
 func _process(delta: float) -> void:
+	if _camera == null or not is_instance_valid(_camera) or _viewport == null or not is_instance_valid(_viewport):
+		return
 	_elapsed = fmod(_elapsed + delta, SWEEP_SECONDS)
 	_until_update -= delta
 	if _until_update > 0.0:

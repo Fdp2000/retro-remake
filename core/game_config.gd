@@ -140,9 +140,9 @@ var _fps_label: Label = null
 # Master GDD & Doc 3: Match & Timer Economy [TUNABLE]
 # ==========================================
 @export_group("Match & Timer Economy")
-@export var starting_clock_seconds: float = 180.0
-@export var drawer_first_search_bonus_seconds: float = 10.0
-@export var ko_reward_bonus_seconds: float = 15.0
+@export var starting_clock_seconds: float = 240.0
+@export var drawer_first_search_bonus_seconds: float = 12.0
+@export var ko_reward_bonus_seconds: float = 17.0
 @export var starting_prearmed_traps: int = 0
 @export var required_objectives_count: int = 4
 
@@ -200,7 +200,7 @@ var _fps_label: Label = null
 @export var time_bomb_throw_speed: float = 9.5
 @export var time_bomb_blast_radius: float = 5.7
 @export var time_bomb_self_catch_ignore_time: float = 0.25
-@export var dvd_reticle_speed_px: float = 384.0
+@export var dvd_reticle_speed_px: float = 422.4
 
 # ==========================================
 # Doc 5: Club Combat QTE & 15s Ragdoll KO [TUNABLE]
@@ -215,14 +215,30 @@ var _fps_label: Label = null
 @export var club_green_zone_max_start: float = 0.75
 @export var club_melee_range: float = 2.0
 @export var club_overcharge_stumble_duration: float = 5.0
+@export var club_overcharge_stumble_min_duration: float = 3.5
+@export var club_overcharge_stumble_max_duration: float = 5.0
 @export var club_charge_exit_lerp_duration: float = 0.40
 @export var debug_club_hit_gizmo: bool = false
 @export var debug_disable_match_timer: bool = false
 
 @export var ko_ragdoll_duration: float = 15.0
+@export var ko_ragdoll_min_duration: float = 12.0
+@export var ko_ragdoll_max_duration: float = 14.0
 @export var ko_wakeup_blend_duration: float = 0.35
 @export var ko_wakeup_immunity_duration: float = 2.6
 @export var ko_drop_scatter_speed: float = 1.5
+
+
+func get_random_club_overcharge_duration() -> float:
+	var lo: float = minf(club_overcharge_stumble_min_duration, club_overcharge_stumble_max_duration)
+	var hi: float = maxf(club_overcharge_stumble_min_duration, club_overcharge_stumble_max_duration)
+	return randf_range(lo, hi)
+
+
+func get_random_ko_duration() -> float:
+	var lo: float = minf(ko_ragdoll_min_duration, ko_ragdoll_max_duration)
+	var hi: float = maxf(ko_ragdoll_min_duration, ko_ragdoll_max_duration)
+	return randf_range(lo, hi)
 
 # ==========================================
 # Doc 6: Spatial Audio Radii, Deception & CRT Replay [TUNABLE]
@@ -256,6 +272,7 @@ var _fps_label: Label = null
 @export var audio_radius_giggle: float = 6.0
 @export var audio_radius_club_hit: float = 38.0
 @export var audio_radius_club_miss: float = 6.0
+@export var audio_radius_club_stumble: float = 5.5
 
 @export var bluff_mode: int = BluffMode.MAP_PROJECTOR
 @export var show_enemy_room_blip: bool = false
@@ -267,7 +284,7 @@ var _fps_label: Label = null
 @export var crt_display_size: Vector2 = Vector2(288.0, 162.0)
 @export var crt_replay_max_queue: int = 4
 @export var crt_archive_enabled: bool = true
-@export var crt_archive_max_clips: int = 8
+@export var crt_archive_max_clips: int = 0
 @export var crt_totg_delay_seconds: float = 3.5
 ## Seconds of live post-impact ragdoll footage appended onto the CRT replay after the trap hits.
 @export var crt_replay_post_hit_seconds: float = 2.75
@@ -324,9 +341,9 @@ var _fps_label: Label = null
 const PLAYER_COUNT_SPAWNER_PRESETS: Dictionary = {
 	2: {
 		"enable_upper_floor": false,
-		"starting_clock_seconds": 180.0,
-		"drawer_first_search_bonus_seconds": 10.0,
-		"ko_reward_bonus_seconds": 15.0,
+		"starting_clock_seconds": 240.0,
+		"drawer_first_search_bonus_seconds": 12.0,
+		"ko_reward_bonus_seconds": 17.0,
 		"min_containers": 16,
 		"max_containers": 22,
 		"max_drawers_per_room": 2,
@@ -358,9 +375,9 @@ const PLAYER_COUNT_SPAWNER_PRESETS: Dictionary = {
 	},
 	3: {
 		"enable_upper_floor": true,
-		"starting_clock_seconds": 210.0,
-		"drawer_first_search_bonus_seconds": 10.0,
-		"ko_reward_bonus_seconds": 15.0,
+		"starting_clock_seconds": 270.0,
+		"drawer_first_search_bonus_seconds": 12.0,
+		"ko_reward_bonus_seconds": 17.0,
 		"min_containers": 30,
 		"max_containers": 38,
 		"max_drawers_per_room": 2,
@@ -392,9 +409,9 @@ const PLAYER_COUNT_SPAWNER_PRESETS: Dictionary = {
 	},
 	4: {
 		"enable_upper_floor": true,
-		"starting_clock_seconds": 240.0,
+		"starting_clock_seconds": 300.0,
 		"drawer_first_search_bonus_seconds": 12.0,
-		"ko_reward_bonus_seconds": 15.0,
+		"ko_reward_bonus_seconds": 17.0,
 		"min_containers": 36,
 		"max_containers": 44,
 		"max_drawers_per_room": 3,
@@ -535,7 +552,11 @@ func apply_audio_settings() -> void:
 	_apply_bus_volume(&"Music", music_volume)
 	_apply_bus_volume(&"Voice", voice_volume)
 	if audio_input_device != "" and AudioServer.get_input_device_list().has(audio_input_device):
-		if AudioServer.get_input_device() != audio_input_device:
+		var vcm: Node = get_node_or_null("/root/VoiceChatManager")
+		if vcm != null and vcm.has_method("set_input_device"):
+			if AudioServer.get_input_device() != audio_input_device:
+				vcm.call("set_input_device", audio_input_device)
+		elif AudioServer.get_input_device() != audio_input_device:
 			AudioServer.set_input_device(audio_input_device)
 
 
@@ -544,7 +565,8 @@ func _apply_bus_volume(bus_name: StringName, linear_vol: float) -> void:
 	if idx == -1:
 		return
 	AudioServer.set_bus_mute(idx, linear_vol <= 0.001)
-	AudioServer.set_bus_volume_db(idx, linear_to_db(maxf(linear_vol, 0.0001)))
+	var bus_offset_db: float = 4.0 if bus_name == &"Voice" else 0.0
+	AudioServer.set_bus_volume_db(idx, linear_to_db(maxf(linear_vol, 0.0001)) + bus_offset_db)
 
 
 func save_user_settings(path: String = USER_SETTINGS_PATH) -> Error:

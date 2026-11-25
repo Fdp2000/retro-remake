@@ -31,15 +31,28 @@ var winner_peer_id: int = 0
 var end_reason: String = ""
 
 var _sync_accumulator: float = 0.0
+var _countdown_sync_accumulator: float = 0.0
 
 
 func _process(delta: float) -> void:
 	if Engine.is_editor_hint():
 		return
 	if countdown_active and match_state == MatchState.IN_PROGRESS:
+		if _is_network_connected() and not multiplayer.is_server():
+			# Clients smoothly count down visually, but wait for server's reliable GO! RPC
+			countdown_remaining = maxf(countdown_remaining - delta, 0.01)
+			return
 		countdown_remaining = maxf(countdown_remaining - delta, 0.0)
+		_countdown_sync_accumulator += delta
 		if countdown_remaining <= 0.0:
 			countdown_active = false
+			_countdown_sync_accumulator = 0.0
+			if _is_network_connected():
+				_rpc_countdown_finished.rpc()
+				_sync_clocks_to_owners()
+		elif _is_network_connected() and _countdown_sync_accumulator >= 0.25:
+			_countdown_sync_accumulator = 0.0
+			_rpc_sync_countdown.rpc(countdown_remaining)
 		return
 	tick_match_clocks(delta)
 
@@ -102,6 +115,7 @@ func start_new_match(participating_peers: Array = [1, 2], custom_seed: int = 0) 
 	winner_peer_id = 0
 	end_reason = ""
 	_sync_accumulator = 0.0
+	_countdown_sync_accumulator = 0.0
 
 	var player_count: int = clampi(participating_peers.size(), 2, 4)
 	if GameConfig != null and GameConfig.spawner_auto_preset_by_player_count and GameConfig.has_method("apply_player_count_preset"):
@@ -114,6 +128,7 @@ func start_new_match(participating_peers: Array = [1, 2], custom_seed: int = 0) 
 	match_state = MatchState.IN_PROGRESS
 	countdown_remaining = MATCH_START_COUNTDOWN_SECONDS
 	countdown_active = true
+	_countdown_sync_accumulator = 0.0
 	active_spawner_config = GameConfig.get_spawner_config_dict() if (GameConfig != null and GameConfig.has_method("get_spawner_config_dict")) else {}
 
 	if _is_network_connected():
@@ -126,7 +141,7 @@ func start_new_match(participating_peers: Array = [1, 2], custom_seed: int = 0) 
 			clock_updated.emit(peer_id, peer_clocks[peer_id], 0.0)
 
 
-## Awards +10s (GameConfig.drawer_first_search_bonus_seconds) to a spy's private clock on first container search.
+## Awards bonus seconds (GameConfig.drawer_first_search_bonus_seconds) to a spy's private clock on first container search.
 func award_first_search_bonus(peer_id: int) -> void:
 	if match_state != MatchState.IN_PROGRESS:
 		return
@@ -136,13 +151,9 @@ func award_first_search_bonus(peer_id: int) -> void:
 		return
 
 	var bonus: float = GameConfig.drawer_first_search_bonus_seconds
-	peer_clocks[peer_id] = float(peer_clocks[peer_id]) + bonus
-
-	if _is_network_connected() and (peer_id == 1 or peer_id in multiplayer.get_peers()):
-		_rpc_update_private_clock.rpc_id(peer_id, peer_id, peer_clocks[peer_id], bonus)
-	else:
-		clock_updated.emit(peer_id, peer_clocks[peer_id], bonus)
-		AudioBridge.play_local_cue("clock_bonus_ding")
+	if bonus <= 0.0:
+		return
+	_apply_and_notify_clock_bonus(peer_id, bonus)
 
 
 ## Awards bonus seconds (GameConfig.ko_reward_bonus_seconds) to a spy's private clock when they KO another player.
@@ -154,13 +165,16 @@ func award_ko_bonus(peer_id: int) -> void:
 	if eliminated_peers.get(peer_id, false) or not peer_clocks.has(peer_id):
 		return
 
-	var bonus: float = GameConfig.ko_reward_bonus_seconds if GameConfig != null else 15.0
+	var bonus: float = GameConfig.ko_reward_bonus_seconds if GameConfig != null else 17.0
 	if bonus <= 0.0:
 		return
-	peer_clocks[peer_id] = float(peer_clocks[peer_id]) + bonus
+	_apply_and_notify_clock_bonus(peer_id, bonus)
 
+
+func _apply_and_notify_clock_bonus(peer_id: int, bonus: float) -> void:
+	peer_clocks[peer_id] = float(peer_clocks[peer_id]) + bonus
 	if _is_network_connected() and (peer_id == 1 or peer_id in multiplayer.get_peers()):
-		_rpc_update_private_clock.rpc_id(peer_id, peer_id, peer_clocks[peer_id], bonus)
+		_rpc_award_clock_bonus.rpc_id(peer_id, peer_id, peer_clocks[peer_id], bonus)
 	else:
 		clock_updated.emit(peer_id, peer_clocks[peer_id], bonus)
 		AudioBridge.play_local_cue("clock_bonus_ding")
@@ -275,6 +289,7 @@ func reset_match_state() -> void:
 	winner_peer_id = 0
 	end_reason = ""
 	_sync_accumulator = 0.0
+	_countdown_sync_accumulator = 0.0
 
 
 func _is_network_connected() -> bool:
@@ -322,6 +337,26 @@ func _rpc_on_match_started(seed_value: int, player_count: int = 2, config_overri
 	winner_peer_id = 0
 	end_reason = ""
 	match_started.emit(seed_value)
+
+
+@rpc("authority", "call_remote", "unreliable")
+func _rpc_sync_countdown(server_remaining: float) -> void:
+	if countdown_active and match_state == MatchState.IN_PROGRESS:
+		countdown_remaining = maxf(server_remaining, 0.01)
+
+
+@rpc("authority", "call_remote", "reliable")
+func _rpc_countdown_finished() -> void:
+	countdown_remaining = 0.0
+	countdown_active = false
+
+
+@rpc("authority", "call_local", "reliable")
+func _rpc_award_clock_bonus(peer_id: int, remaining_seconds: float, delta_bonus: float) -> void:
+	peer_clocks[peer_id] = remaining_seconds
+	if delta_bonus > 0.0:
+		AudioBridge.play_local_cue("clock_bonus_ding")
+	clock_updated.emit(peer_id, remaining_seconds, delta_bonus)
 
 
 @rpc("authority", "call_local", "unreliable")

@@ -62,7 +62,7 @@ func unpausewhenbufferready():
 		runninglagtimeminimum = bufferlengthtime
 
 func external_end_stream():
-	if inopusstream:
+	if inopusstream and audiostreamplaybackopus != null:
 		print(":externally ending the stream at cutout")
 		tv_incomingaudiopacket(JSON.stringify({"talkingtimeend":-1}).to_ascii_buffer())
 
@@ -72,12 +72,14 @@ func tv_incomingaudiopacket(packet):
 	if len(packet) <= 3:
 		print("Bad packet too short")
 	elif packet[0] == asciiopenbrace and packet[-1] == asciiclosebrace:
-		var h = JSON.parse_string(packet.get_string_from_ascii())
+		var packet_ascii: String = packet.get_string_from_ascii()
+		var h = JSON.parse_string(packet_ascii) if packet_ascii.contains("talkingtime") else null
 		if h != null:
 			print("audio json packet ", h)
 
 			if h.has("talkingtimestart"):
 				setrecopusvalues(h["opussamplerate"], h.get("opuschannels", 2))
+				setpitchscale(1.0)
 				lenchunkprefix = int(h["lenchunkprefix"])
 				opusstreamcount = int(h["opusstreamcount"])
 				opusframesize = int(h["opusframesize"])
@@ -94,13 +96,19 @@ func tv_incomingaudiopacket(packet):
 				inopusstream = true
 
 			elif h.has("talkingtimeend"):
+				if audiostreamplaybackopus == null:
+					inopusstream = false
+					return
 				if playbackpausedonmark and audiostreamplaybackopus.queue_length_frames() == 0:
 					audiostreamplaybackopus.mark_end_opus_stream(true)
 				audiostreamplaybackopus.mark_end_opus_stream(false)
 				playbackpausedonmark = true
 				pausereached = false
 				print("runninglagtimeminimum: ", runninglagtimeminimum, " (target: ", audiobufferlagtimetarget, ")")
-				inopusstream = true
+				inopusstream = false
+
+	elif audiostreamplaybackopus == null:
+		return
 
 	elif lenchunkprefix == -1:
 		pass
@@ -169,7 +177,7 @@ var playingrecording = false
 var pausereached = false
 var prevskips = 0
 func _physics_process(delta):
-	if audiostreamplaybackopus == null:
+	if not is_inside_tree() or audiostreamplaybackopus == null or audiostreamopus == null:
 		return
 	if playingrecording:
 		return
@@ -184,11 +192,11 @@ func _physics_process(delta):
 	if not playbackpausedonmark:
 		runninglagtimeminimum = bufferlengthtime
 		if lastemittedaudiobufferpitchscale == 1.0:
-			if abs(bufferlengthtime - audiobufferlagtimetarget) > audiobufferlagtimetargettolerance:
-				setpitchscale(0.7 if (bufferlengthtime < audiobufferlagtimetarget) else 1.4)
+			if bufferlengthtime - audiobufferlagtimetarget > audiobufferlagtimetargettolerance:
+				setpitchscale(1.06)
 				print(" set lastemittedaudiobufferpitchscale to ", lastemittedaudiobufferpitchscale)
 
-		elif (lastemittedaudiobufferpitchscale < 1.0) == (bufferlengthtime > audiobufferlagtimetarget):
+		elif bufferlengthtime <= audiobufferlagtimetarget:
 			setpitchscale(1.0)
 			print(" set lastemittedaudiobufferpitchscale to ", lastemittedaudiobufferpitchscale)
 	

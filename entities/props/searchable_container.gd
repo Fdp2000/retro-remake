@@ -136,6 +136,8 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	if Engine.is_editor_hint():
 		return
+	if occupied_by_peer_id != 0 and (not _is_peer_connected() or multiplayer.is_server()):
+		_release_stale_occupant_if_needed()
 	if is_slow_opening:
 		_step_committed_slow_open(delta)
 	if not live_bomb_lit:
@@ -632,9 +634,38 @@ func request_grab_lit_bomb(caller_peer_id: int) -> void:
 # Core Authoritative Operations
 # ==========================================
 
+func _is_occupant_still_valid(occ_id: int) -> bool:
+	if occ_id <= 0:
+		return false
+	if _is_peer_connected() and occ_id != 1 and not (occ_id in multiplayer.get_peers()):
+		return false
+	var occ_player: Node = _occupant_player_override if (_occupant_player_override != null and is_instance_valid(_occupant_player_override)) else _find_player_node(occ_id)
+	if occ_player == null or not is_instance_valid(occ_player):
+		return false
+	if bool(occ_player.get("is_clock_eliminated")):
+		return false
+	var ko_val: int = GameConfig.Stance.KO if GameConfig != null else 4
+	if int(occ_player.get("stance_state")) == ko_val:
+		return false
+	if not is_slow_opening and occ_player.get("active_container") != self:
+		return false
+	return true
+
+
+func _release_stale_occupant_if_needed() -> void:
+	if occupied_by_peer_id == 0:
+		return
+	if _is_peer_connected() and not multiplayer.is_server():
+		return
+	if _is_occupant_still_valid(occupied_by_peer_id):
+		return
+	close_container(occupied_by_peer_id, _occupant_player_override, true)
+
+
 func focus_container(peer_id: int, player_override: Node = null) -> bool:
 	_init_clutter_if_empty()
 	_ensure_item_positions()
+	_release_stale_occupant_if_needed()
 	if occupied_by_peer_id != 0 and occupied_by_peer_id != peer_id:
 		return false
 
@@ -670,6 +701,7 @@ func focus_container(peer_id: int, player_override: Node = null) -> bool:
 func start_slow_open(peer_id: int, player_override: Node = null) -> bool:
 	_init_clutter_if_empty()
 	_ensure_item_positions()
+	_release_stale_occupant_if_needed()
 	if occupied_by_peer_id != 0 and occupied_by_peer_id != peer_id:
 		return false
 	if is_slow_opening:
@@ -834,6 +866,7 @@ func open_container(peer_id: int, is_slow_peek: bool, player_override: Node = nu
 		"awarded_bonus": false
 	}
 
+	_release_stale_occupant_if_needed()
 	if occupied_by_peer_id != 0 and occupied_by_peer_id != peer_id:
 		result["reason"] = "IN_USE"
 		return result

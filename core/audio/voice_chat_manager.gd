@@ -33,8 +33,9 @@ const TWO_VOIP_SPEAKER_SCRIPT = preload("res://addons/twovoip/voiphelper/two_voi
 			local_transmit_changed.emit(false)
 
 @export var local_loopback_enabled: bool = false
-@export var speaker_lag_target_sec: float = 0.09
-@export var speaker_lag_tolerance_sec: float = 0.06
+@export var speaker_lag_target_sec: float = 0.10
+@export var speaker_lag_tolerance_sec: float = 0.11
+const LOBBY_VOICE_VOLUME_DB: float = 3.0
 
 var _mic: Node = null
 var _mic_on_btn: Button = null
@@ -48,6 +49,7 @@ var _peer_speakers: Dictionary = {} # peer_id -> TwoVoipSpeaker (3D in-match)
 var _lobby_speaker_players: Dictionary = {} # peer_id -> AudioStreamPlayer (2D in-lobby)
 var _lobby_speakers: Dictionary = {} # peer_id -> TwoVoipSpeaker (2D in-lobby)
 var _lobby_muted_peers: Dictionary = {} # peer_id -> bool
+var _lobby_voip_active: bool = false
 var _peer_speaking: Dictionary = {} # peer_id -> bool
 
 
@@ -57,6 +59,10 @@ func _ready() -> void:
 			NetworkManager.player_connected.connect(_on_peer_connected)
 		if not NetworkManager.player_disconnected.is_connected(_on_peer_disconnected):
 			NetworkManager.player_disconnected.connect(_on_peer_disconnected)
+		if not NetworkManager.server_disconnected.is_connected(_on_network_reset):
+			NetworkManager.server_disconnected.connect(_on_network_reset)
+		if not NetworkManager.connection_failed.is_connected(_on_network_reset):
+			NetworkManager.connection_failed.connect(_on_network_reset)
 	if MatchManager != null and not MatchManager.match_started.is_connected(_on_match_started):
 		MatchManager.match_started.connect(_on_match_started)
 
@@ -67,7 +73,25 @@ func _ready() -> void:
 
 
 func _on_match_started(_seed_value: int) -> void:
+	_lobby_voip_active = false
 	clear_lobby_voip_state()
+
+
+func set_lobby_voip_active(active: bool) -> void:
+	_lobby_voip_active = active
+	if not active:
+		clear_lobby_voip_state()
+
+
+func _on_network_reset() -> void:
+	_lobby_voip_active = false
+	_peers_needing_header.clear()
+	_peer_speaking.clear()
+	clear_lobby_voip_state()
+	for pid in _peer_speakers.keys():
+		var spk: Node = _peer_speakers[pid] as Node
+		_safe_free_speaker(spk, null)
+	_peer_speakers.clear()
 
 
 func set_lobby_peer_muted(peer_id: int, muted: bool) -> void:
@@ -79,7 +103,7 @@ func set_lobby_peer_muted(peer_id: int, muted: bool) -> void:
 		_lobby_muted_peers.erase(peer_id)
 	var lobby_player: AudioStreamPlayer = _lobby_speaker_players.get(peer_id, null) as AudioStreamPlayer
 	if lobby_player != null and is_instance_valid(lobby_player):
-		lobby_player.volume_db = -80.0 if muted else 0.0
+		lobby_player.volume_db = -80.0 if muted else LOBBY_VOICE_VOLUME_DB
 
 
 func is_lobby_peer_muted(peer_id: int) -> bool:
@@ -88,18 +112,12 @@ func is_lobby_peer_muted(peer_id: int) -> bool:
 
 func clear_lobby_voip_state() -> void:
 	_lobby_muted_peers.clear()
-	for pid in _lobby_speakers.keys():
-		var spk: Node = _lobby_speakers[pid] as Node
-		if spk != null and is_instance_valid(spk):
-			spk.call("external_end_stream")
-			spk.queue_free()
-	_lobby_speakers.clear()
+	var peer_ids: Array = _lobby_speakers.keys()
 	for pid in _lobby_speaker_players.keys():
-		var p: AudioStreamPlayer = _lobby_speaker_players[pid] as AudioStreamPlayer
-		if p != null and is_instance_valid(p):
-			p.stop()
-			p.queue_free()
-	_lobby_speaker_players.clear()
+		if not peer_ids.has(pid):
+			peer_ids.append(pid)
+	for pid in peer_ids:
+		_free_lobby_speaker_for_peer(int(pid))
 
 
 func _setup_twovoip_mic() -> void:
@@ -123,12 +141,24 @@ func _setup_twovoip_mic() -> void:
 	_denoise_btn.button_pressed = denoise_enabled
 
 	_mic.call("initvoipmic", _mic_on_btn, null, _ptt_btn, _vox_btn, _denoise_btn, null)
-	# 48 kHz mono, 20 ms frames, 24 kbps voice-optimized Opus (~60 bytes/packet)
-	_mic.call("setopusvalues", 48000, 20, 1, 24000, 5, true)
+	# 48 kHz mono, 20 ms frames, 36 kbps voice-optimized Opus (~90 bytes/packet) for crisp speech
+	_mic.call("setopusvalues", 48000, 20, 1, 36000, 7, true)
 	_mic.call("set_voxthreshhold", vad_threshold)
 
 	_mic.connect("transmitaudiojsonpacket", _on_mic_json_packet)
 	_mic.connect("transmitaudiopacket", _on_mic_audio_packet)
+	apply_saved_input_device()
+	call_deferred("apply_saved_input_device")
+
+
+func apply_saved_input_device() -> void:
+	if Engine.is_editor_hint() or DisplayServer.get_name() == "headless":
+		return
+	var saved_dev: String = GameConfig.audio_input_device if GameConfig != null else "Default"
+	if saved_dev == "" or not AudioServer.get_input_device_list().has(saved_dev):
+		return
+	if AudioServer.get_input_device() != saved_dev:
+		set_input_device(saved_dev)
 
 
 func set_muted(muted: bool) -> void:
@@ -236,7 +266,12 @@ func _send_voip_header_packet(header_bytes: PackedByteArray, _frame_count: int) 
 
 
 func _is_network_connected() -> bool:
-	return multiplayer.has_multiplayer_peer() and multiplayer.multiplayer_peer.get_connection_status() == MultiplayerPeer.CONNECTION_CONNECTED
+	return (
+		multiplayer != null
+		and multiplayer.has_multiplayer_peer()
+		and not (multiplayer.multiplayer_peer is OfflineMultiplayerPeer)
+		and multiplayer.multiplayer_peer.get_connection_status() == MultiplayerPeer.CONNECTION_CONNECTED
+	)
 
 
 @rpc("any_peer", "call_remote", "reliable")
@@ -305,7 +340,9 @@ func _get_or_create_speaker(peer_id: int) -> Node:
 		_peer_speakers[peer_id] = speaker
 		return speaker
 
-	# Lobby fallback: 2D non-spatial AudioStreamPlayer so players can talk before match starts
+	# Lobby fallback: 2D non-spatial AudioStreamPlayer so players can talk in staging
+	if not _lobby_voip_active:
+		return null
 	var existing_lobby: Node = _lobby_speakers.get(peer_id, null) as Node
 	if existing_lobby != null and is_instance_valid(existing_lobby):
 		return existing_lobby
@@ -314,7 +351,7 @@ func _get_or_create_speaker(peer_id: int) -> Node:
 	lobby_player.name = "LobbyVoicePlayer_%d" % peer_id
 	if AudioServer.get_bus_index(&"Voice") != -1:
 		lobby_player.bus = &"Voice"
-	lobby_player.volume_db = -80.0 if is_lobby_peer_muted(peer_id) else 0.0
+	lobby_player.volume_db = -80.0 if is_lobby_peer_muted(peer_id) else LOBBY_VOICE_VOLUME_DB
 	add_child(lobby_player)
 
 	var lobby_speaker: Node = TWO_VOIP_SPEAKER_SCRIPT.new()
@@ -328,17 +365,30 @@ func _get_or_create_speaker(peer_id: int) -> Node:
 	return lobby_speaker
 
 
+func _safe_free_speaker(spk: Node, player: AudioStreamPlayer = null) -> void:
+	if spk != null and is_instance_valid(spk):
+		spk.set_physics_process(false)
+		spk.set_process(false)
+		spk.set("audiostreamplaybackopus", null)
+		spk.set("audiostreamopus", null)
+		spk.set("audioplayeropus", null)
+		if spk.get_parent() != null:
+			spk.get_parent().remove_child(spk)
+		spk.queue_free()
+	if player != null and is_instance_valid(player):
+		player.volume_db = -80.0
+		player.stream = null
+		if player.get_parent() != null:
+			player.get_parent().remove_child(player)
+		player.queue_free()
+
+
 func _free_lobby_speaker_for_peer(peer_id: int) -> void:
 	var spk: Node = _lobby_speakers.get(peer_id, null) as Node
-	if spk != null and is_instance_valid(spk):
-		spk.call("external_end_stream")
-		spk.queue_free()
-	_lobby_speakers.erase(peer_id)
 	var p: AudioStreamPlayer = _lobby_speaker_players.get(peer_id, null) as AudioStreamPlayer
-	if p != null and is_instance_valid(p):
-		p.stop()
-		p.queue_free()
+	_lobby_speakers.erase(peer_id)
 	_lobby_speaker_players.erase(peer_id)
+	_safe_free_speaker(spk, p)
 
 
 func _find_player_by_peer_id(peer_id: int) -> Node:
@@ -351,6 +401,9 @@ func _find_player_by_peer_id(peer_id: int) -> Node:
 
 
 func _on_peer_connected(peer_id: int) -> void:
+	var local_id: int = multiplayer.get_unique_id() if _is_network_connected() else 1
+	if peer_id == local_id:
+		return
 	if _current_stream_header is Dictionary and not _peers_needing_header.has(peer_id):
 		_peers_needing_header.append(peer_id)
 
@@ -363,9 +416,7 @@ func _on_peer_disconnected(peer_id: int) -> void:
 	_peer_speaking.erase(peer_id)
 
 	var speaker: Node = _peer_speakers.get(peer_id, null) as Node
-	if speaker != null and is_instance_valid(speaker):
-		speaker.call("external_end_stream")
-		speaker.queue_free()
 	_peer_speakers.erase(peer_id)
+	_safe_free_speaker(speaker, null)
 	_free_lobby_speaker_for_peer(peer_id)
 	_lobby_muted_peers.erase(peer_id)

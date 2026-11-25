@@ -11,6 +11,9 @@ extends StaticBody3D
 @export var start_point: Vector3 = Vector3.ZERO
 @export var end_point: Vector3 = Vector3.ZERO
 @export var use_endpoints: bool = false
+@export var trigger_count: int = 0
+
+const MAX_TRIGGERS: int = 3
 
 const TRIPWIRE_PREFAB: PackedScene = preload("res://Assets/Prefab_Traps/tripwire.tscn")
 const PEG_MODEL_HEIGHT: float = 0.1504
@@ -243,6 +246,10 @@ func try_trip_spy(body: Node) -> bool:
 		AudioBridge.request_world_cue("tripwire_snap", _safe_global_pos() + Vector3(0.0, 0.35, 0.0), snap_rad, owner_peer_id)
 	if body.has_method("apply_trap_ko"):
 		body.apply_trap_ko("TRIPWIRE", owner_peer_id)
+	trigger_count += 1
+	if trigger_count >= MAX_TRIGGERS:
+		_triggered_or_consumed = true
+		_consume_trap()
 	return true
 
 
@@ -293,7 +300,7 @@ func try_steal_tripwire(caller_peer_id: int, player_override: Node = null) -> bo
 	if stance == ko_val or stance == lock_val or bool(player.get("is_clock_eliminated")):
 		return false
 	if player.has_method("server_pickup_world_item"):
-		if not player.server_pickup_world_item("TRIPWIRE", [], _safe_global_pos()):
+		if not player.server_pickup_world_item("TRIPWIRE", [], _safe_global_pos(), {}, trigger_count):
 			return false
 	_triggered_or_consumed = true
 	_consume_trap()

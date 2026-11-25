@@ -792,13 +792,13 @@ func _on_match_started(seed_value: int) -> void:
 			ladder_layout.call("ensure_layout_for_seed", seed_value)
 		if ladder_layout.has_method("relocate_airport_exit_for_seed"):
 			ladder_layout.call("relocate_airport_exit_for_seed", seed_value)
+	_reset_all_doors_for_round()
+	_configure_level_props_for_mode(is_sandbox_mode)
 	_assign_random_player_spawns(seed_value)
 	if not is_sandbox_mode:
 		var p_root: Node = players_container if players_container != null else get_node_or_null("Players")
 		if p_root != null:
 			for child in p_root.get_children():
-				if _is_network_active() and not child.is_multiplayer_authority():
-					continue
 				var pid: int = child.name.to_int()
 				var slot: int = MatchManager.get_peer_role(pid) if (MatchManager != null and MatchManager.has_method("get_peer_role")) else 0
 				if slot <= 0:
@@ -1019,8 +1019,6 @@ func _rpc_prepare_arena_round(next_sandbox_mode: bool) -> void:
 	var p_root: Node = players_container if players_container != null else get_node_or_null("Players")
 	if p_root != null:
 		for child in p_root.get_children():
-			if _is_network_active() and not child.is_multiplayer_authority():
-				continue
 			var pid: int = child.name.to_int()
 			var slot: int = MatchManager.get_peer_role(pid) if (MatchManager != null and MatchManager.has_method("get_peer_role")) else 0
 			if slot <= 0:

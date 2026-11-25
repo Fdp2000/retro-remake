@@ -30,6 +30,7 @@ var briefcase_live_bomb_lit: bool = false
 var briefcase_live_bomb_fuse_remaining: float = 0.0
 
 var jacket_slots: Array[String] = ["NONE", "NONE", "NONE"]
+var jacket_slot_tripwire_kos: Array[int] = [0, 0, 0]
 var active_jacket_slot: int = 0
 var right_hand_mode: int = RightHandMode.JACKET_SLOT
 var is_charging_club: bool = false
@@ -170,12 +171,14 @@ func _extract_briefcase_drop_into_result(result: Dictionary) -> void:
 func pickup_item(
 	new_item_id: String,
 	extra_briefcase_items: Array = [],
-	extra_briefcase_positions: Dictionary = {}
+	extra_briefcase_positions: Dictionary = {},
+	tripwire_ko_count: int = 0
 ) -> Dictionary:
 	var id: String = new_item_id.to_upper()
 	var result: Dictionary = {
 		"picked": false,
 		"dropped_item_id": "NONE",
+		"dropped_tripwire_kos": 0,
 		"dropped_briefcase_items": [] as Array[String],
 		"dropped_briefcase_item_positions": {},
 		"dropped_briefcase_bomb_pos": BRIEFCASE_BUILDER.DEFAULT_BOMB_NORM_POS,
@@ -258,6 +261,7 @@ func pickup_item(
 
 		if empty_idx != -1:
 			jacket_slots[empty_idx] = id
+			jacket_slot_tripwire_kos[empty_idx] = clampi(tripwire_ko_count, 0, 2) if id == "TRIPWIRE" else 0
 			active_jacket_slot = empty_idx
 			if right_hand_mode == RightHandMode.LIVE_BOMB:
 				result["dropped_item_id"] = "LIVE_BOMB"
@@ -266,7 +270,9 @@ func pickup_item(
 		else:
 			var slot_idx: int = clampi(active_jacket_slot, 0, JACKET_SLOT_COUNT - 1)
 			result["dropped_item_id"] = jacket_slots[slot_idx]
+			result["dropped_tripwire_kos"] = jacket_slot_tripwire_kos[slot_idx] if jacket_slots[slot_idx] == "TRIPWIRE" else 0
 			jacket_slots[slot_idx] = id
+			jacket_slot_tripwire_kos[slot_idx] = clampi(tripwire_ko_count, 0, 2) if id == "TRIPWIRE" else 0
 			right_hand_mode = RightHandMode.JACKET_SLOT
 			result["picked"] = true
 		return result
@@ -341,9 +347,20 @@ func drop_right_hand_item() -> Dictionary:
 	var slot_idx: int = clampi(active_jacket_slot, 0, JACKET_SLOT_COUNT - 1)
 	var cur: String = jacket_slots[slot_idx]
 	if cur != "NONE":
+		result["dropped_tripwire_kos"] = jacket_slot_tripwire_kos[slot_idx] if cur == "TRIPWIRE" else 0
 		jacket_slots[slot_idx] = "NONE"
+		jacket_slot_tripwire_kos[slot_idx] = 0
 		result["dropped_item_id"] = cur
 	return result
+
+
+func get_active_tripwire_kos() -> int:
+	if right_hand_mode != RightHandMode.JACKET_SLOT:
+		return 0
+	var slot_idx: int = clampi(active_jacket_slot, 0, JACKET_SLOT_COUNT - 1)
+	if jacket_slots[slot_idx] != "TRIPWIRE":
+		return 0
+	return jacket_slot_tripwire_kos[slot_idx]
 
 
 func consume_active_jacket_slot(expected_id: String = "") -> String:
@@ -356,6 +373,7 @@ func consume_active_jacket_slot(expected_id: String = "") -> String:
 	if expected_id != "" and cur != expected_id.to_upper():
 		return "NONE"
 	jacket_slots[slot_idx] = "NONE"
+	jacket_slot_tripwire_kos[slot_idx] = 0
 	return cur
 
 
@@ -408,10 +426,12 @@ func force_drop_all_hands() -> Array[Dictionary]:
 		if jacket_slots[i] != "NONE":
 			drops.append({
 				"dropped_item_id": jacket_slots[i],
+				"dropped_tripwire_kos": jacket_slot_tripwire_kos[i] if jacket_slots[i] == "TRIPWIRE" else 0,
 				"dropped_briefcase_items": [] as Array[String],
 				"jacket_slot": i
 			})
 			jacket_slots[i] = "NONE"
+			jacket_slot_tripwire_kos[i] = 0
 
 	right_hand_mode = RightHandMode.JACKET_SLOT
 	active_jacket_slot = 0
@@ -441,10 +461,12 @@ func force_drop_ko_items() -> Array[Dictionary]:
 		var chosen_idx: int = filled_indices[randi() % filled_indices.size()]
 		drops.append({
 			"dropped_item_id": jacket_slots[chosen_idx],
+			"dropped_tripwire_kos": jacket_slot_tripwire_kos[chosen_idx] if jacket_slots[chosen_idx] == "TRIPWIRE" else 0,
 			"dropped_briefcase_items": [] as Array[String],
 			"jacket_slot": chosen_idx
 		})
 		jacket_slots[chosen_idx] = "NONE"
+		jacket_slot_tripwire_kos[chosen_idx] = 0
 
 	right_hand_mode = RightHandMode.JACKET_SLOT
 	return drops

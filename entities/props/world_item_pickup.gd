@@ -70,6 +70,7 @@ const ITEM_DISPLAY_NAMES: Dictionary = {
 @export var spring_owner_peer_id: int = 0
 @export var armed_bomb: bool = false
 @export var bomb_owner_peer_id: int = 0
+@export var tripwire_ko_count: int = 0
 
 var _visual_root: Node3D = null
 var _collision_shape: CollisionShape3D = null
@@ -524,7 +525,7 @@ func _execute_server_pickup(peer_id: int) -> void:
 			bomb_owner_peer_id = int(container.get("bomb_owner_peer_id"))
 
 	_is_consumed = true
-	var picked: bool = player.server_pickup_world_item(item_id, packed_objectives.duplicate(), global_position, packed_item_positions.duplicate())
+	var picked: bool = player.server_pickup_world_item(item_id, packed_objectives.duplicate(), global_position, packed_item_positions.duplicate(), tripwire_ko_count)
 	if picked:
 		if is_briefcase_item(item_id):
 			if player.has_method("set_briefcase_trap_state"):

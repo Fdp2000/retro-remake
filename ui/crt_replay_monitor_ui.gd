@@ -828,7 +828,7 @@ func archive_trap_hit(reason: String, victim_peer_id: int, attacker_peer_id: int
 			rel_p["rel_sec"] = pt - clip_start
 			v_pkts.append(rel_p)
 
-	var max_clips: int = maxi(GameConfig.crt_archive_max_clips if GameConfig != null else 8, 1)
+	var max_clips: int = GameConfig.crt_archive_max_clips if GameConfig != null else 0
 	var entry: Dictionary = {
 		"reason": reason.to_upper(),
 		"victim_peer_id": victim_peer_id,
@@ -845,11 +845,12 @@ func archive_trap_hit(reason: String, victim_peer_id: int, attacker_peer_id: int
 		"clip_start_sec": clip_start,
 		"post_window_end_sec": now + post_sec,
 		"fps": fps,
-		"duration": GameConfig.crt_replay_duration if GameConfig != null else 3.0
+		"duration": GameConfig.crt_replay_duration if GameConfig != null else 4.5
 	}
 	_match_archive.append(entry)
-	while _match_archive.size() > max_clips:
-		_match_archive.remove_at(0)
+	if max_clips > 0:
+		while _match_archive.size() > max_clips:
+			_match_archive.remove_at(0)
 
 
 func get_match_archive() -> Array[Dictionary]:

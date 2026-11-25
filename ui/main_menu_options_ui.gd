@@ -362,8 +362,7 @@ func _on_volume_changed(_val: float) -> void:
 		_voice_val_lbl.text = "%d%%" % roundi(_voice_slider.value * 100.0)
 	if _updating_ui or GameConfig == null:
 		return
-	var dev_name: String = _device_opt.get_item_text(_device_opt.selected) if (_device_opt != null and _device_opt.item_count > 0) else "Default"
-	GameConfig.set_audio_settings(_master_slider.value, _music_slider.value, _voice_slider.value, dev_name, true)
+	GameConfig.set_audio_settings(_master_slider.value, _music_slider.value, _voice_slider.value, GameConfig.audio_input_device, true)
 
 
 func _on_device_selected(index: int) -> void:

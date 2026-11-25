@@ -9,9 +9,10 @@ signal world_cue_emitted(cue_id: String, world_pos: Vector3, radius: float, sour
 signal local_cue_emitted(cue_id: String)
 
 const EMITTER_POOL_SIZE: int = 16
-const OCCLUSION_LOWPASS_HZ: float = 3200.0
+const LOCAL_POOL_SIZE: int = 4
+const OCCLUSION_LOWPASS_HZ: float = 6000.0
 const UNOCCLUDED_LOWPASS_HZ: float = 20000.0
-const OCCLUDED_VOLUME_DROP_DB: float = -2.5
+const OCCLUDED_VOLUME_DROP_DB: float = -1.0
 
 const OCCLUSION_EMITTER_SCRIPT = preload("res://core/audio/occlusion_emitter.gd")
 const SURFACE_DETECTOR_SCRIPT = preload("res://core/audio/surface_detector.gd")
@@ -123,6 +124,9 @@ const DEFAULT_CUE_ASSET_PATHS: Dictionary = {
 		"res://Assets/SFX/Club/ClubMiss_01.wav",
 		"res://Assets/SFX/Club/ClubMiss_02.wav",
 	],
+	"club_stumble": [
+		"res://Assets/SFX/Club/ClubStumble.wav",
+	],
 	"spring_trigger": [
 		"res://Assets/SFX/Spring/SpringTrigger_01.wav",
 		"res://Assets/SFX/Spring/SpringTrigger_02.wav",
@@ -140,7 +144,8 @@ const MUSIC_FADE_SPEED: float = 2.0
 var _custom_sound_banks: Dictionary = {} # cue_id -> Array[AudioStream]
 var _emitter_pool: Array = []
 var _pool_cursor: int = 0
-var _local_player: AudioStreamPlayer = null
+var _local_player_pool: Array[AudioStreamPlayer] = []
+var _local_pool_cursor: int = 0
 var _music_player: AudioStreamPlayer = null
 var _cue_history: Array[Dictionary] = []
 var _explosion_smoke_mat: StandardMaterial3D = null
@@ -269,12 +274,14 @@ func _register_default_sound_banks() -> void:
 
 
 func _ensure_nodes() -> void:
-	if _local_player == null:
-		_local_player = AudioStreamPlayer.new()
-		_local_player.name = "LocalCuePlayer"
-		if AudioServer.get_bus_index(&"SFX") != -1:
-			_local_player.bus = &"SFX"
-		add_child(_local_player)
+	if _local_player_pool.is_empty():
+		for i in range(LOCAL_POOL_SIZE):
+			var lp := AudioStreamPlayer.new()
+			lp.name = "LocalCuePlayer_%d" % i
+			if AudioServer.get_bus_index(&"SFX") != -1:
+				lp.bus = &"SFX"
+			add_child(lp)
+			_local_player_pool.append(lp)
 
 	if _music_player == null:
 		if AudioServer.get_bus_index(&"Music") == -1:
@@ -372,8 +379,8 @@ func play_world_cue(cue_id: String, world_pos: Vector3, radius: float, source_pe
 		emitter.unit_size = 16.0
 		emitter.max_db = 0.0
 		emitter.base_volume_db = -8.0
-		emitter.occluded_cutoff_hz = 5500.0
-		emitter.occluded_volume_drop_db = -1.5
+		emitter.occluded_cutoff_hz = 8500.0
+		emitter.occluded_volume_drop_db = -0.5
 	elif resolved_cue == "bomb_hiss":
 		emitter.unit_size = 8.0
 		emitter.max_db = 3.0
@@ -391,8 +398,8 @@ func play_world_cue(cue_id: String, world_pos: Vector3, radius: float, source_pe
 		emitter.unit_size = 12.0 if is_ko_splash else 6.0
 		emitter.max_db = 2.0
 		emitter.base_volume_db = -2.0
-		emitter.occluded_cutoff_hz = 5500.0 if is_ko_splash else OCCLUSION_LOWPASS_HZ
-		emitter.occluded_volume_drop_db = -1.5 if is_ko_splash else OCCLUDED_VOLUME_DROP_DB
+		emitter.occluded_cutoff_hz = 8500.0 if is_ko_splash else OCCLUSION_LOWPASS_HZ
+		emitter.occluded_volume_drop_db = -0.5 if is_ko_splash else OCCLUDED_VOLUME_DROP_DB
 	elif resolved_cue == "bomb_arm":
 		emitter.unit_size = 2.0
 		emitter.max_db = 4.0
@@ -415,8 +422,8 @@ func play_world_cue(cue_id: String, world_pos: Vector3, radius: float, source_pe
 		emitter.unit_size = 12.0
 		emitter.max_db = 4.0
 		emitter.base_volume_db = 2.5
-		emitter.occluded_cutoff_hz = 5500.0
-		emitter.occluded_volume_drop_db = -1.5
+		emitter.occluded_cutoff_hz = 8500.0
+		emitter.occluded_volume_drop_db = -0.5
 	elif resolved_cue == "dart_gun_equip":
 		emitter.unit_size = 2.0
 		emitter.max_db = 2.0
@@ -427,14 +434,14 @@ func play_world_cue(cue_id: String, world_pos: Vector3, radius: float, source_pe
 		emitter.unit_size = 12.0
 		emitter.max_db = 3.0
 		emitter.base_volume_db = -1.0
-		emitter.occluded_cutoff_hz = 5500.0
-		emitter.occluded_volume_drop_db = -1.5
+		emitter.occluded_cutoff_hz = 8500.0
+		emitter.occluded_volume_drop_db = -0.5
 	elif resolved_cue == "door_bash":
 		emitter.unit_size = 5.0
 		emitter.max_db = 3.0
 		emitter.base_volume_db = -1.0
-		emitter.occluded_cutoff_hz = 5500.0
-		emitter.occluded_volume_drop_db = -2.0
+		emitter.occluded_cutoff_hz = 8500.0
+		emitter.occluded_volume_drop_db = -0.5
 	elif resolved_cue == "door_open" or resolved_cue == "door_close":
 		emitter.unit_size = 2.0
 		emitter.max_db = -4.0
@@ -445,18 +452,24 @@ func play_world_cue(cue_id: String, world_pos: Vector3, radius: float, source_pe
 		emitter.unit_size = 4.0
 		emitter.max_db = 2.0
 		emitter.base_volume_db = -2.0
-		emitter.occluded_cutoff_hz = 5500.0
-		emitter.occluded_volume_drop_db = -2.0
+		emitter.occluded_cutoff_hz = 8500.0
+		emitter.occluded_volume_drop_db = -0.5
 	elif resolved_cue == "club_slam":
 		emitter.unit_size = 12.0
 		emitter.max_db = 3.0
 		emitter.base_volume_db = -1.0
-		emitter.occluded_cutoff_hz = 5500.0
-		emitter.occluded_volume_drop_db = -1.5
+		emitter.occluded_cutoff_hz = 8500.0
+		emitter.occluded_volume_drop_db = -0.5
 	elif resolved_cue == "club_whoosh":
 		emitter.unit_size = 2.0
 		emitter.max_db = 2.0
 		emitter.base_volume_db = -2.0
+		emitter.occluded_cutoff_hz = OCCLUSION_LOWPASS_HZ
+		emitter.occluded_volume_drop_db = OCCLUDED_VOLUME_DROP_DB
+	elif resolved_cue == "club_stumble":
+		emitter.unit_size = 4.0
+		emitter.max_db = 2.0
+		emitter.base_volume_db = -1.0
 		emitter.occluded_cutoff_hz = OCCLUSION_LOWPASS_HZ
 		emitter.occluded_volume_drop_db = OCCLUDED_VOLUME_DROP_DB
 	elif resolved_cue == "player_giggle":
@@ -551,12 +564,20 @@ func play_local_cue(cue_id: String) -> void:
 
 	_ensure_nodes()
 	var stream: AudioStream = _get_stream_for_cue(cue_id)
-	if stream == null:
+	if stream == null or _local_player_pool.is_empty():
 		return
-	_local_player.stream = stream
-	_local_player.volume_db = -14.0 if cue_id == "clock_bonus_ding" else (-4.0 if cue_id == "ui_click" else (-10.0 if (cue_id == "countdown_beep" or cue_id == "countdown_go") else 0.0))
-	_local_player.pitch_scale = randf_range(0.92, 1.08) if cue_id == "loot_sound" else (randf_range(0.97, 1.03) if cue_id == "ui_click" else 1.0)
-	_local_player.play()
+	var player: AudioStreamPlayer = null
+	for lp in _local_player_pool:
+		if lp != null and is_instance_valid(lp) and not lp.playing:
+			player = lp
+			break
+	if player == null:
+		player = _local_player_pool[_local_pool_cursor % _local_player_pool.size()]
+		_local_pool_cursor = (_local_pool_cursor + 1) % _local_player_pool.size()
+	player.stream = stream
+	player.volume_db = -14.0 if cue_id == "clock_bonus_ding" else (-4.0 if cue_id == "ui_click" else (-10.0 if (cue_id == "countdown_beep" or cue_id == "countdown_go") else 0.0))
+	player.pitch_scale = randf_range(0.92, 1.08) if cue_id == "loot_sound" else (randf_range(0.97, 1.03) if cue_id == "ui_click" else 1.0)
+	player.play()
 
 
 func get_recent_cues() -> Array[Dictionary]:

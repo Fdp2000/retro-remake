@@ -289,7 +289,9 @@ func _update_lobby_voip_icons() -> void:
 
 
 func _exit_tree() -> void:
-	if VoiceChatManager != null and VoiceChatManager.has_method("clear_lobby_voip_state"):
+	if VoiceChatManager != null and VoiceChatManager.has_method("set_lobby_voip_active"):
+		VoiceChatManager.set_lobby_voip_active(false)
+	elif VoiceChatManager != null and VoiceChatManager.has_method("clear_lobby_voip_state"):
 		VoiceChatManager.clear_lobby_voip_state()
 
 
@@ -409,6 +411,8 @@ func _enter_staging() -> void:
 
 	_update_header()
 	_update_staging_ui()
+	if VoiceChatManager != null and VoiceChatManager.has_method("set_lobby_voip_active"):
+		VoiceChatManager.set_lobby_voip_active(true)
 
 	if multiplayer.is_server() and ("--auto-ready" in OS.get_cmdline_args() + OS.get_cmdline_user_args()):
 		get_tree().create_timer(0.25).timeout.connect(func():
@@ -1072,12 +1076,16 @@ func _on_start_pressed() -> void:
 
 	if GameConfig != null:
 		GameConfig.sandbox_gym_mode = false
+	if VoiceChatManager != null and VoiceChatManager.has_method("set_lobby_voip_active"):
+		VoiceChatManager.set_lobby_voip_active(false)
 	print("Lobby: %d players ready. Launching match into arena..." % occupied_count)
 	rpc_load_arena.rpc(TEST_GYM_SCENE_PATH)
 
 
 @rpc("authority", "call_local", "reliable")
 func rpc_load_arena(scene_path: String) -> void:
+	if VoiceChatManager != null and VoiceChatManager.has_method("set_lobby_voip_active"):
+		VoiceChatManager.set_lobby_voip_active(false)
 	print("Lobby: Transitioning to arena: %s" % scene_path)
 	get_tree().change_scene_to_file(scene_path)
 
@@ -1087,6 +1095,8 @@ func _on_disconnect_pressed() -> void:
 
 
 func _leave_lobby(reason: String = "") -> void:
+	if VoiceChatManager != null and VoiceChatManager.has_method("set_lobby_voip_active"):
+		VoiceChatManager.set_lobby_voip_active(false)
 	var departed_mode := _room_free_for_all
 	NetworkManager.disconnect_session()
 	_show_matchmaking()

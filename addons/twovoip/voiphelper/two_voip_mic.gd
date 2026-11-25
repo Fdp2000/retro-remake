@@ -3,7 +3,7 @@ extends Node
 var opusencoder : TwovoipOpusEncoder = TwovoipOpusEncoder.new()
 var chunkprefix : PackedByteArray = PackedByteArray([0,0]) 
 
-var leadtime : float = 0.15
+var leadtime : float = 0.10
 var hangtime : float  = 0.7
 var voxthreshhold = 0.07
 var microphone_gain = 1.0

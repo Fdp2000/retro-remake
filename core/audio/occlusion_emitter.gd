@@ -6,8 +6,8 @@ extends AudioStreamPlayer3D
 
 @export var check_interval: float = 0.08
 @export var unoccluded_cutoff_hz: float = 20000.0
-@export var occluded_cutoff_hz: float = 3200.0
-@export var occluded_volume_drop_db: float = -2.5
+@export var occluded_cutoff_hz: float = 6000.0
+@export var occluded_volume_drop_db: float = -1.0
 @export var base_volume_db: float = 0.0
 @export var smoothing_speed: float = 10.0
 @export var occlusion_mask: int = GameConfig.LAYER_ENVIRONMENT
