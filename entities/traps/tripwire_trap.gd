@@ -22,6 +22,7 @@ const PEG_RING_SIDE_RADIUS_UNSCALED: float = 0.0235
 const PEG_RING_TUBE_RADIUS_UNSCALED: float = 0.0056
 const PEG_XZ_SCALE: float = 2.2
 const PEG_SIDE_TIE_SIGN: float = 1.0
+const MIN_TRIP_MOVE_SPEED: float = 0.15
 
 var wire_height: float = 0.35
 var _triggered_or_consumed: bool = false
@@ -226,6 +227,8 @@ func try_trip_spy(body: Node) -> bool:
 		return false
 	if float(body.get("wakeup_immunity_remaining")) > 0.0:
 		return false
+	if not _is_spy_actively_moving(body):
+		return false
 
 	# Jumping over the 0.35m wire raises feet cleanly above trigger band
 	var base_y: float = global_position.y if is_inside_tree() else position.y
@@ -250,6 +253,15 @@ func try_trip_spy(body: Node) -> bool:
 	if trigger_count >= MAX_TRIGGERS:
 		_triggered_or_consumed = true
 		_consume_trap()
+	return true
+
+
+func _is_spy_actively_moving(body: Node) -> bool:
+	if body.has_method("is_actively_moving"):
+		return bool(body.call("is_actively_moving", MIN_TRIP_MOVE_SPEED))
+	if body is CharacterBody3D:
+		var vel: Vector3 = (body as CharacterBody3D).velocity
+		return Vector2(vel.x, vel.z).length() >= MIN_TRIP_MOVE_SPEED
 	return true
 
 

@@ -533,7 +533,7 @@ func server_step_push(delta: float, want_open: int = -1) -> void:
 		sync_step_angle(new_y, is_open, _open_fraction, _push_target_y)
 
 
-@rpc("authority", "call_local", "unreliable_ordered")
+@rpc("authority", "call_local", "unreliable")
 func sync_step_angle(new_y: float, opened_state: bool, frac: float, push_target_y: float) -> void:
 	if _swing != null and _swing.is_valid():
 		_swing.kill()

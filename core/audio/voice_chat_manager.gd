@@ -306,7 +306,8 @@ func _ingest_voip_packet(sender_peer_id: int, packet: PackedByteArray, emit_capt
 
 	# Track speaking state from start/end JSON headers
 	if packet.size() > 3 and packet[0] == 123 and packet[-1] == 125:
-		var parsed: Variant = JSON.parse_string(packet.get_string_from_ascii())
+		var packet_ascii: String = packet.get_string_from_ascii()
+		var parsed: Variant = JSON.parse_string(packet_ascii) if packet_ascii.contains("talkingtime") else null
 		if parsed is Dictionary:
 			var dict := parsed as Dictionary
 			if dict.has("talkingtimestart") and not bool(_peer_speaking.get(sender_peer_id, false)):

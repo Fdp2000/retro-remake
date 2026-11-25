@@ -165,7 +165,7 @@ func award_ko_bonus(peer_id: int) -> void:
 	if eliminated_peers.get(peer_id, false) or not peer_clocks.has(peer_id):
 		return
 
-	var bonus: float = GameConfig.ko_reward_bonus_seconds if GameConfig != null else 17.0
+	var bonus: float = GameConfig.ko_reward_bonus_seconds if GameConfig != null else 8.0
 	if bonus <= 0.0:
 		return
 	_apply_and_notify_clock_bonus(peer_id, bonus)

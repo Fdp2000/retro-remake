@@ -743,7 +743,7 @@ func _step_committed_slow_open(delta: float) -> void:
 	var player: Node = _occupant_player_override if _occupant_player_override != null else _find_player_node(target_peer)
 
 	var spring_trigger_ratio: float = _get_briefcase_spring_trigger_ratio() if is_briefcase_container else SPRING_TRIGGER_VISUAL_RATIO
-	if armed_spring and drawer_visual_ratio >= spring_trigger_ratio:
+	if armed_spring and not spring_unlatched and drawer_visual_ratio >= spring_trigger_ratio:
 		_trigger_spring_trap_ko(target_peer, player)
 		return
 	if (
@@ -890,7 +890,7 @@ func open_container(peer_id: int, is_slow_peek: bool, player_override: Node = nu
 	# 1. Armed Spring Check (Both Drawers AND Briefcases, plus Simultaneous Held Briefcase on Drawers!)
 	# Slow Open commits cleanly from 0% -> 100% without tripping armed Springs.
 	if armed_spring:
-		if not is_slow_peek:
+		if not is_slow_peek and not spring_unlatched:
 			_trigger_spring_trap_ko(peer_id, player)
 			result["reason"] = "SPRING_KO"
 			result["triggered_spring"] = true

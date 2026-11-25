@@ -399,8 +399,6 @@ func start_club_charge() -> Dictionary:
 		return result
 
 	is_charging_club = true
-	if left_hand_item_id == "BRIEFCASE":
-		result = drop_left_hand_item()
 	return result
 
 

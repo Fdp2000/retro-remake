@@ -141,8 +141,8 @@ var _fps_label: Label = null
 # ==========================================
 @export_group("Match & Timer Economy")
 @export var starting_clock_seconds: float = 240.0
-@export var drawer_first_search_bonus_seconds: float = 12.0
-@export var ko_reward_bonus_seconds: float = 17.0
+@export var drawer_first_search_bonus_seconds: float = 10.0
+@export var ko_reward_bonus_seconds: float = 8.0
 @export var starting_prearmed_traps: int = 0
 @export var required_objectives_count: int = 4
 
@@ -278,13 +278,13 @@ func get_random_ko_duration() -> float:
 @export var show_enemy_room_blip: bool = false
 
 @export var crt_replay_fps: int = 24
-@export var crt_replay_duration: float = 4.5
-@export var crt_replay_frame_count: int = 108
+@export var crt_replay_duration: float = 5.25
+@export var crt_replay_frame_count: int = 126
 @export var crt_viewport_size: Vector2i = Vector2i(426, 240)
 @export var crt_display_size: Vector2 = Vector2(288.0, 162.0)
 @export var crt_replay_max_queue: int = 4
 @export var crt_archive_enabled: bool = true
-@export var crt_archive_max_clips: int = 0
+@export var crt_archive_max_clips: int = 10
 @export var crt_totg_delay_seconds: float = 3.5
 ## Seconds of live post-impact ragdoll footage appended onto the CRT replay after the trap hits.
 @export var crt_replay_post_hit_seconds: float = 2.75
@@ -342,8 +342,8 @@ const PLAYER_COUNT_SPAWNER_PRESETS: Dictionary = {
 	2: {
 		"enable_upper_floor": false,
 		"starting_clock_seconds": 240.0,
-		"drawer_first_search_bonus_seconds": 12.0,
-		"ko_reward_bonus_seconds": 17.0,
+		"drawer_first_search_bonus_seconds": 10.0,
+		"ko_reward_bonus_seconds": 8.0,
 		"min_containers": 16,
 		"max_containers": 22,
 		"max_drawers_per_room": 2,
@@ -376,8 +376,8 @@ const PLAYER_COUNT_SPAWNER_PRESETS: Dictionary = {
 	3: {
 		"enable_upper_floor": true,
 		"starting_clock_seconds": 270.0,
-		"drawer_first_search_bonus_seconds": 12.0,
-		"ko_reward_bonus_seconds": 17.0,
+		"drawer_first_search_bonus_seconds": 10.0,
+		"ko_reward_bonus_seconds": 8.0,
 		"min_containers": 30,
 		"max_containers": 38,
 		"max_drawers_per_room": 2,
@@ -410,8 +410,8 @@ const PLAYER_COUNT_SPAWNER_PRESETS: Dictionary = {
 	4: {
 		"enable_upper_floor": true,
 		"starting_clock_seconds": 300.0,
-		"drawer_first_search_bonus_seconds": 12.0,
-		"ko_reward_bonus_seconds": 17.0,
+		"drawer_first_search_bonus_seconds": 10.0,
+		"ko_reward_bonus_seconds": 8.0,
 		"min_containers": 36,
 		"max_containers": 44,
 		"max_drawers_per_room": 3,

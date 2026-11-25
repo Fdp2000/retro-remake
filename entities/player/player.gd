@@ -221,6 +221,12 @@ var _dart_shot_pending_timer: float = 0.0
 var ko_remaining_seconds: float = 0.0
 var is_clock_eliminated: bool = false
 var _spectate_target: Node = null
+var _locomotion_sync_accum: float = 0.0
+var _locomotion_sync_seq: int = 0
+var _last_remote_locomotion_seq: int = -1
+var _remote_horiz_speed: float = 0.0
+var _ko_wakeup_retry_accum: float = 0.0
+const LOCOMOTION_SYNC_INTERVAL: float = 0.05
 var wakeup_immunity_remaining: float = 0.0
 var _pelvis_sync_accum: float = 0.0
 var _last_ko_reason: String = ""
@@ -605,6 +611,16 @@ func get_current_footstep_radius() -> float:
 			return GameConfig.audio_radius_walk   # 3.0m (Quiet Walk)
 
 
+func get_horizontal_move_speed() -> float:
+	if _is_peer_connected() and not is_multiplayer_authority():
+		return _remote_horiz_speed
+	return Vector2(velocity.x, velocity.z).length()
+
+
+func is_actively_moving(min_speed: float = 0.15) -> bool:
+	return get_horizontal_move_speed() >= min_speed
+
+
 func _apply_stance_collision_and_visuals() -> void:
 	var is_crouching: bool = (stance_state == (GameConfig.Stance.CROUCH if GameConfig != null else 2))
 	var target_h: float = (
@@ -708,6 +724,10 @@ func select_jacket_slot(slot_index: int) -> bool:
 	if ok:
 		if changed:
 			cancel_tripwire_placement()
+			if _inv().is_charging_club:
+				stop_club_charge()
+			elif _club_qte_ui != null:
+				_club_qte_ui.cancel_charge()
 		_refresh_hand_and_back_sockets()
 		_update_hud_status()
 	return ok
@@ -720,6 +740,11 @@ func cycle_jacket_slot(step: int) -> bool:
 	if ok:
 		var changed: bool = (active_jacket_slot != prev_slot or right_hand_mode != prev_mode)
 		cancel_tripwire_placement()
+		if changed:
+			if _inv().is_charging_club:
+				stop_club_charge()
+			elif _club_qte_ui != null:
+				_club_qte_ui.cancel_charge()
 		_refresh_hand_and_back_sockets()
 		_update_hud_status()
 	return ok
@@ -753,6 +778,12 @@ func toggle_personal_club() -> Dictionary:
 	var was_charging: bool = _inv().is_charging_club
 	if was_charging:
 		_begin_club_charge_exit_lerp()
+		if _club_qte_ui != null:
+			_club_qte_ui.cancel_charge()
+		if is_multiplayer_authority() and _watch_bluff_ui != null and _watch_bluff_ui.is_map_open:
+			_watch_bluff_ui.set_map_open(false)
+			if MatchManager == null or MatchManager.match_state != MatchManager.MatchState.ENDED:
+				Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	var res: Dictionary = _inv().toggle_personal_club()
 	_refresh_hand_and_back_sockets()
 	_update_hud_status()
@@ -772,6 +803,8 @@ func start_club_charge() -> Dictionary:
 
 
 func stop_club_charge() -> void:
+	if _club_qte_ui != null:
+		_club_qte_ui.cancel_charge()
 	if _inv().is_charging_club:
 		_begin_club_charge_exit_lerp()
 		_inv().stop_club_charge()
@@ -1157,26 +1190,7 @@ func apply_trap_ko(_reason: String, _attacker_peer_id: int = 0, custom_impulse: 
 		_watch_bluff_ui.set_map_open(false)
 
 	var drops: Array[Dictionary] = force_drop_ko_items()
-	if is_inside_tree() and (not _is_peer_connected() or multiplayer.is_server()):
-		for i in range(drops.size()):
-			var entry: Dictionary = drops[i]
-			var dropped_id: String = str(entry.get("dropped_item_id", "NONE"))
-			if dropped_id == "NONE":
-				continue
-			var angle: float = (TAU * float(i)) / float(maxi(drops.size(), 1))
-			var offset := Vector3(cos(angle) * 0.65, 0.0, sin(angle) * 0.65)
-			_server_spawn_floor_drop(
-				dropped_id,
-				entry.get("dropped_briefcase_items", []),
-				_compute_safe_drop_position(offset),
-				bool(entry.get("dropped_briefcase_armed_bomb", false)),
-				int(entry.get("dropped_briefcase_bomb_owner", 0)),
-				bool(entry.get("dropped_briefcase_armed_spring", false)),
-				int(entry.get("dropped_briefcase_spring_owner", 0)),
-				entry.get("dropped_briefcase_item_positions", {}),
-				entry.get("dropped_briefcase_bomb_pos", BRIEFCASE_BUILDER.DEFAULT_BOMB_NORM_POS),
-				int(entry.get("dropped_tripwire_kos", 0))
-			)
+	_spawn_ko_drops_on_floor(drops)
 
 	var ko_dur: float = GameConfig.get_random_ko_duration() if GameConfig != null else randf_range(12.0, 14.0)
 	var start_pos: Vector3 = _safe_global_pos()
@@ -1342,8 +1356,13 @@ func _rpc_apply_ko_state(
 		_club_charge_exit_lerp_active = false
 		if _club_qte_ui != null:
 			_club_qte_ui.cancel_charge()
+		if is_multiplayer_authority() and _watch_bluff_ui != null and _watch_bluff_ui.is_map_open:
+			_watch_bluff_ui.set_map_open(false)
+			if MatchManager == null or MatchManager.match_state != MatchManager.MatchState.ENDED:
+				Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 		ko_remaining_seconds = 9999.0 if is_clock_eliminated else ko_sec
 		_ko_total_seconds = 0.0 if is_clock_eliminated else maxf(ko_sec, 0.001)
+		_ko_wakeup_retry_accum = 0.0
 		wakeup_immunity_remaining = 0.0
 		_pelvis_sync_accum = 0.0
 		_last_ko_reason = reason
@@ -1459,14 +1478,14 @@ func _compute_safe_wakeup_position(raw_pelvis_pos: Vector3) -> Vector3:
 
 	var floor_y: float = maxf(raw_pelvis_pos.y - 0.55, 0.0)
 	var down_q := PhysicsRayQueryParameters3D.create(
-		raw_pelvis_pos + Vector3(0.0, 1.2, 0.0),
+		raw_pelvis_pos + Vector3(0.0, 1.8, 0.0),
 		raw_pelvis_pos + Vector3(0.0, -3.5, 0.0),
 		env_mask,
 		[get_rid()]
 	)
 	var down_hit: Dictionary = space.intersect_ray(down_q)
 	if not down_hit.is_empty():
-		floor_y = float((down_hit["position"] as Vector3).y)
+		floor_y = maxf(float((down_hit["position"] as Vector3).y) + 0.03, 0.0)
 
 	# Radial wall/door clearance push so the standing capsule never wakes up clipped inside geometry
 	var safe_xz := Vector3(raw_pelvis_pos.x, floor_y, raw_pelvis_pos.z)
@@ -1487,7 +1506,7 @@ func _compute_safe_wakeup_position(raw_pelvis_pos: Vector3) -> Vector3:
 	return Vector3(safe_xz.x, floor_y, safe_xz.z)
 
 
-@rpc("any_peer", "call_remote", "unreliable_ordered")
+@rpc("any_peer", "call_remote", "unreliable")
 func _rpc_sync_ragdoll_pelvis(pelvis_world_pos: Vector3) -> void:
 	if _ragdoll_ctrl != null and stance_state == (GameConfig.Stance.KO if GameConfig != null else 4):
 		_ragdoll_ctrl.set_remote_pelvis_sync_target(pelvis_world_pos)
@@ -1530,9 +1549,14 @@ func apply_clock_elimination() -> Array[Dictionary]:
 		drops = apply_trap_ko("CLOCK_EXPIRED", 0, Vector3(0.0, -4.0, 0.0))
 	ko_remaining_seconds = 9999.0
 	_ko_total_seconds = 0.0
+	_ko_wakeup_retry_accum = 0.0
 	if _ko_radial_ui != null:
 		_ko_radial_ui.set_ko_progress(0.0, 0.0)
 	if is_inside_tree() and is_multiplayer_authority():
+		if _watch_bluff_ui != null and _watch_bluff_ui.is_map_open:
+			_watch_bluff_ui.set_map_open(false)
+			if MatchManager == null or MatchManager.match_state != MatchManager.MatchState.ENDED:
+				Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 		if prompt_label != null:
 			prompt_label.hide()
 		if clock_label != null:
@@ -1657,6 +1681,8 @@ func reset_for_rematch(spawn_local_pos: Vector3, spawn_yaw: float = 0.0) -> void
 	is_clock_eliminated = false
 	ko_remaining_seconds = 0.0
 	_ko_total_seconds = 0.0
+	_ko_wakeup_retry_accum = 0.0
+	_last_remote_locomotion_seq = -1
 	if _ko_radial_ui != null:
 		_ko_radial_ui.set_ko_progress(0.0, 0.0)
 	wakeup_immunity_remaining = 0.0
@@ -1690,6 +1716,10 @@ func reset_for_rematch(spawn_local_pos: Vector3, spawn_yaw: float = 0.0) -> void
 		_clear_dart_reticle_ui()
 		if _club_qte_ui != null:
 			_club_qte_ui.cancel_charge()
+		if is_multiplayer_authority() and _watch_bluff_ui != null and _watch_bluff_ui.is_map_open:
+			_watch_bluff_ui.set_map_open(false)
+			if MatchManager == null or MatchManager.match_state != MatchManager.MatchState.ENDED:
+				Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 		if _watch_bluff_ui != null and _watch_bluff_ui.is_map_open:
 			_watch_bluff_ui.set_map_open(false)
 		if _crt_replay_ui != null:
@@ -1794,8 +1824,18 @@ func tick_ko_and_immunity(delta: float) -> void:
 			if crosshair_container != null:
 				crosshair_container.visible = false
 		if ko_remaining_seconds <= 0.0:
-			if not _is_peer_connected() or is_local_auth or (is_inside_tree() and multiplayer.is_server()):
-				wake_up_from_ko()
+			if is_local_auth and _is_peer_connected() and not multiplayer.is_server() and ko_remaining_seconds <= -4.0:
+				var raw_pelvis: Vector3 = get_ragdoll_pelvis_world_position()
+				var safe_pos: Vector3 = _compute_safe_wakeup_position(raw_pelvis)
+				var imm_dur: float = GameConfig.ko_wakeup_immunity_duration if GameConfig != null else 2.6
+				_rpc_apply_ko_state(0.0, imm_dur, false, safe_pos)
+				return
+			if _ko_wakeup_retry_accum <= 0.0:
+				_ko_wakeup_retry_accum = 0.5
+				if not _is_peer_connected() or is_local_auth or (is_inside_tree() and multiplayer.is_server()):
+					wake_up_from_ko()
+			else:
+				_ko_wakeup_retry_accum = maxf(_ko_wakeup_retry_accum - delta, 0.0)
 		return
 
 	if is_local_auth:
@@ -1890,8 +1930,6 @@ func server_request_hand_action(action_type: String, slot_arg: int = 0) -> void:
 			res = toggle_personal_club()
 		"START_CLUB_CHARGE":
 			res = start_club_charge()
-			if str(res["dropped_item_id"]) == "BRIEFCASE" and AudioBridge != null:
-				AudioBridge.request_world_cue("door_bash", global_position, 8.0, name.to_int())
 		"STOP_CLUB_CHARGE":
 			stop_club_charge()
 		"KO_SCATTER":
@@ -2655,12 +2693,38 @@ func _rpc_server_club_overcharge() -> void:
 	_server_execute_club_overcharge()
 
 
+func _spawn_ko_drops_on_floor(drops: Array[Dictionary]) -> void:
+	if not is_inside_tree() or (_is_peer_connected() and not multiplayer.is_server()):
+		return
+	for i in range(drops.size()):
+		var entry: Dictionary = drops[i]
+		var dropped_id: String = str(entry.get("dropped_item_id", "NONE"))
+		if dropped_id == "NONE":
+			continue
+		var angle: float = (TAU * float(i)) / float(maxi(drops.size(), 1))
+		var offset := Vector3(cos(angle) * 0.65, 0.0, sin(angle) * 0.65)
+		_server_spawn_floor_drop(
+			dropped_id,
+			entry.get("dropped_briefcase_items", []),
+			_compute_safe_drop_position(offset),
+			bool(entry.get("dropped_briefcase_armed_bomb", false)),
+			int(entry.get("dropped_briefcase_bomb_owner", 0)),
+			bool(entry.get("dropped_briefcase_armed_spring", false)),
+			int(entry.get("dropped_briefcase_spring_owner", 0)),
+			entry.get("dropped_briefcase_item_positions", {}),
+			entry.get("dropped_briefcase_bomb_pos", BRIEFCASE_BUILDER.DEFAULT_BOMB_NORM_POS),
+			int(entry.get("dropped_tripwire_kos", 0))
+		)
+
+
 func _server_execute_club_overcharge() -> void:
 	var ragdoll_dur: float = GameConfig.get_random_club_overcharge_duration() if GameConfig != null else randf_range(3.5, 5.0)
 	club_overcharge_stumble_remaining = ragdoll_dur
 	if AudioBridge != null:
 		var stumble_rad: float = GameConfig.audio_radius_club_stumble if GameConfig != null else 5.5
 		AudioBridge.request_world_cue("club_stumble", _safe_global_pos(), stumble_rad, name.to_int())
+	var drops: Array[Dictionary] = force_drop_ko_items()
+	_spawn_ko_drops_on_floor(drops)
 	var back_dir: Vector3 = Vector3(global_transform.basis.z.x, 0.0, global_transform.basis.z.z).normalized() if is_inside_tree() else Vector3(0.0, 0.0, 1.0)
 	if back_dir.length_squared() < 0.01:
 		back_dir = Vector3(0.0, 0.0, 1.0)
@@ -2670,6 +2734,7 @@ func _server_execute_club_overcharge() -> void:
 		_rpc_apply_ko_state.rpc(ragdoll_dur, 0.0, true, start_pos, rotation.y, fall_impulse, "CLUB_OVERCHARGE")
 	else:
 		_rpc_apply_ko_state(ragdoll_dur, 0.0, true, start_pos, rotation.y, fall_impulse, "CLUB_OVERCHARGE")
+	_sync_inventory_state_to_peers()
 
 
 func emit_watch_bluff(cue_id: String, target_pos: Vector3) -> void:
@@ -4837,6 +4902,7 @@ func _physics_process(delta: float) -> void:
 	var ko_val: int = GameConfig.Stance.KO if GameConfig != null else 4
 	var crouch_val: int = GameConfig.Stance.CROUCH if GameConfig != null else 2
 	if stance_state == ko_val:
+		_remote_horiz_speed = 0.0
 		_requested_ladder = null
 		_release_ladder()
 		if not is_multiplayer_authority() and _ragdoll_ctrl != null:
@@ -4864,17 +4930,20 @@ func _physics_process(delta: float) -> void:
 				_ragdoll_ctrl.update_locomotion_pose(delta, 0.0, false, head_pitch, false, climb_left, climb_right, is_climbing_ladder, _climb_vertical_speed)
 				_sync_camera_to_ragdoll_head()
 				_sync_visual_rig_sockets_to_skeleton()
+			_tick_unreliable_locomotion_sync(delta)
 			return
 
 	if not _is_peer_connected() or not is_multiplayer_authority():
 		var prev_pos: Vector3 = position
 		if position.distance_squared_to(_target_position) > 16.0:
 			position = _target_position
+			_remote_horiz_speed = 0.0
 		else:
 			position = position.lerp(_target_position, 20.0 * delta)
+			_remote_horiz_speed = Vector2(position.x - prev_pos.x, position.z - prev_pos.z).length() / maxf(delta, 0.001)
 		rotation.y = lerp_angle(rotation.y, _target_yaw, 20.0 * delta)
 		if _ragdoll_ctrl != null:
-			var remote_spd: float = Vector2(position.x - prev_pos.x, position.z - prev_pos.z).length() / maxf(delta, 0.001)
+			var remote_spd: float = _remote_horiz_speed
 			var remote_vert_spd: float = (position.y - prev_pos.y) / maxf(delta, 0.001)
 			_ragdoll_ctrl.update_locomotion_pose(delta, remote_spd, stance_state == crouch_val, head_pitch, is_charging_club, left_hand_item_id, right_hand_item_id, is_climbing_ladder, remote_vert_spd)
 			_sync_camera_to_ragdoll_head()
@@ -4945,6 +5014,7 @@ func _physics_process(delta: float) -> void:
 	var direction: Vector3 = (transform.basis * Vector3(input_dir.x, 0.0, input_dir.y)).normalized()
 	if _try_auto_mount_ladder(direction if active_speed > 0.0 else Vector3.ZERO):
 		_move_on_ladder(delta)
+		_tick_unreliable_locomotion_sync(delta)
 		return
 	if direction != Vector3.ZERO and active_speed > 0.0:
 		velocity.x = direction.x * active_speed
@@ -5001,6 +5071,34 @@ func _physics_process(delta: float) -> void:
 	if stance_state == (GameConfig.Stance.SPRINT if GameConfig != null else 1) and door_bash_detector != null:
 		for body in door_bash_detector.get_overlapping_bodies():
 			_try_sprint_bash_target(body)
+
+	_tick_unreliable_locomotion_sync(delta)
+
+
+func _tick_unreliable_locomotion_sync(delta: float) -> void:
+	if not is_inside_tree() or not is_multiplayer_authority() or not _is_peer_connected():
+		return
+	_locomotion_sync_accum += delta
+	if _locomotion_sync_accum < LOCOMOTION_SYNC_INTERVAL:
+		return
+	_locomotion_sync_accum = 0.0
+	_locomotion_sync_seq += 1
+	_rpc_sync_locomotion.rpc(_locomotion_sync_seq, position, rotation.y, head_pitch)
+
+
+@rpc("any_peer", "call_remote", "unreliable")
+func _rpc_sync_locomotion(seq: int, pos: Vector3, yaw_rad: float, pitch_rad: float) -> void:
+	if is_multiplayer_authority():
+		return
+	var sender_id: int = multiplayer.get_remote_sender_id()
+	if sender_id != 0 and sender_id != name.to_int():
+		return
+	if seq <= _last_remote_locomotion_seq and (_last_remote_locomotion_seq - seq) < 1000:
+		return
+	_last_remote_locomotion_seq = seq
+	_target_position = pos
+	_target_yaw = yaw_rad
+	head_pitch = pitch_rad
 
 
 func _ensure_audio_components() -> void:

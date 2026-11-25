@@ -114,7 +114,8 @@ func tv_incomingaudiopacket(packet):
 		pass
 
 	elif lenchunkprefix == 0:
-		audiostreamopus.push_opus_packet(packet, lenchunkprefix, 0)
+		if opusframesize <= audiostreamplaybackopus.available_space_frames():
+			audiostreamopus.push_opus_packet(packet, lenchunkprefix, 0)
 		opusframecount += 1
 		if playbackpausedonmark:
 			unpausewhenbufferready()
@@ -135,7 +136,8 @@ func tv_incomingaudiopacket(packet):
 			while opusframecountR >= Noutoforderqueue:
 				print("shifting outoforderqueue ", opusframecountI, " ", ("null" if outoforderchunkqueue[0] == null else len(outoforderchunkqueue[0])))
 				if outoforderchunkqueue[0] != null:
-					audiostreamplaybackopus.push_opus_packet(outoforderchunkqueue[0], lenchunkprefix, 0)
+					if opusframesize <= audiostreamplaybackopus.available_space_frames():
+						audiostreamplaybackopus.push_opus_packet(outoforderchunkqueue[0], lenchunkprefix, 0)
 					opusframequeuecount -= 1
 				else:
 					var nextvalidpacketforfec = packet
@@ -143,7 +145,8 @@ func tv_incomingaudiopacket(packet):
 						if outoforderchunkqueue[i] != null:
 							nextvalidpacketforfec = outoforderchunkqueue[i]
 							break
-					audiostreamplaybackopus.push_opus_packet(nextvalidpacketforfec, lenchunkprefix, 1)
+					if opusframesize <= audiostreamplaybackopus.available_space_frames():
+						audiostreamplaybackopus.push_opus_packet(nextvalidpacketforfec, lenchunkprefix, 1)
 				outoforderchunkqueue.pop_front()
 				outoforderchunkqueue.push_back(null)
 				opusframecountR -= 1

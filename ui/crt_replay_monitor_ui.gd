@@ -7,8 +7,9 @@ extends Control
 ## captures staggered 12 FPS frames into per-rival circular ring buffers without streaming video over RPC,
 ## queues back-to-back hits, and plays back pre-impact + post-impact ragdoll footage inside a retro CRT bezel.
 
-const DEFAULT_MAX_FRAMES: int = 108
+const DEFAULT_MAX_FRAMES: int = 126
 const DEFAULT_MAX_QUEUE: int = 4
+const DEFAULT_RAW_ARCHIVE_CAP: int = 32
 const CAPTURE_SIZE := Vector2i(426, 240)
 const DISPLAY_SIZE := Vector2(288.0, 162.0)
 
@@ -363,6 +364,7 @@ func sync_rival_rigs() -> void:
 
 			var frames_arr: Array[Image] = []
 			var pos_arr: Array[Vector3] = []
+			var voice_arr: Array[float] = []
 			var stagger_phase: float = (float(slot_idx) / float(total_rivals)) * step_sec
 			_rival_rigs[rival_id] = {
 				"rival": rival,
@@ -370,6 +372,7 @@ func sync_rival_rigs() -> void:
 				"camera": cam,
 				"frames": frames_arr,
 				"positions": pos_arr,
+				"voice_levels": voice_arr,
 				"visual_layer": layer_bit,
 				"pending_readback": false,
 				"frames_waited": 0,
@@ -512,15 +515,20 @@ func push_frame(img: Image, rival_peer_id: int = 0) -> void:
 		return
 	var max_frames: int = maxi(GameConfig.crt_replay_frame_count if GameConfig != null else DEFAULT_MAX_FRAMES, 1)
 	var cur_pos: Vector3 = _get_rig_world_pos(rival_peer_id)
+	var cur_voice: float = _get_rig_voice_level(rival_peer_id)
 	if rival_peer_id > 0 and _rival_rigs.has(rival_peer_id):
 		var frames: Array[Image] = _rival_rigs[rival_peer_id]["frames"]
 		var positions: Array[Vector3] = _rival_rigs[rival_peer_id]["positions"]
+		var voice_levels: Array[float] = _rival_rigs[rival_peer_id]["voice_levels"]
 		frames.append(img)
 		positions.append(cur_pos)
+		voice_levels.append(cur_voice)
 		while frames.size() > max_frames:
 			frames.remove_at(0)
 			if not positions.is_empty():
 				positions.remove_at(0)
+			if not voice_levels.is_empty():
+				voice_levels.remove_at(0)
 	else:
 		_fallback_frames.append(img)
 		while _fallback_frames.size() > max_frames:
@@ -543,6 +551,12 @@ func push_frame(img: Image, rival_peer_id: int = 0) -> void:
 			a_frames.append(img)
 			a_positions.append(cur_pos)
 			archived["post_capture_remaining"] = int(archived["post_capture_remaining"]) - 1
+			var prev_peak: float = float(archived.get("victim_voice_peak", 0.0))
+			var new_peak: float = maxf(prev_peak, cur_voice)
+			var new_sum: float = float(archived.get("victim_voice_sum", 0.0)) + cur_voice
+			archived["victim_voice_peak"] = new_peak
+			archived["victim_voice_sum"] = new_sum
+			archived["victim_voice_score"] = new_peak + (new_sum * 0.02)
 
 
 func get_buffer_size(rival_peer_id: int = 0) -> int:
@@ -736,6 +750,12 @@ func _get_rig_world_pos(peer_id: int) -> Vector3:
 	return Vector3.ZERO
 
 
+func _get_rig_voice_level(peer_id: int) -> float:
+	if VoiceChatManager != null and peer_id > 0 and VoiceChatManager.has_method("get_peer_voice_level"):
+		return clampf(float(VoiceChatManager.call("get_peer_voice_level", peer_id)), 0.0, 1.0)
+	return 0.0
+
+
 func _on_world_cue_emitted(cue_id: String, world_pos: Vector3, radius: float, source_peer_id: int, variant_seed: int = -1) -> void:
 	var t: float = _now_sec()
 	var entry: Dictionary = {
@@ -804,11 +824,19 @@ func archive_trap_hit(reason: String, victim_peer_id: int, attacker_peer_id: int
 	var clip_start: float = now - pre_sec
 
 	var victim_positions: Array[Vector3] = []
+	var voice_peak: float = 0.0
+	var voice_sum: float = 0.0
 	if _rival_rigs.has(victim_peer_id):
 		var src_pos: Array[Vector3] = _rival_rigs[victim_peer_id]["positions"]
 		var start_idx: int = maxi(src_pos.size() - pre_frames_count, 0)
 		for i in range(start_idx, src_pos.size()):
 			victim_positions.append(src_pos[i])
+		var src_voice: Array[float] = _rival_rigs[victim_peer_id].get("voice_levels", [] as Array[float])
+		var v_start: int = maxi(src_voice.size() - pre_frames_count, 0)
+		for i in range(v_start, src_voice.size()):
+			var vl: float = src_voice[i]
+			voice_peak = maxf(voice_peak, vl)
+			voice_sum += vl
 	while victim_positions.size() < pre_frames_count:
 		victim_positions.append(_get_rig_world_pos(victim_peer_id))
 
@@ -828,7 +856,6 @@ func archive_trap_hit(reason: String, victim_peer_id: int, attacker_peer_id: int
 			rel_p["rel_sec"] = pt - clip_start
 			v_pkts.append(rel_p)
 
-	var max_clips: int = GameConfig.crt_archive_max_clips if GameConfig != null else 0
 	var entry: Dictionary = {
 		"reason": reason.to_upper(),
 		"victim_peer_id": victim_peer_id,
@@ -844,17 +871,37 @@ func archive_trap_hit(reason: String, victim_peer_id: int, attacker_peer_id: int
 		"voice_headers": _latest_voip_headers.duplicate(),
 		"clip_start_sec": clip_start,
 		"post_window_end_sec": now + post_sec,
+		"victim_voice_peak": voice_peak,
+		"victim_voice_sum": voice_sum,
+		"victim_voice_score": voice_peak + (voice_sum * 0.02),
 		"fps": fps,
-		"duration": GameConfig.crt_replay_duration if GameConfig != null else 4.5
+		"duration": GameConfig.crt_replay_duration if GameConfig != null else 5.25
 	}
 	_match_archive.append(entry)
-	if max_clips > 0:
-		while _match_archive.size() > max_clips:
-			_match_archive.remove_at(0)
+	while _match_archive.size() > DEFAULT_RAW_ARCHIVE_CAP:
+		_match_archive.remove_at(0)
 
 
 func get_match_archive() -> Array[Dictionary]:
-	return _match_archive
+	var max_clips: int = GameConfig.crt_archive_max_clips if GameConfig != null else 10
+	if max_clips <= 0 or _match_archive.size() <= max_clips:
+		return _match_archive.duplicate()
+
+	var ranked: Array[Dictionary] = _match_archive.duplicate()
+	ranked.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		var sa: float = float(a.get("victim_voice_score", 0.0))
+		var sb: float = float(b.get("victim_voice_score", 0.0))
+		if not is_equal_approx(sa, sb):
+			return sa > sb
+		return float(a.get("clip_start_sec", 0.0)) < float(b.get("clip_start_sec", 0.0))
+	)
+	var selected: Array[Dictionary] = []
+	for i in range(mini(max_clips, ranked.size())):
+		selected.append(ranked[i])
+	selected.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		return float(a.get("clip_start_sec", 0.0)) < float(b.get("clip_start_sec", 0.0))
+	)
+	return selected
 
 
 func get_match_archive_count() -> int:
