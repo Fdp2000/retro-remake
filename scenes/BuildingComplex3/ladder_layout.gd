@@ -27,12 +27,20 @@ var _airport_exit_placement: Dictionary = {}
 
 func _ready() -> void:
 	if multiplayer.has_multiplayer_peer() and not multiplayer.multiplayer_peer is OfflineMultiplayerPeer:
-		MatchManager.match_started.connect(_build_layout, CONNECT_ONE_SHOT)
+		if MatchManager != null and MatchManager.match_state == MatchManager.MatchState.IN_PROGRESS and MatchManager.match_seed != 0:
+			_build_layout.call_deferred(MatchManager.match_seed)
+		elif MatchManager != null:
+			MatchManager.match_started.connect(_build_layout, CONNECT_ONE_SHOT)
 	else:
 		var seeder := RandomNumberGenerator.new()
 		seeder.randomize()
 		# Wait for both floors' palette scripts to finish their initial setup.
 		_build_layout.call_deferred(layout_seed if layout_seed != 0 else seeder.randi())
+
+
+func ensure_layout_for_seed(seed_value: int) -> void:
+	if not _layout_built:
+		_build_layout(seed_value)
 
 
 func _is_upper_floor_enabled() -> bool:

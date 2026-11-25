@@ -156,10 +156,43 @@ func _process(delta: float) -> void:
 		var dot_count: int = (int(matchmaking_search_elapsed * 2.0) % 3) + 1
 		search_status_label.text = "Finding %s match%s" % [_game_mode_name(), ".".repeat(dot_count)]
 
+	_update_lobby_voip_icons()
+
 
 # ==========================================
 # UI Mode / View Visibility
 # ==========================================
+
+class LobbyVoiceIcon extends Control:
+	var is_speaking: bool = false
+	var is_muted: bool = false
+
+	func set_state(speaking: bool, muted: bool) -> void:
+		if is_speaking == speaking and is_muted == muted:
+			return
+		is_speaking = speaking
+		is_muted = muted
+		queue_redraw()
+
+	func _draw() -> void:
+		var col: Color = Color(0.95, 0.36, 0.32, 0.95) if is_muted else (Color(1.0, 1.0, 1.0, 0.96) if is_speaking else Color(0.70, 0.74, 0.78, 0.35))
+		var outline := PackedVector2Array([
+			Vector2(2.0, 7.0),
+			Vector2(5.5, 7.0),
+			Vector2(10.5, 3.0),
+			Vector2(10.5, 17.0),
+			Vector2(5.5, 13.0),
+			Vector2(2.0, 13.0),
+			Vector2(2.0, 7.0),
+		])
+		draw_polyline(outline, col, 1.8, true)
+		if is_muted:
+			draw_line(Vector2(13.0, 5.5), Vector2(20.0, 14.5), col, 1.8, true)
+			draw_line(Vector2(20.0, 5.5), Vector2(13.0, 14.5), col, 1.8, true)
+		elif is_speaking:
+			draw_arc(Vector2(10.0, 10.0), 4.5, -0.75, 0.75, 10, col, 1.8, true)
+			draw_arc(Vector2(10.0, 10.0), 8.2, -0.75, 0.75, 12, col, 1.8, true)
+
 
 func _init_slot_cards() -> void:
 	_slot_cards.clear()
@@ -173,14 +206,91 @@ func _init_slot_cards() -> void:
 		var title_lbl := vbox.get_node_or_null("P%dTitle" % slot) as Label
 		var swatch_rect := vbox.get_node_or_null("CenterContainer/P%dSwatch" % slot) as ColorRect
 		var status_lbl := vbox.get_node_or_null("P%dStatusLabel" % slot) as Label
-		if swatch_rect != null and GameConfig != null:
-			swatch_rect.color = GameConfig.get_spy_role_color(slot)
+		if title_lbl != null:
+			title_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		if swatch_rect != null:
+			swatch_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			if GameConfig != null:
+				swatch_rect.color = GameConfig.get_spy_role_color(slot)
+		if status_lbl != null:
+			status_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+		var voip_row := HBoxContainer.new()
+		voip_row.name = "P%dVoipRow" % slot
+		voip_row.alignment = BoxContainer.ALIGNMENT_CENTER
+		voip_row.add_theme_constant_override("separation", 8)
+		voip_row.custom_minimum_size = Vector2(0.0, 26.0)
+		vbox.add_child(voip_row)
+
+		var voice_icon := LobbyVoiceIcon.new()
+		voice_icon.name = "P%dVoiceIcon" % slot
+		voice_icon.custom_minimum_size = Vector2(22.0, 20.0)
+		voice_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		voip_row.add_child(voice_icon)
+
+		var mute_btn := Button.new()
+		mute_btn.name = "P%dMuteButton" % slot
+		mute_btn.text = "Mute"
+		mute_btn.toggle_mode = true
+		mute_btn.custom_minimum_size = Vector2(68.0, 24.0)
+		mute_btn.add_theme_font_size_override("font_size", 12)
+		mute_btn.visible = false
+		mute_btn.toggled.connect(_on_slot_mute_toggled.bind(slot))
+		voip_row.add_child(mute_btn)
+
+		card.set_drag_forwarding(
+			_get_card_drag_data.bind(slot),
+			_can_drop_on_card.bind(slot),
+			_drop_on_card.bind(slot)
+		)
+
 		_slot_cards[slot] = {
 			"card": card,
 			"title": title_lbl,
 			"swatch": swatch_rect,
-			"status": status_lbl
+			"status": status_lbl,
+			"voip_row": voip_row,
+			"voice_icon": voice_icon,
+			"mute_btn": mute_btn,
+			"peer_id": 0
 		}
+
+
+func _on_slot_mute_toggled(toggled_on: bool, slot: int) -> void:
+	var card_ui: Dictionary = _slot_cards.get(slot, {})
+	var target_peer_id: int = int(card_ui.get("peer_id", 0))
+	if target_peer_id <= 0:
+		return
+	if VoiceChatManager != null and VoiceChatManager.has_method("set_lobby_peer_muted"):
+		VoiceChatManager.set_lobby_peer_muted(target_peer_id, toggled_on)
+	var mute_btn := card_ui.get("mute_btn") as Button
+	if mute_btn != null:
+		mute_btn.text = "Unmute" if toggled_on else "Mute"
+		mute_btn.modulate = Color(1.0, 0.55, 0.55) if toggled_on else Color(1.0, 1.0, 1.0)
+
+
+func _update_lobby_voip_icons() -> void:
+	if not staging_container.visible or VoiceChatManager == null:
+		return
+	var local_peer_id: int = multiplayer.get_unique_id() if (multiplayer.has_multiplayer_peer() and multiplayer.multiplayer_peer.get_connection_status() == MultiplayerPeer.CONNECTION_CONNECTED) else 1
+	for slot in _slot_cards.keys():
+		var card_ui: Dictionary = _slot_cards[slot]
+		var slot_peer_id: int = int(card_ui.get("peer_id", 0))
+		var voice_icon := card_ui.get("voice_icon") as LobbyVoiceIcon
+		if voice_icon == null:
+			continue
+		if slot_peer_id <= 0 or slot_peer_id == local_peer_id:
+			voice_icon.set_state(false, false)
+			continue
+		var is_muted: bool = VoiceChatManager.has_method("is_lobby_peer_muted") and VoiceChatManager.is_lobby_peer_muted(slot_peer_id)
+		var level: float = VoiceChatManager.get_peer_voice_level(slot_peer_id) if VoiceChatManager.has_method("get_peer_voice_level") else 0.0
+		var speaking: bool = level > 0.02 or (VoiceChatManager.has_method("is_peer_speaking") and VoiceChatManager.is_peer_speaking(slot_peer_id))
+		voice_icon.set_state(speaking, is_muted)
+
+
+func _exit_tree() -> void:
+	if VoiceChatManager != null and VoiceChatManager.has_method("clear_lobby_voip_state"):
+		VoiceChatManager.clear_lobby_voip_state()
 
 
 func _build_default_lobby_state(host_name: String = "Host") -> Dictionary:
@@ -197,7 +307,7 @@ func _build_default_lobby_state(host_name: String = "Host") -> Dictionary:
 
 
 func _ensure_host_lobby_state() -> void:
-	if lobby_state.is_empty() or not lobby_state.has(1) or int((lobby_state[1] as Dictionary).get("peer_id", 0)) != 1:
+	if lobby_state.is_empty() or _find_slot_by_peer_id(1) == 0:
 		lobby_state = _build_default_lobby_state(_get_host_name())
 
 
@@ -210,7 +320,7 @@ func _find_slot_by_peer_id(peer_id: int) -> int:
 
 
 func _find_first_open_slot() -> int:
-	for slot in range(2, _room_capacity() + 1):
+	for slot in range(1, _room_capacity() + 1):
 		var slot_data: Dictionary = lobby_state.get(slot, {})
 		if int(slot_data.get("peer_id", 0)) == 0:
 			return slot
@@ -284,8 +394,10 @@ func _enter_staging() -> void:
 
 	if multiplayer.is_server():
 		_ensure_host_lobby_state()
-		lobby_state[1]["name"] = _get_host_name()
-		lobby_state[1]["ready"] = false
+		var host_slot: int = _find_slot_by_peer_id(1)
+		if host_slot != 0:
+			lobby_state[host_slot]["name"] = _get_host_name()
+			lobby_state[host_slot]["ready"] = false
 		start_button.visible = true
 		start_button.disabled = true
 	else:
@@ -442,9 +554,23 @@ func _update_staging_ui() -> void:
 		var slot_peer_id: int = int(slot_data.get("peer_id", 0))
 		var is_occupied: bool = slot_peer_id != 0
 		var is_ready: bool = bool(slot_data.get("ready", false))
+		var local_peer_id: int = multiplayer.get_unique_id() if (multiplayer.has_multiplayer_peer() and multiplayer.multiplayer_peer.get_connection_status() == MultiplayerPeer.CONNECTION_CONNECTED) else 1
+		card_ui["peer_id"] = slot_peer_id if is_occupied else 0
 		var card_panel := card_ui.get("card") as PanelContainer
 		var name_lbl := card_ui.get("title") as Label
 		var status_lbl := card_ui.get("status") as Label
+		var voip_row := card_ui.get("voip_row") as HBoxContainer
+		var mute_btn := card_ui.get("mute_btn") as Button
+		var is_other_player: bool = is_occupied and slot_peer_id != local_peer_id
+		if voip_row != null:
+			voip_row.visible = is_other_player
+		if mute_btn != null:
+			mute_btn.visible = is_other_player
+			if is_other_player and VoiceChatManager != null and VoiceChatManager.has_method("is_lobby_peer_muted"):
+				var muted_now: bool = VoiceChatManager.is_lobby_peer_muted(slot_peer_id)
+				mute_btn.set_pressed_no_signal(muted_now)
+				mute_btn.text = "Unmute" if muted_now else "Mute"
+				mute_btn.modulate = Color(1.0, 0.55, 0.55) if muted_now else Color(1.0, 1.0, 1.0)
 		if card_panel != null:
 			card_panel.visible = slot <= _room_capacity()
 		if name_lbl != null:
@@ -758,8 +884,9 @@ func _on_player_disconnected(peer_id: int) -> void:
 	_local_ready = false
 	_auto_launch_scheduled = false
 	ready_button.text = "READY UP"
-	if lobby_state.has(1):
-		lobby_state[1]["ready"] = false
+	var host_slot: int = _find_slot_by_peer_id(1)
+	if host_slot != 0:
+		lobby_state[host_slot]["ready"] = false
 	sync_lobby_state.rpc(lobby_state, _room_free_for_all)
 	_update_staging_ui()
 
@@ -826,6 +953,99 @@ func sync_lobby_state(new_state: Dictionary, free_for_all: bool) -> void:
 	_room_free_for_all = free_for_all
 	lobby_state = new_state
 	_update_header()
+	_update_staging_ui()
+
+
+func _get_card_drag_data(_at_position: Vector2, slot: int) -> Variant:
+	if _is_launching:
+		return null
+	var local_pid: int = multiplayer.get_unique_id() if (multiplayer.has_multiplayer_peer() and not multiplayer.multiplayer_peer is OfflineMultiplayerPeer) else 1
+	var slot_data: Dictionary = lobby_state.get(slot, {})
+	if int(slot_data.get("peer_id", 0)) != local_pid:
+		return null
+
+	var preview := PanelContainer.new()
+	preview.custom_minimum_size = Vector2(150.0, 44.0)
+	var p_style := StyleBoxFlat.new()
+	var col: Color = GameConfig.get_spy_role_color(slot) if GameConfig != null else Color(0.3, 0.7, 0.4)
+	p_style.bg_color = Color(0.09, 0.12, 0.14, 0.94)
+	p_style.border_color = col
+	p_style.set_border_width_all(2)
+	p_style.set_corner_radius_all(6)
+	p_style.set_content_margin_all(8)
+	preview.add_theme_stylebox_override("panel", p_style)
+
+	var lbl := Label.new()
+	lbl.text = str(slot_data.get("name", "Player"))
+	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	preview.add_child(lbl)
+	card_drag_preview_set(preview)
+
+	return {
+		"type": "lobby_slot_move",
+		"from_slot": slot,
+		"peer_id": local_pid
+	}
+
+
+func card_drag_preview_set(preview: Control) -> void:
+	set_drag_preview(preview)
+
+
+func _can_drop_on_card(_at_position: Vector2, data: Variant, target_slot: int) -> bool:
+	if _is_launching or not (data is Dictionary):
+		return false
+	var dict := data as Dictionary
+	if str(dict.get("type", "")) != "lobby_slot_move":
+		return false
+	if target_slot < 1 or target_slot > _room_capacity():
+		return false
+	if target_slot == int(dict.get("from_slot", 0)):
+		return false
+	var target_data: Dictionary = lobby_state.get(target_slot, {})
+	return int(target_data.get("peer_id", 0)) == 0
+
+
+func _drop_on_card(at_position: Vector2, data: Variant, target_slot: int) -> void:
+	if not _can_drop_on_card(at_position, data, target_slot):
+		return
+	if multiplayer.has_multiplayer_peer() and not multiplayer.multiplayer_peer is OfflineMultiplayerPeer:
+		if multiplayer.is_server():
+			request_slot_switch(target_slot)
+		else:
+			request_slot_switch.rpc_id(1, target_slot)
+
+
+@rpc("any_peer", "call_local", "reliable")
+func request_slot_switch(target_slot: int) -> void:
+	if not multiplayer.is_server() or _is_launching:
+		return
+	var sender_id: int = multiplayer.get_remote_sender_id()
+	if sender_id == 0:
+		sender_id = 1
+	_ensure_host_lobby_state()
+	if target_slot < 1 or target_slot > _room_capacity():
+		return
+	var from_slot: int = _find_slot_by_peer_id(sender_id)
+	if from_slot == 0 or from_slot == target_slot:
+		return
+	var target_data: Dictionary = lobby_state.get(target_slot, {})
+	if int(target_data.get("peer_id", 0)) != 0:
+		return
+
+	var moving_data: Dictionary = lobby_state.get(from_slot, {}).duplicate()
+	moving_data["slot"] = target_slot
+	moving_data["role"] = target_slot
+	lobby_state[target_slot] = moving_data
+	lobby_state[from_slot] = {
+		"slot": from_slot,
+		"role": from_slot,
+		"peer_id": 0,
+		"ready": false,
+		"name": "Open Slot"
+	}
+	sync_lobby_state.rpc(lobby_state, _room_free_for_all)
 	_update_staging_ui()
 
 

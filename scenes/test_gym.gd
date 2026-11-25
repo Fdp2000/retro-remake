@@ -190,7 +190,7 @@ func _ready() -> void:
 		if not Engine.is_editor_hint() and NetworkManager != null and NetworkManager.is_online() and multiplayer.get_peers().is_empty():
 			_on_peer_arena_loaded(2)
 	else:
-		notify_arena_ready.rpc_id(1)
+		_send_client_arena_ready_loop()
 
 	if "--auto-ready" in OS.get_cmdline_args() + OS.get_cmdline_user_args():
 		get_tree().create_timer(2.0).timeout.connect(func():
@@ -787,17 +787,22 @@ func _resolve_spawn_yaw(slot: int) -> float:
 
 func _on_match_started(seed_value: int) -> void:
 	var ladder_layout := get_node_or_null("BuildingComplex3/LadderLayout")
-	if ladder_layout != null and ladder_layout.has_method("relocate_airport_exit_for_seed"):
-		ladder_layout.call("relocate_airport_exit_for_seed", seed_value)
+	if ladder_layout != null:
+		if ladder_layout.has_method("ensure_layout_for_seed"):
+			ladder_layout.call("ensure_layout_for_seed", seed_value)
+		if ladder_layout.has_method("relocate_airport_exit_for_seed"):
+			ladder_layout.call("relocate_airport_exit_for_seed", seed_value)
 	_assign_random_player_spawns(seed_value)
 	if not is_sandbox_mode:
 		var p_root: Node = players_container if players_container != null else get_node_or_null("Players")
 		if p_root != null:
 			for child in p_root.get_children():
+				if _is_network_active() and not child.is_multiplayer_authority():
+					continue
 				var pid: int = child.name.to_int()
-				var slot: int = int(child.get("spy_role"))
-				if slot <= 0 and MatchManager != null and MatchManager.has_method("get_peer_role"):
-					slot = MatchManager.get_peer_role(pid)
+				var slot: int = MatchManager.get_peer_role(pid) if (MatchManager != null and MatchManager.has_method("get_peer_role")) else 0
+				if slot <= 0:
+					slot = int(child.get("spy_role"))
 				if slot <= 0:
 					slot = 1 if pid == 1 else 2
 				var sp_pos: Vector3 = _resolve_spawn_point(slot)
@@ -1014,10 +1019,12 @@ func _rpc_prepare_arena_round(next_sandbox_mode: bool) -> void:
 	var p_root: Node = players_container if players_container != null else get_node_or_null("Players")
 	if p_root != null:
 		for child in p_root.get_children():
+			if _is_network_active() and not child.is_multiplayer_authority():
+				continue
 			var pid: int = child.name.to_int()
-			var slot: int = int(child.get("spy_role"))
-			if slot <= 0 and MatchManager != null and MatchManager.has_method("get_peer_role"):
-				slot = MatchManager.get_peer_role(pid)
+			var slot: int = MatchManager.get_peer_role(pid) if (MatchManager != null and MatchManager.has_method("get_peer_role")) else 0
+			if slot <= 0:
+				slot = int(child.get("spy_role"))
 			if slot <= 0:
 				slot = 1 if pid == 1 else 2
 			if child.has_method("reset_for_rematch"):
@@ -1123,6 +1130,14 @@ func _init_expected_peers_and_roles() -> void:
 		MatchManager.sync_peer_roles(peer_roles)
 
 
+func _send_client_arena_ready_loop() -> void:
+	while is_inside_tree() and _is_network_active() and not multiplayer.is_server():
+		if MatchManager != null and MatchManager.match_state == MatchManager.MatchState.IN_PROGRESS:
+			return
+		notify_arena_ready.rpc_id(1)
+		await get_tree().create_timer(0.5).timeout
+
+
 @rpc("any_peer", "call_local", "reliable")
 func notify_arena_ready() -> void:
 	var sender_id: int = multiplayer.get_remote_sender_id()
@@ -1170,8 +1185,16 @@ func _spawn_all_players() -> void:
 		"Sandbox" if is_sandbox_mode else "FullMatch"
 	])
 
-	if not is_sandbox_mode and active_player_spawn_indices.is_empty():
-		_assign_random_player_spawns(0)
+	var initial_seed: int = 0
+	if not is_sandbox_mode:
+		if GameConfig != null and GameConfig.spawner_auto_preset_by_player_count and GameConfig.has_method("apply_player_count_preset"):
+			GameConfig.apply_player_count_preset(clampi(participants.size(), 2, 4))
+		var seeder := RandomNumberGenerator.new()
+		seeder.randomize()
+		initial_seed = int(seeder.randi() & 0x7FFFFFFF)
+		if initial_seed == 0:
+			initial_seed = 7321
+		_assign_random_player_spawns(initial_seed)
 
 	for pid in participants:
 		var role: int = int(peer_roles.get(pid, 1 if pid == 1 else 2))
@@ -1186,7 +1209,7 @@ func _spawn_all_players() -> void:
 		_rpc_prepare_arena_round.rpc(is_sandbox_mode)
 
 	if MatchManager != null and is_inside_tree():
-		MatchManager.start_new_match(participants)
+		MatchManager.start_new_match(participants, initial_seed)
 
 
 func _is_network_active() -> bool:

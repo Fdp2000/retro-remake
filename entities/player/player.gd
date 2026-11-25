@@ -1176,7 +1176,8 @@ func apply_trap_ko(_reason: String, _attacker_peer_id: int = 0, custom_impulse: 
 	_sync_inventory_state_to_peers()
 
 	var victim_id: int = name.to_int()
-	_dispatch_crt_archive_to_all(_attacker_peer_id, _reason, victim_id)
+	if _reason.to_upper() != "CLOCK_EXPIRED":
+		_dispatch_crt_archive_to_all(_attacker_peer_id, _reason, victim_id)
 	if _attacker_peer_id > 0 and _attacker_peer_id != victim_id:
 		if _reason != "CLUB":
 			_dispatch_crt_replay_to_attacker(_attacker_peer_id, _reason, victim_id)
@@ -1349,13 +1350,17 @@ func _rpc_apply_ko_state(
 		_sync_camera_to_ragdoll_head()
 		_sync_visual_rig_sockets_to_skeleton()
 		if AudioBridge != null:
-			var ko_rad: float = GameConfig.audio_radius_player_ko if GameConfig != null else 42.0
-			var follow_head: Node3D = null
-			if _ragdoll_ctrl != null:
-				follow_head = _ragdoll_ctrl.physical_bones.get("spine.006", null) as Node3D
-			if follow_head == null:
-				follow_head = head if head != null else self
-			AudioBridge.play_world_cue("player_ko", _safe_global_pos() + Vector3(0.0, 1.2, 0.0), ko_rad, name.to_int(), follow_head)
+			var ko_rng := RandomNumberGenerator.new()
+			var base_seed: int = MatchManager.match_seed if MatchManager != null else 1337
+			ko_rng.seed = base_seed ^ (name.to_int() * 2654435761) ^ int(round(sync_pos.x * 31.0 + sync_pos.z * 97.0))
+			if ko_rng.randf() < 0.02:
+				var ko_rad: float = GameConfig.audio_radius_player_ko if GameConfig != null else 42.0
+				var follow_head: Node3D = null
+				if _ragdoll_ctrl != null:
+					follow_head = _ragdoll_ctrl.physical_bones.get("spine.006", null) as Node3D
+				if follow_head == null:
+					follow_head = head if head != null else self
+				AudioBridge.play_world_cue("player_ko", _safe_global_pos() + Vector3(0.0, 1.2, 0.0), ko_rad, name.to_int(), follow_head)
 	else:
 		if _proximity_voice_emitter != null:
 			_proximity_voice_emitter.force_muffled = false

@@ -103,8 +103,9 @@ func start_new_match(participating_peers: Array = [1, 2], custom_seed: int = 0) 
 	end_reason = ""
 	_sync_accumulator = 0.0
 
+	var player_count: int = clampi(participating_peers.size(), 2, 4)
 	if GameConfig != null and GameConfig.spawner_auto_preset_by_player_count and GameConfig.has_method("apply_player_count_preset"):
-		GameConfig.apply_player_count_preset(clampi(participating_peers.size(), 2, 4))
+		GameConfig.apply_player_count_preset(player_count)
 
 	for peer_id in participating_peers:
 		peer_clocks[peer_id] = GameConfig.starting_clock_seconds
@@ -116,7 +117,8 @@ func start_new_match(participating_peers: Array = [1, 2], custom_seed: int = 0) 
 	active_spawner_config = GameConfig.get_spawner_config_dict() if (GameConfig != null and GameConfig.has_method("get_spawner_config_dict")) else {}
 
 	if _is_network_connected():
-		_rpc_on_match_started.rpc(match_seed, active_spawner_config)
+		var config_overrides: Dictionary = _build_spawner_config_overrides(player_count, active_spawner_config)
+		_rpc_on_match_started.rpc(match_seed, player_count, config_overrides)
 		_sync_clocks_to_owners()
 	else:
 		match_started.emit(match_seed)
@@ -291,12 +293,28 @@ func _rpc_sync_peer_roles(roles: Dictionary) -> void:
 	peer_roles = clean_roles
 
 
+func _build_spawner_config_overrides(player_count: int, full_cfg: Dictionary) -> Dictionary:
+	if GameConfig == null or not GameConfig.has_method("get_preset_config_dict"):
+		return {}
+	var base_cfg: Dictionary = GameConfig.get_preset_config_dict(player_count)
+	var overrides: Dictionary = {}
+	for k in full_cfg.keys():
+		if not base_cfg.has(k) or base_cfg[k] != full_cfg[k]:
+			overrides[k] = full_cfg[k]
+	return overrides
+
+
 @rpc("authority", "call_local", "reliable")
-func _rpc_on_match_started(seed_value: int, synced_spawner_config: Dictionary = {}) -> void:
+func _rpc_on_match_started(seed_value: int, player_count: int = 2, config_overrides: Dictionary = {}) -> void:
 	match_seed = seed_value
-	active_spawner_config = synced_spawner_config.duplicate()
-	if not synced_spawner_config.is_empty() and GameConfig != null and GameConfig.has_method("apply_spawner_config_dict"):
-		GameConfig.apply_spawner_config_dict(synced_spawner_config)
+	if GameConfig != null:
+		if GameConfig.has_method("apply_player_count_preset"):
+			GameConfig.apply_player_count_preset(clampi(player_count, 2, 4))
+		if not config_overrides.is_empty() and GameConfig.has_method("apply_spawner_config_dict"):
+			GameConfig.apply_spawner_config_dict(config_overrides)
+		active_spawner_config = GameConfig.get_spawner_config_dict() if GameConfig.has_method("get_spawner_config_dict") else {}
+	else:
+		active_spawner_config = config_overrides.duplicate()
 	match_state = MatchState.IN_PROGRESS
 	countdown_remaining = MATCH_START_COUNTDOWN_SECONDS
 	countdown_active = true
