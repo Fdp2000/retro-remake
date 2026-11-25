@@ -774,6 +774,14 @@ func force_drop_all_hands() -> Array[Dictionary]:
 	return drops
 
 
+func force_drop_ko_items() -> Array[Dictionary]:
+	cancel_tripwire_placement()
+	var drops: Array[Dictionary] = _inv().force_drop_ko_items()
+	_refresh_hand_and_back_sockets()
+	_update_hud_status()
+	return drops
+
+
 func set_briefcase_bomb_state(armed: bool, owner_id: int) -> void:
 	_inv().briefcase_armed_bomb = armed
 	_inv().briefcase_bomb_owner_id = owner_id
@@ -1135,7 +1143,7 @@ func apply_trap_ko(_reason: String, _attacker_peer_id: int = 0, custom_impulse: 
 	if _watch_bluff_ui != null and _watch_bluff_ui.is_map_open:
 		_watch_bluff_ui.set_map_open(false)
 
-	var drops: Array[Dictionary] = force_drop_all_hands()
+	var drops: Array[Dictionary] = force_drop_ko_items()
 	if is_inside_tree() and (not _is_peer_connected() or multiplayer.is_server()):
 		for i in range(drops.size()):
 			var entry: Dictionary = drops[i]
@@ -1716,7 +1724,7 @@ func server_request_hand_action(action_type: String, slot_arg: int = 0) -> void:
 		"STOP_CLUB_CHARGE":
 			stop_club_charge()
 		"KO_SCATTER":
-			var drops: Array[Dictionary] = force_drop_all_hands()
+			var drops: Array[Dictionary] = force_drop_ko_items()
 			for i in range(drops.size()):
 				var entry: Dictionary = drops[i]
 				var dropped_id: String = str(entry.get("dropped_item_id", "NONE"))

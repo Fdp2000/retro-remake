@@ -418,6 +418,38 @@ func force_drop_all_hands() -> Array[Dictionary]:
 	return drops
 
 
+func force_drop_ko_items() -> Array[Dictionary]:
+	var drops: Array[Dictionary] = []
+	is_charging_club = false
+
+	var left_drop: Dictionary = drop_left_hand_item()
+	if str(left_drop["dropped_item_id"]) != "NONE":
+		drops.append(left_drop)
+
+	if right_hand_mode == RightHandMode.LIVE_BOMB:
+		drops.append({
+			"dropped_item_id": "LIVE_BOMB",
+			"dropped_briefcase_items": [] as Array[String]
+		})
+
+	var filled_indices: Array[int] = []
+	for i in range(JACKET_SLOT_COUNT):
+		if jacket_slots[i] != "NONE" and not jacket_slots[i].is_empty():
+			filled_indices.append(i)
+
+	if not filled_indices.is_empty():
+		var chosen_idx: int = filled_indices[randi() % filled_indices.size()]
+		drops.append({
+			"dropped_item_id": jacket_slots[chosen_idx],
+			"dropped_briefcase_items": [] as Array[String],
+			"jacket_slot": chosen_idx
+		})
+		jacket_slots[chosen_idx] = "NONE"
+
+	right_hand_mode = RightHandMode.JACKET_SLOT
+	return drops
+
+
 func get_briefcase_trap_dict() -> Dictionary:
 	return {
 		"armed_spring": briefcase_armed_spring,
