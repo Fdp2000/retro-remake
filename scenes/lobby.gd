@@ -11,11 +11,9 @@ const MAIN_MENU_OPTIONS_UI_SCRIPT = preload("res://ui/main_menu_options_ui.gd")
 var lobby_state: Dictionary = {}
 
 const FAN_AUDIO := "res://Assets/SFX/Lobby/Ambience Ceiling Fan 01.wav"
-const RELAY_AUDIO := "res://Assets/SFX/Lobby/Cartoon Metal Clinks 01.wav"
 const READY_AUDIO := "res://Assets/SFX/Lobby/Cartoon Bell Hit 01.wav"
 
 var _profile := ConfigFile.new()
-var _relay_audio: AudioStreamPlayer
 var _ready_audio: AudioStreamPlayer
 var _room_was_ready := false
 var _creating_private_room := false
@@ -322,7 +320,6 @@ func _on_quit_pressed() -> void:
 func _open_play_options(free_for_all: bool) -> void:
 	_free_for_all = free_for_all
 	play_options_title.text = "Free-for-All · 3–4 agents" if free_for_all else "1v1 · Two agents"
-	_relay_audio.play()
 	matchmaking_container.hide()
 	play_options_container.show()
 	quick_match_button.grab_focus()
@@ -401,13 +398,11 @@ func _update_header() -> void:
 func _copy_staging_room_code() -> void:
 	DisplayServer.clipboard_set(SessionManager.current_room_code)
 	copy_room_code_button.text = "Copied"
-	_relay_audio.play()
 	await get_tree().create_timer(1.2).timeout
 	copy_room_code_button.text = "Copy"
 
 
 func _setup_console_audio() -> void:
-	_relay_audio = _add_console_audio(RELAY_AUDIO, -25.0)
 	_ready_audio = _add_console_audio(READY_AUDIO, -24.0)
 	var fan_player := _add_console_audio(FAN_AUDIO, -35.0)
 	if fan_player.stream is AudioStreamWAV:
