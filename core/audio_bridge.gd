@@ -39,6 +39,15 @@ const DEFAULT_CUE_ASSET_PATHS: Dictionary = {
 	"ui_click": [
 		"res://Assets/SFX/click1.wav",
 	],
+	"countdown_beep": [
+		"res://Assets/SFX/Beep.wav",
+	],
+	"countdown_go": [
+		"res://Assets/SFX/GO!.wav",
+	],
+	"clock_bonus_ding": [
+		"res://Assets/SFX/ClockBonusDing.wav",
+	],
 	"bucket_arm": [
 		"res://Assets/SFX/water bucket/BucketArm.wav",
 	],
@@ -159,7 +168,7 @@ func _setup_global_button_clicks() -> void:
 
 func _wire_buttons_recursive(root: Node) -> void:
 	_on_tree_node_added(root)
-	for child in root.get_children():
+	for child in root.get_children(true):
 		_wire_buttons_recursive(child)
 
 
@@ -168,9 +177,41 @@ func _on_tree_node_added(node: Node) -> void:
 		var btn: BaseButton = node as BaseButton
 		if not btn.pressed.is_connected(_on_ui_button_pressed):
 			btn.pressed.connect(_on_ui_button_pressed)
+	if node is OptionButton:
+		var opt: OptionButton = node as OptionButton
+		if not opt.item_selected.is_connected(_on_ui_index_selected):
+			opt.item_selected.connect(_on_ui_index_selected)
+	elif node is TabContainer:
+		var tc: TabContainer = node as TabContainer
+		if not tc.tab_clicked.is_connected(_on_ui_index_selected):
+			tc.tab_clicked.connect(_on_ui_index_selected)
+	elif node is TabBar:
+		var tb: TabBar = node as TabBar
+		if not tb.tab_clicked.is_connected(_on_ui_index_selected):
+			tb.tab_clicked.connect(_on_ui_index_selected)
+	elif node is PopupMenu:
+		var pm: PopupMenu = node as PopupMenu
+		if not pm.id_pressed.is_connected(_on_ui_index_selected):
+			pm.id_pressed.connect(_on_ui_index_selected)
+	elif node is Slider:
+		var sl: Slider = node as Slider
+		if not sl.drag_ended.is_connected(_on_ui_slider_drag_ended):
+			sl.drag_ended.connect(_on_ui_slider_drag_ended)
+	elif node is ItemList:
+		var il: ItemList = node as ItemList
+		if not il.item_selected.is_connected(_on_ui_index_selected):
+			il.item_selected.connect(_on_ui_index_selected)
 
 
 func _on_ui_button_pressed() -> void:
+	play_local_cue("ui_click")
+
+
+func _on_ui_index_selected(_idx: int) -> void:
+	play_local_cue("ui_click")
+
+
+func _on_ui_slider_drag_ended(_value_changed: bool) -> void:
 	play_local_cue("ui_click")
 
 
@@ -513,7 +554,7 @@ func play_local_cue(cue_id: String) -> void:
 	if stream == null:
 		return
 	_local_player.stream = stream
-	_local_player.volume_db = -4.0 if cue_id == "ui_click" else 0.0
+	_local_player.volume_db = -14.0 if cue_id == "clock_bonus_ding" else (-4.0 if cue_id == "ui_click" else (-10.0 if (cue_id == "countdown_beep" or cue_id == "countdown_go") else 0.0))
 	_local_player.pitch_scale = randf_range(0.92, 1.08) if cue_id == "loot_sound" else (randf_range(0.97, 1.03) if cue_id == "ui_click" else 1.0)
 	_local_player.play()
 

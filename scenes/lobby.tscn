@@ -19,10 +19,10 @@ content_margin_top = 15.0
 content_margin_right = 15.0
 content_margin_bottom = 15.0
 bg_color = Color(0.0902, 0.1255, 0.1373, 0.97)
-border_width_left = 1
-border_width_top = 1
-border_width_right = 1
-border_width_bottom = 1
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
 border_color = Color(0.3608, 0.3451, 0.2863, 1)
 
 [sub_resource type="StyleBoxFlat" id="CodeStrip"]
@@ -160,6 +160,16 @@ custom_minimum_size = Vector2(0, 72)
 layout_mode = 2
 size_flags_horizontal = 3
 text = "Free-for-All\n3–4 agents"
+
+[node name="OptionsButton" type="Button" parent="MarginContainer/MatchmakingContainer/MatchmakingPanel"]
+custom_minimum_size = Vector2(0, 38)
+layout_mode = 2
+text = "Options"
+
+[node name="QuitButton" type="Button" parent="MarginContainer/MatchmakingContainer/MatchmakingPanel"]
+custom_minimum_size = Vector2(0, 38)
+layout_mode = 2
+text = "Quit Game"
 
 [node name="PlayOptionsContainer" type="PanelContainer" parent="MarginContainer"]
 visible = false

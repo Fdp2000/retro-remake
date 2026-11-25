@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://bw5xvtrjwy5ju"
+path="res://.godot/imported/Ambience Ceiling Fan 01.wav-167227fb24815535e69293f654a603ba.sample"
+
+[deps]
+
+source_file="res://Assets/SFX/Lobby/Ambience Ceiling Fan 01.wav"
+dest_files=["res://.godot/imported/Ambience Ceiling Fan 01.wav-167227fb24815535e69293f654a603ba.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2

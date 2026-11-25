@@ -110,6 +110,10 @@ var master_volume: float = 1.0
 var music_volume: float = 1.0
 var voice_volume: float = 1.0
 var audio_input_device: String = "Default"
+var fullscreen_enabled: bool = true
+var show_fps_counter: bool = false
+var _fps_layer: CanvasLayer = null
+var _fps_label: Label = null
 
 # ==========================================
 # Doc 2: Locomotion, Stances & Reach [TUNABLE]
@@ -257,8 +261,8 @@ var audio_input_device: String = "Default"
 @export var show_enemy_room_blip: bool = false
 
 @export var crt_replay_fps: int = 24
-@export var crt_replay_duration: float = 4.0
-@export var crt_replay_frame_count: int = 96
+@export var crt_replay_duration: float = 4.5
+@export var crt_replay_frame_count: int = 108
 @export var crt_viewport_size: Vector2i = Vector2i(426, 240)
 @export var crt_display_size: Vector2 = Vector2(288.0, 162.0)
 @export var crt_replay_max_queue: int = 4
@@ -266,7 +270,7 @@ var audio_input_device: String = "Default"
 @export var crt_archive_max_clips: int = 8
 @export var crt_totg_delay_seconds: float = 3.5
 ## Seconds of live post-impact ragdoll footage appended onto the CRT replay after the trap hits.
-@export var crt_replay_post_hit_seconds: float = 2.5
+@export var crt_replay_post_hit_seconds: float = 2.75
 
 @export var anti_camp_warning_seconds: float = 15.0
 @export var anti_camp_sneeze_seconds: float = 20.0
@@ -450,6 +454,64 @@ func set_mouse_settings(new_dpi: int, new_multiplier: float, persist: bool = tru
 	mouse_settings_changed.emit(get_effective_mouse_sensitivity())
 
 
+func set_show_fps_counter(enabled: bool, persist: bool = true) -> void:
+	show_fps_counter = enabled
+	_apply_fps_counter_visibility()
+	if persist:
+		save_user_settings()
+
+
+func _apply_fps_counter_visibility() -> void:
+	if Engine.is_editor_hint() or DisplayServer.get_name() == "headless":
+		return
+	if show_fps_counter and _fps_layer == null:
+		_fps_layer = CanvasLayer.new()
+		_fps_layer.name = "FPSCounterOverlay"
+		_fps_layer.layer = 100
+		add_child(_fps_layer)
+
+		_fps_label = Label.new()
+		_fps_label.name = "FPSLabel"
+		_fps_label.anchor_left = 1.0
+		_fps_label.anchor_right = 1.0
+		_fps_label.anchor_top = 0.0
+		_fps_label.anchor_bottom = 0.0
+		_fps_label.offset_left = -96.0
+		_fps_label.offset_right = -12.0
+		_fps_label.offset_top = 8.0
+		_fps_label.offset_bottom = 30.0
+		_fps_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		_fps_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_fps_label.add_theme_font_size_override("font_size", 14)
+		_fps_label.add_theme_color_override("font_color", Color(0.75, 0.96, 0.78, 0.92))
+		_fps_label.add_theme_color_override("font_outline_color", Color(0.04, 0.05, 0.06, 0.95))
+		_fps_label.add_theme_constant_override("outline_size", 3)
+		_fps_layer.add_child(_fps_label)
+	if _fps_layer != null:
+		_fps_layer.visible = show_fps_counter
+
+
+func _process(_delta: float) -> void:
+	if Engine.is_editor_hint() or not show_fps_counter or _fps_label == null:
+		return
+	_fps_label.text = "%d FPS" % Engine.get_frames_per_second()
+
+
+func set_fullscreen_enabled(enabled: bool, persist: bool = true) -> void:
+	fullscreen_enabled = enabled
+	apply_display_settings()
+	if persist:
+		save_user_settings()
+
+
+func apply_display_settings() -> void:
+	if Engine.is_editor_hint() or DisplayServer.get_name() == "headless":
+		return
+	var target_mode: DisplayServer.WindowMode = DisplayServer.WINDOW_MODE_FULLSCREEN if fullscreen_enabled else DisplayServer.WINDOW_MODE_WINDOWED
+	if DisplayServer.window_get_mode() != target_mode:
+		DisplayServer.window_set_mode(target_mode)
+
+
 func set_audio_settings(new_master: float, new_music: float, new_voice: float, new_input_device: String, persist: bool = true) -> void:
 	master_volume = clampf(new_master, 0.0, 1.0)
 	music_volume = clampf(new_music, 0.0, 1.0)
@@ -494,6 +556,8 @@ func save_user_settings(path: String = USER_SETTINGS_PATH) -> Error:
 	cfg.set_value("audio", "music_volume", music_volume)
 	cfg.set_value("audio", "voice_volume", voice_volume)
 	cfg.set_value("audio", "input_device", audio_input_device)
+	cfg.set_value("display", "fullscreen", fullscreen_enabled)
+	cfg.set_value("display", "show_fps", show_fps_counter)
 	return cfg.save(path)
 
 
@@ -501,6 +565,8 @@ func load_user_settings(path: String = USER_SETTINGS_PATH) -> bool:
 	var cfg := ConfigFile.new()
 	if cfg.load(path) != OK:
 		apply_audio_settings()
+		apply_display_settings()
+		_apply_fps_counter_visibility()
 		return false
 	mouse_dpi = int(cfg.get_value("mouse", "dpi", 800))
 	mouse_sensitivity_multiplier = float(cfg.get_value("mouse", "sensitivity_multiplier", 1.0))
@@ -508,7 +574,11 @@ func load_user_settings(path: String = USER_SETTINGS_PATH) -> bool:
 	music_volume = clampf(float(cfg.get_value("audio", "music_volume", 1.0)), 0.0, 1.0)
 	voice_volume = clampf(float(cfg.get_value("audio", "voice_volume", 1.0)), 0.0, 1.0)
 	audio_input_device = str(cfg.get_value("audio", "input_device", "Default"))
+	fullscreen_enabled = bool(cfg.get_value("display", "fullscreen", true))
+	show_fps_counter = bool(cfg.get_value("display", "show_fps", false))
 	apply_audio_settings()
+	apply_display_settings()
+	_apply_fps_counter_visibility()
 	mouse_settings_changed.emit(get_effective_mouse_sensitivity())
 	return true
 

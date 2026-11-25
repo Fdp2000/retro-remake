@@ -17,8 +17,12 @@ enum MatchState {
 	ENDED = 2
 }
 
+const MATCH_START_COUNTDOWN_SECONDS: float = 3.0
+
 var match_state: int = MatchState.INACTIVE
 var match_seed: int = 0
+var countdown_remaining: float = 0.0
+var countdown_active: bool = false
 var active_spawner_config: Dictionary = {}
 var peer_clocks: Dictionary = {}        # peer_id (int) -> remaining_seconds (float)
 var eliminated_peers: Dictionary = {}   # peer_id (int) -> bool
@@ -32,11 +36,20 @@ var _sync_accumulator: float = 0.0
 func _process(delta: float) -> void:
 	if Engine.is_editor_hint():
 		return
+	if countdown_active and match_state == MatchState.IN_PROGRESS:
+		countdown_remaining = maxf(countdown_remaining - delta, 0.0)
+		if countdown_remaining <= 0.0:
+			countdown_active = false
+		return
 	tick_match_clocks(delta)
 
 
+func is_countdown_active() -> bool:
+	return countdown_active and match_state == MatchState.IN_PROGRESS
+
+
 func tick_match_clocks(delta: float) -> void:
-	if match_state != MatchState.IN_PROGRESS:
+	if match_state != MatchState.IN_PROGRESS or countdown_active:
 		return
 	if GameConfig != null and GameConfig.debug_disable_match_timer:
 		return
@@ -98,6 +111,8 @@ func start_new_match(participating_peers: Array = [1, 2], custom_seed: int = 0) 
 		eliminated_peers[peer_id] = false
 
 	match_state = MatchState.IN_PROGRESS
+	countdown_remaining = MATCH_START_COUNTDOWN_SECONDS
+	countdown_active = true
 	active_spawner_config = GameConfig.get_spawner_config_dict() if (GameConfig != null and GameConfig.has_method("get_spawner_config_dict")) else {}
 
 	if _is_network_connected():
@@ -246,6 +261,20 @@ func _finish_match(winner_id: int, reason: String) -> void:
 		match_ended.emit(winner_id, reason)
 
 
+func reset_match_state() -> void:
+	match_state = MatchState.INACTIVE
+	match_seed = 0
+	countdown_remaining = 0.0
+	countdown_active = false
+	active_spawner_config.clear()
+	peer_clocks.clear()
+	eliminated_peers.clear()
+	peer_roles.clear()
+	winner_peer_id = 0
+	end_reason = ""
+	_sync_accumulator = 0.0
+
+
 func _is_network_connected() -> bool:
 	if Engine.is_editor_hint() or multiplayer == null or not multiplayer.has_multiplayer_peer():
 		return false
@@ -269,6 +298,8 @@ func _rpc_on_match_started(seed_value: int, synced_spawner_config: Dictionary = 
 	if not synced_spawner_config.is_empty() and GameConfig != null and GameConfig.has_method("apply_spawner_config_dict"):
 		GameConfig.apply_spawner_config_dict(synced_spawner_config)
 	match_state = MatchState.IN_PROGRESS
+	countdown_remaining = MATCH_START_COUNTDOWN_SECONDS
+	countdown_active = true
 	eliminated_peers.clear()
 	winner_peer_id = 0
 	end_reason = ""

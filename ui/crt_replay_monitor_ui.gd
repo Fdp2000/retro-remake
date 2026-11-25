@@ -7,7 +7,7 @@ extends Control
 ## captures staggered 12 FPS frames into per-rival circular ring buffers without streaming video over RPC,
 ## queues back-to-back hits, and plays back pre-impact + post-impact ragdoll footage inside a retro CRT bezel.
 
-const DEFAULT_MAX_FRAMES: int = 96
+const DEFAULT_MAX_FRAMES: int = 108
 const DEFAULT_MAX_QUEUE: int = 4
 const CAPTURE_SIZE := Vector2i(426, 240)
 const DISPLAY_SIZE := Vector2(288.0, 162.0)
@@ -573,7 +573,7 @@ func is_replaying() -> bool:
 func _build_replay_snapshot(reason: String, victim_peer_id: int) -> Dictionary:
 	var max_frames: int = maxi(GameConfig.crt_replay_frame_count if GameConfig != null else DEFAULT_MAX_FRAMES, 4)
 	var fps: int = maxi(GameConfig.crt_replay_fps if GameConfig != null else 12, 1)
-	var post_sec: float = clampf(GameConfig.crt_replay_post_hit_seconds if GameConfig != null else 2.5, 0.0, 3.5)
+	var post_sec: float = clampf(GameConfig.crt_replay_post_hit_seconds if GameConfig != null else 2.75, 0.0, 3.5)
 	var post_frames: int = clampi(int(round(post_sec * float(fps))), 0, maxi(max_frames - 4, 0))
 	var pre_budget: int = maxi(max_frames - post_frames, 1)
 
@@ -659,7 +659,7 @@ func step_replay_playback(delta: float) -> void:
 	if not _is_playing:
 		return
 	_play_elapsed += delta
-	var dur: float = GameConfig.crt_replay_duration if GameConfig != null else 3.0
+	var dur: float = GameConfig.crt_replay_duration if GameConfig != null else 4.5
 	if _play_elapsed >= dur and (_post_capture_remaining <= 0 or _play_elapsed >= dur + 0.6):
 		if not _replay_queue.is_empty():
 			var next_entry: Dictionary = _replay_queue.pop_front()
@@ -800,7 +800,7 @@ func archive_trap_hit(reason: String, victim_peer_id: int, attacker_peer_id: int
 	var fps: int = maxi(GameConfig.crt_replay_fps if GameConfig != null else 24, 1)
 	var pre_frames_count: int = (snap["playback_frames"] as Array).size()
 	var pre_sec: float = float(pre_frames_count) / float(fps)
-	var post_sec: float = clampf(GameConfig.crt_replay_post_hit_seconds if GameConfig != null else 2.5, 0.0, 3.5)
+	var post_sec: float = clampf(GameConfig.crt_replay_post_hit_seconds if GameConfig != null else 2.75, 0.0, 3.5)
 	var clip_start: float = now - pre_sec
 
 	var victim_positions: Array[Vector3] = []
@@ -865,7 +865,7 @@ func clear_match_archive() -> void:
 
 
 func _update_crt_visuals() -> void:
-	var dur: float = GameConfig.crt_replay_duration if GameConfig != null else 3.0
+	var dur: float = GameConfig.crt_replay_duration if GameConfig != null else 4.5
 	var burst_sec: float = 0.18
 	var static_val: float = 0.03
 	if _play_elapsed < burst_sec:

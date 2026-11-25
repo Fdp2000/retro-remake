@@ -206,6 +206,9 @@ var _tripwire_ctrl: TripwirePlacementController = null
 var _crt_body_visual_layer: int = 1
 var _camera_tween: Tween = null
 var _bonus_toast_timer: float = 0.0
+var _countdown_label: Label = null
+var _last_countdown_step: int = -1
+var _countdown_go_timer: float = 0.0
 var _dart_aim_cooldown: float = 0.0
 var _was_aiming_dart_gun: bool = false
 var _dart_shot_pending_consume: bool = false
@@ -1548,6 +1551,10 @@ func reset_for_rematch(spawn_local_pos: Vector3, spawn_yaw: float = 0.0) -> void
 	if _crt_replay_ui != null:
 		_crt_replay_ui.clear_queue_and_stop(false)
 		_crt_replay_ui.clear_match_archive()
+	_last_countdown_step = -1
+	_countdown_go_timer = 0.0
+	if _countdown_label != null and is_instance_valid(_countdown_label):
+		_countdown_label.visible = false
 
 	force_drop_all_hands()
 	_sync_inventory_state_to_peers()
@@ -4317,79 +4324,83 @@ func _unhandled_input(event: InputEvent) -> void:
 			_nudge_sensitivity(0.10)
 			return
 
-	if event.is_action_pressed("jacket_slot_1") and not event.is_echo():
-		_trigger_hand_action("SELECT_SLOT", 0)
-		return
-	if event.is_action_pressed("jacket_slot_2") and not event.is_echo():
-		_trigger_hand_action("SELECT_SLOT", 1)
-		return
-	if event.is_action_pressed("jacket_slot_3") and not event.is_echo():
-		_trigger_hand_action("SELECT_SLOT", 2)
-		return
-	if event.is_action_pressed("jacket_slot_prev"):
-		_trigger_hand_action("CYCLE_SLOT", -1)
-		return
-	if event.is_action_pressed("jacket_slot_next"):
-		_trigger_hand_action("CYCLE_SLOT", 1)
-		return
-	if event.is_action_pressed("drop_left_hand") and not event.is_echo():
-		_trigger_hand_action("DROP_LEFT")
-		return
-	if event.is_action_pressed("drop_right_hand") and not event.is_echo():
-		_trigger_hand_action("DROP_RIGHT")
-		return
-	if event is InputEventKey and event.pressed and not event.is_echo() and event.keycode == KEY_F7:
-		if GameConfig != null:
-			GameConfig.debug_club_hit_gizmo = not GameConfig.debug_club_hit_gizmo
-			print("[ClubHitGizmo] ", "ON" if GameConfig.debug_club_hit_gizmo else "OFF")
-		return
-	if event is InputEventKey and event.pressed and not event.is_echo() and event.keycode == KEY_F10:
-		_toggle_crt_replay_debug()
-		return
-	if event is InputEventKey and event.pressed and not event.is_echo() and event.keycode == KEY_F9:
-		_toggle_viewmodel_tuner()
-		return
+	if _are_debug_cheats_enabled():
+		if event is InputEventKey and event.pressed and not event.is_echo() and event.keycode == KEY_F7:
+			if GameConfig != null:
+				GameConfig.debug_club_hit_gizmo = not GameConfig.debug_club_hit_gizmo
+				print("[ClubHitGizmo] ", "ON" if GameConfig.debug_club_hit_gizmo else "OFF")
+			return
+		if event is InputEventKey and event.pressed and not event.is_echo() and event.keycode == KEY_F10:
+			_toggle_crt_replay_debug()
+			return
+		if event is InputEventKey and event.pressed and not event.is_echo() and event.keycode == KEY_F9:
+			_toggle_viewmodel_tuner()
+			return
 
-	if event.is_action_pressed("toggle_club") and not event.is_echo():
-		reset_anti_camp()
-		_trigger_hand_action("TOGGLE_CLUB")
-		return
+	var in_countdown: bool = MatchManager != null and MatchManager.has_method("is_countdown_active") and MatchManager.is_countdown_active()
+	if not in_countdown:
+		if event.is_action_pressed("jacket_slot_1") and not event.is_echo():
+			_trigger_hand_action("SELECT_SLOT", 0)
+			return
+		if event.is_action_pressed("jacket_slot_2") and not event.is_echo():
+			_trigger_hand_action("SELECT_SLOT", 1)
+			return
+		if event.is_action_pressed("jacket_slot_3") and not event.is_echo():
+			_trigger_hand_action("SELECT_SLOT", 2)
+			return
+		if event.is_action_pressed("jacket_slot_prev"):
+			_trigger_hand_action("CYCLE_SLOT", -1)
+			return
+		if event.is_action_pressed("jacket_slot_next"):
+			_trigger_hand_action("CYCLE_SLOT", 1)
+			return
+		if event.is_action_pressed("drop_left_hand") and not event.is_echo():
+			_trigger_hand_action("DROP_LEFT")
+			return
+		if event.is_action_pressed("drop_right_hand") and not event.is_echo():
+			_trigger_hand_action("DROP_RIGHT")
+			return
 
-	if event.is_action_pressed("cycle_bluff_cue") and not event.is_echo():
-		ensure_overlay_uis()
-		if _watch_bluff_ui != null:
-			_watch_bluff_ui.cycle_cue()
-		return
+		if event.is_action_pressed("toggle_club") and not event.is_echo():
+			reset_anti_camp()
+			_trigger_hand_action("TOGGLE_CLUB")
+			return
 
-	if event is InputEventKey and event.keycode == KEY_B and event.pressed and not event.is_echo():
-		ensure_overlay_uis()
-		if _watch_bluff_ui != null:
-			emit_watch_bluff(_watch_bluff_ui.get_selected_cue_id(), _safe_global_pos())
-		return
+		if event.is_action_pressed("cycle_bluff_cue") and not event.is_echo():
+			ensure_overlay_uis()
+			if _watch_bluff_ui != null:
+				_watch_bluff_ui.cycle_cue()
+			return
 
-	if event is InputEventKey and event.keycode == KEY_TAB and not event.is_echo():
-		ensure_overlay_uis()
-		if _watch_bluff_ui != null:
-			_watch_bluff_ui.set_map_open(event.pressed)
-			Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if event.pressed else Input.MOUSE_MODE_CAPTURED
-		return
+		if event is InputEventKey and event.keycode == KEY_B and event.pressed and not event.is_echo():
+			ensure_overlay_uis()
+			if _watch_bluff_ui != null:
+				emit_watch_bluff(_watch_bluff_ui.get_selected_cue_id(), _safe_global_pos())
+			return
 
-	if event.is_action_pressed("primary_action") and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
-		_try_begin_primary_action()
-	elif event.is_action_released("primary_action"):
-		if not _lmb_trap_bucket_other_side:
-			_lmb_trap_hold_active = false
-		if _tripwire_ctrl != null and is_instance_valid(_tripwire_ctrl):
-			_tripwire_ctrl.on_lmb_released()
-		if is_charging_club:
-			evaluate_club_release()
+		if event is InputEventKey and event.keycode == KEY_TAB and not event.is_echo():
+			ensure_overlay_uis()
+			if _watch_bluff_ui != null:
+				_watch_bluff_ui.set_map_open(event.pressed)
+				Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if event.pressed else Input.MOUSE_MODE_CAPTURED
+			return
 
-	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_RIGHT and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
-		if event.pressed and right_hand_item_id == "BUCKET" and club_overcharge_stumble_remaining <= 0.0:
-			_try_begin_bucket_rig_hold(true)
-		elif not event.pressed and _lmb_trap_bucket_other_side:
-			_lmb_trap_hold_active = false
-			_lmb_trap_bucket_other_side = false
+		if event.is_action_pressed("primary_action") and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
+			_try_begin_primary_action()
+		elif event.is_action_released("primary_action"):
+			if not _lmb_trap_bucket_other_side:
+				_lmb_trap_hold_active = false
+			if _tripwire_ctrl != null and is_instance_valid(_tripwire_ctrl):
+				_tripwire_ctrl.on_lmb_released()
+			if is_charging_club:
+				evaluate_club_release()
+
+		if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_RIGHT and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
+			if event.pressed and right_hand_item_id == "BUCKET" and club_overcharge_stumble_remaining <= 0.0:
+				_try_begin_bucket_rig_hold(true)
+			elif not event.pressed and _lmb_trap_bucket_other_side:
+				_lmb_trap_hold_active = false
+				_lmb_trap_bucket_other_side = false
 
 	var is_rmb_cancel: bool = (
 		event is InputEventMouseButton
@@ -4439,6 +4450,19 @@ func _unhandled_input(event: InputEvent) -> void:
 			_sync_camera_to_ragdoll_head()
 			_sync_visual_rig_sockets_to_skeleton()
 			_update_first_person_viewmodel(0.0)
+		return
+
+
+func _are_debug_cheats_enabled() -> bool:
+	if OS.is_debug_build():
+		return true
+	if GameConfig != null and GameConfig.sandbox_gym_mode:
+		return true
+	if not _is_peer_connected():
+		return true
+	if NetworkManager != null and NetworkManager.current_mode == NetworkManager.NetworkMode.ENET_LOCAL:
+		return true
+	return false
 
 
 func _trigger_hand_action(action_type: String, slot_arg: int = 0) -> void:
@@ -4641,9 +4665,13 @@ func _physics_process(delta: float) -> void:
 		_update_voice_eye_pop(delta)
 		return
 
+	var in_countdown: bool = MatchManager != null and MatchManager.has_method("is_countdown_active") and MatchManager.is_countdown_active()
+	_update_countdown_hud(delta, in_countdown)
+
 	var movement_allowed: bool = (
 		(MatchManager == null or MatchManager.match_state != MatchManager.MatchState.ENDED)
 		and not is_clock_eliminated
+		and not in_countdown
 	)
 	var controls_captured := movement_allowed and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
 	var aiming_dart: bool = _is_aiming_dart_gun()
@@ -4795,6 +4823,58 @@ func get_current_surface() -> String:
 	if _surface_detector == null:
 		return "default"
 	return _surface_detector.detect_surface_below(self)
+
+
+func _update_countdown_hud(delta: float, in_countdown: bool) -> void:
+	if _countdown_label == null:
+		var hud_node: Node = get_node_or_null("HUD")
+		if hud_node == null:
+			return
+		_countdown_label = Label.new()
+		_countdown_label.name = "MatchCountdownLabel"
+		_countdown_label.anchor_left = 0.5
+		_countdown_label.anchor_right = 0.5
+		_countdown_label.anchor_top = 0.32
+		_countdown_label.anchor_bottom = 0.32
+		_countdown_label.offset_left = -200.0
+		_countdown_label.offset_right = 200.0
+		_countdown_label.offset_top = -60.0
+		_countdown_label.offset_bottom = 60.0
+		_countdown_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_countdown_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		_countdown_label.add_theme_font_size_override("font_size", 84)
+		_countdown_label.add_theme_color_override("font_outline_color", Color(0.05, 0.05, 0.08, 0.95))
+		_countdown_label.add_theme_constant_override("outline_size", 10)
+		_countdown_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_countdown_label.visible = false
+		hud_node.add_child(_countdown_label)
+
+	var scene_now: Node = get_tree().current_scene if get_tree() != null else null
+	var esc_node: Variant = scene_now.get("esc_menu") if scene_now != null else null
+	var esc_open: bool = esc_node is CanvasItem and (esc_node as CanvasItem).visible
+	if in_countdown and MatchManager != null:
+		var step: int = clampi(int(ceil(MatchManager.countdown_remaining)), 1, 3)
+		if step != _last_countdown_step:
+			_last_countdown_step = step
+			_countdown_go_timer = 0.0
+			_countdown_label.text = str(step)
+			_countdown_label.modulate = Color(1.0, 1.0, 1.0, 1.0)
+			if AudioBridge != null:
+				AudioBridge.play_local_cue("countdown_beep")
+		_countdown_label.visible = not esc_open
+	elif _last_countdown_step > 0:
+		_last_countdown_step = 0
+		_countdown_go_timer = 0.9
+		_countdown_label.text = "GO!"
+		_countdown_label.modulate = Color(0.32, 1.0, 0.45, 1.0)
+		_countdown_label.visible = not esc_open
+		if AudioBridge != null:
+			AudioBridge.play_local_cue("countdown_go")
+	elif _countdown_go_timer > 0.0:
+		_countdown_go_timer = maxf(_countdown_go_timer - delta, 0.0)
+		_countdown_label.visible = (_countdown_go_timer > 0.0) and not esc_open
+	elif _countdown_label.visible:
+		_countdown_label.visible = false
 
 
 func _tick_footsteps(delta: float) -> void:

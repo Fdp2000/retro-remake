@@ -9,6 +9,7 @@ const AIRPORT_EXIT_SCENE: PackedScene = preload("res://entities/props/airport_ex
 const MATCH_SPAWNER_SCRIPT = preload("res://core/match_spawner.gd")
 const MATCH_END_UI_SCRIPT = preload("res://ui/match_end_overlay_ui.gd")
 const SPAWNER_CHEATSHEET_UI_SCRIPT = preload("res://ui/spawner_cheatsheet_ui.gd")
+const MAIN_MENU_OPTIONS_UI_SCRIPT = preload("res://ui/main_menu_options_ui.gd")
 const ACOUSTIC_ZONE_SCRIPT = preload("res://core/audio/acoustic_zone_3d.gd")
 const OCCLUSION_EMITTER_SCRIPT = preload("res://core/audio/occlusion_emitter.gd")
 const LOBBY_SCENE_PATH: String = "res://scenes/lobby.tscn"
@@ -50,6 +51,8 @@ var is_terminating: bool = false
 var is_sandbox_mode: bool = false
 var _match_end_ui: MatchEndOverlayUI = null
 var _spawner_cheatsheet_ui: Control = null
+var _options_ui: MainMenuOptionsUI = null
+var _esc_options_button: Button = null
 var _last_populate_summary: Dictionary = {}
 var _esc_cheatsheet_button: Button = null
 var _esc_rematch_button: Button = null
@@ -87,11 +90,12 @@ func _ready() -> void:
 			esc_vbox.move_child(mouse_widget, 1)
 
 		var is_host_or_offline: bool = (not _is_network_active()) or multiplayer.is_server()
+		var show_debug_controls: bool = is_host_or_offline and _are_debug_cheats_enabled()
 		if _esc_cheatsheet_button == null and esc_vbox.get_node_or_null("SpawnerCheatsheetButton") == null:
 			_esc_cheatsheet_button = Button.new()
 			_esc_cheatsheet_button.name = "SpawnerCheatsheetButton"
 			_esc_cheatsheet_button.text = "Spawner Cheatsheet & Tuner [F2]"
-			_esc_cheatsheet_button.visible = is_host_or_offline
+			_esc_cheatsheet_button.visible = show_debug_controls
 			_esc_cheatsheet_button.pressed.connect(open_spawner_cheatsheet)
 			esc_vbox.add_child(_esc_cheatsheet_button)
 
@@ -99,14 +103,14 @@ func _ready() -> void:
 			_esc_rematch_button = Button.new()
 			_esc_rematch_button.name = "RestartRoundButton"
 			_esc_rematch_button.text = "Restart Round (New Seed)"
-			_esc_rematch_button.visible = is_host_or_offline
+			_esc_rematch_button.visible = show_debug_controls
 			_esc_rematch_button.pressed.connect(func() -> void: trigger_rematch(is_sandbox_mode))
 			esc_vbox.add_child(_esc_rematch_button)
 
 		if _esc_switch_mode_button == null and esc_vbox.get_node_or_null("SwitchModeButton") == null:
 			_esc_switch_mode_button = Button.new()
 			_esc_switch_mode_button.name = "SwitchModeButton"
-			_esc_switch_mode_button.visible = is_host_or_offline
+			_esc_switch_mode_button.visible = show_debug_controls
 			_esc_switch_mode_button.pressed.connect(_on_switch_mode_rematch_pressed)
 			esc_vbox.add_child(_esc_switch_mode_button)
 		_refresh_esc_mode_button_text()
@@ -114,7 +118,7 @@ func _ready() -> void:
 		if _esc_debug_bomb_fuse_button == null and esc_vbox.get_node_or_null("DebugBombFuseButton") == null:
 			_esc_debug_bomb_fuse_button = Button.new()
 			_esc_debug_bomb_fuse_button.name = "DebugBombFuseButton"
-			_esc_debug_bomb_fuse_button.visible = is_host_or_offline
+			_esc_debug_bomb_fuse_button.visible = show_debug_controls
 			_esc_debug_bomb_fuse_button.pressed.connect(_on_debug_bomb_fuse_toggled)
 			esc_vbox.add_child(_esc_debug_bomb_fuse_button)
 		_refresh_debug_bomb_fuse_button_text()
@@ -122,7 +126,7 @@ func _ready() -> void:
 		if _esc_debug_airport_exit_button == null and esc_vbox.get_node_or_null("DebugAirportExitButton") == null:
 			_esc_debug_airport_exit_button = Button.new()
 			_esc_debug_airport_exit_button.name = "DebugAirportExitButton"
-			_esc_debug_airport_exit_button.visible = is_host_or_offline
+			_esc_debug_airport_exit_button.visible = show_debug_controls
 			_esc_debug_airport_exit_button.pressed.connect(_on_debug_airport_exit_toggled)
 			esc_vbox.add_child(_esc_debug_airport_exit_button)
 		_refresh_debug_airport_exit_button_text()
@@ -131,7 +135,7 @@ func _ready() -> void:
 			_esc_debug_simulate_win_button = Button.new()
 			_esc_debug_simulate_win_button.name = "DebugSimulateWinButton"
 			_esc_debug_simulate_win_button.text = "Debug: Simulate Win [F4]"
-			_esc_debug_simulate_win_button.visible = is_host_or_offline
+			_esc_debug_simulate_win_button.visible = show_debug_controls
 			_esc_debug_simulate_win_button.pressed.connect(_on_debug_simulate_win_pressed)
 			esc_vbox.add_child(_esc_debug_simulate_win_button)
 		esc_vbox.move_child(close_settings_button, -1)
@@ -140,6 +144,16 @@ func _ready() -> void:
 	close_settings_button.pressed.connect(_on_resume_pressed)
 	resume_button.pressed.connect(_on_resume_pressed)
 	leave_button.pressed.connect(_on_leave_button_pressed)
+
+	if match_menu != null and _esc_options_button == null and match_menu.get_node_or_null("OptionsButton") == null:
+		_esc_options_button = Button.new()
+		_esc_options_button.name = "OptionsButton"
+		_esc_options_button.text = "Options"
+		_esc_options_button.custom_minimum_size = Vector2(0, 42)
+		_esc_options_button.pressed.connect(_on_esc_options_pressed)
+		match_menu.add_child(_esc_options_button)
+		if leave_button != null and leave_button.get_parent() == match_menu:
+			match_menu.move_child(_esc_options_button, leave_button.get_index())
 
 	# Network lifecycle bindings
 	if not Engine.is_editor_hint() and NetworkManager != null:
@@ -835,32 +849,45 @@ func _on_match_ended(winner_peer_id: int, reason: String) -> void:
 		_match_end_ui.show_match_result(winner_peer_id, my_id, reason, actions, is_sandbox_mode, totg_clips)
 
 
+func _are_debug_cheats_enabled() -> bool:
+	if OS.is_debug_build():
+		return true
+	if is_sandbox_mode or (GameConfig != null and GameConfig.sandbox_gym_mode):
+		return true
+	if not _is_network_active():
+		return true
+	if NetworkManager != null and NetworkManager.current_mode == NetworkManager.NetworkMode.ENET_LOCAL:
+		return true
+	return false
+
+
 func _input(event: InputEvent) -> void:
-	if event is InputEventKey and event.pressed and not event.is_echo() and event.keycode == KEY_F3:
-		_on_debug_airport_exit_toggled()
-		get_viewport().set_input_as_handled()
-		return
-	if event is InputEventKey and event.pressed and not event.is_echo() and event.keycode == KEY_F4:
-		if not _is_network_active() or multiplayer.is_server():
-			_on_debug_simulate_win_pressed()
-		get_viewport().set_input_as_handled()
-		return
-	if event is InputEventKey and event.pressed and not event.is_echo() and event.keycode == KEY_F12:
-		if _is_network_active() and not multiplayer.is_server():
+	if _are_debug_cheats_enabled():
+		if event is InputEventKey and event.pressed and not event.is_echo() and event.keycode == KEY_F3:
+			_on_debug_airport_exit_toggled()
+			get_viewport().set_input_as_handled()
 			return
-		if MatchManager != null and MatchManager.match_state == MatchManager.MatchState.ENDED:
+		if event is InputEventKey and event.pressed and not event.is_echo() and event.keycode == KEY_F4:
+			if not _is_network_active() or multiplayer.is_server():
+				_on_debug_simulate_win_pressed()
+			get_viewport().set_input_as_handled()
 			return
-		if _spawner_cheatsheet_ui != null and _spawner_cheatsheet_ui.visible:
-			_spawner_cheatsheet_ui.call("close_cheatsheet")
-		if settings_menu.is_visible_in_tree():
-			_on_resume_pressed()
-		else:
-			_open_match_menu(true)
-		get_viewport().set_input_as_handled()
+		if event is InputEventKey and event.pressed and not event.is_echo() and event.keycode == KEY_F12:
+			if _is_network_active() and not multiplayer.is_server():
+				return
+			if MatchManager != null and MatchManager.match_state == MatchManager.MatchState.ENDED:
+				return
+			if _spawner_cheatsheet_ui != null and _spawner_cheatsheet_ui.visible:
+				_spawner_cheatsheet_ui.call("close_cheatsheet")
+			if settings_menu.is_visible_in_tree():
+				_on_resume_pressed()
+			else:
+				_open_match_menu(true)
+			get_viewport().set_input_as_handled()
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if event is InputEventKey and event.pressed and not event.is_echo() and event.keycode == KEY_F2 and (settings_menu.is_visible_in_tree() or (_spawner_cheatsheet_ui != null and _spawner_cheatsheet_ui.visible)):
+	if _are_debug_cheats_enabled() and event is InputEventKey and event.pressed and not event.is_echo() and event.keycode == KEY_F2 and (settings_menu.is_visible_in_tree() or (_spawner_cheatsheet_ui != null and _spawner_cheatsheet_ui.visible)):
 		var is_host_or_offline: bool = (not _is_network_active()) or multiplayer.is_server()
 		if is_host_or_offline:
 			_ensure_spawner_cheatsheet_ui()
@@ -871,6 +898,11 @@ func _unhandled_input(event: InputEvent) -> void:
 					open_spawner_cheatsheet()
 				get_viewport().set_input_as_handled()
 				return
+	if _options_ui != null and _options_ui.visible:
+		if event.is_action_pressed("ui_cancel") or (event is InputEventKey and event.pressed and not event.is_echo() and event.keycode == KEY_ESCAPE):
+			_options_ui.close_options()
+			get_viewport().set_input_as_handled()
+			return
 	if _spawner_cheatsheet_ui != null and _spawner_cheatsheet_ui.visible:
 		if event.is_action_pressed("ui_cancel") or (event is InputEventKey and event.pressed and not event.is_echo() and event.keycode == KEY_ESCAPE):
 			_spawner_cheatsheet_ui.call("close_cheatsheet")
@@ -908,7 +940,17 @@ func _center_match_menu() -> void:
 	esc_menu.position = (viewport_size - esc_menu.size) * 0.5
 
 
+func _on_esc_options_pressed() -> void:
+	if _options_ui == null:
+		_options_ui = MAIN_MENU_OPTIONS_UI_SCRIPT.new()
+		_options_ui.name = "InMatchOptionsUI"
+		add_child(_options_ui)
+	_options_ui.open_options()
+
+
 func _on_resume_pressed() -> void:
+	if _options_ui != null and _options_ui.visible:
+		_options_ui.close_options()
 	esc_menu.visible = false
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
@@ -1292,6 +1334,10 @@ func _terminate_match(reason: String = "") -> void:
 	if not Engine.is_editor_hint():
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
+	# Reset MatchManager state so lobby music & future matches start clean
+	if MatchManager != null and MatchManager.has_method("reset_match_state"):
+		MatchManager.reset_match_state()
+
 	# Cleanup network peer and EOS session
 	NetworkManager.disconnect_session()
 
@@ -1299,7 +1345,8 @@ func _terminate_match(reason: String = "") -> void:
 	for child in players_container.get_children():
 		child.queue_free()
 
-	get_tree().change_scene_to_file(LOBBY_SCENE_PATH)
+	if get_tree() != null:
+		get_tree().change_scene_to_file.call_deferred(LOBBY_SCENE_PATH)
 
 
 func _setup_interactive_doors() -> void:

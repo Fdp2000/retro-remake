@@ -19,6 +19,8 @@ var _voice_val_lbl: Label = null
 var _device_opt: OptionButton = null
 var _mic_meter_fill: ColorRect = null
 var _mic_status_lbl: Label = null
+var _fullscreen_chk: CheckButton = null
+var _fps_counter_chk: CheckButton = null
 
 var _updating_ui: bool = false
 var _smoothed_mic: float = 0.0
@@ -129,7 +131,22 @@ func _build_ui() -> void:
 	_tabs.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	root_vbox.add_child(_tabs)
 
-	# Tab 1: Controls
+	# Tab 1: Display
+	var display_tab := MarginContainer.new()
+	display_tab.name = "Display"
+	display_tab.add_theme_constant_override("margin_top", 12)
+	display_tab.add_theme_constant_override("margin_left", 10)
+	display_tab.add_theme_constant_override("margin_right", 10)
+	_tabs.add_child(display_tab)
+
+	var display_vbox := VBoxContainer.new()
+	display_vbox.add_theme_constant_override("separation", 10)
+	display_tab.add_child(display_vbox)
+
+	_fullscreen_chk = _create_styled_toggle(display_vbox, "Fullscreen", _on_fullscreen_toggled)
+	_fps_counter_chk = _create_styled_toggle(display_vbox, "Show FPS Counter", _on_fps_counter_toggled)
+
+	# Tab 2: Controls
 	var controls_tab := VBoxContainer.new()
 	controls_tab.name = "Controls"
 	controls_tab.add_theme_constant_override("separation", 12)
@@ -292,7 +309,48 @@ func _sync_from_config() -> void:
 	_music_val_lbl.text = "%d%%" % roundi(mu_vol * 100.0)
 	_voice_slider.value = v_vol
 	_voice_val_lbl.text = "%d%%" % roundi(v_vol * 100.0)
+	if _fullscreen_chk != null:
+		var is_fs: bool = GameConfig.fullscreen_enabled if GameConfig != null else (DisplayServer.window_get_mode() == DisplayServer.WINDOW_MODE_FULLSCREEN)
+		_fullscreen_chk.set_pressed_no_signal(is_fs)
+	if _fps_counter_chk != null:
+		var show_fps: bool = GameConfig.show_fps_counter if GameConfig != null else false
+		_fps_counter_chk.set_pressed_no_signal(show_fps)
 	_updating_ui = false
+
+
+func _create_styled_toggle(parent: VBoxContainer, label_text: String, callback: Callable) -> CheckButton:
+	var row_panel := PanelContainer.new()
+	var row_style := StyleBoxFlat.new()
+	row_style.bg_color = Color(0.14, 0.19, 0.21, 1.0)
+	row_style.border_color = Color(0.32, 0.48, 0.42, 0.9)
+	row_style.set_border_width_all(1)
+	row_style.set_corner_radius_all(6)
+	row_style.set_content_margin_all(8)
+	row_panel.add_theme_stylebox_override("panel", row_style)
+	parent.add_child(row_panel)
+
+	var chk := CheckButton.new()
+	chk.text = label_text
+	chk.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	chk.toggled.connect(callback)
+	row_panel.add_child(chk)
+	return chk
+
+
+func _on_fullscreen_toggled(pressed: bool) -> void:
+	if _updating_ui:
+		return
+	if GameConfig != null and GameConfig.has_method("set_fullscreen_enabled"):
+		GameConfig.set_fullscreen_enabled(pressed, true)
+	elif not Engine.is_editor_hint():
+		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN if pressed else DisplayServer.WINDOW_MODE_WINDOWED)
+
+
+func _on_fps_counter_toggled(pressed: bool) -> void:
+	if _updating_ui:
+		return
+	if GameConfig != null and GameConfig.has_method("set_show_fps_counter"):
+		GameConfig.set_show_fps_counter(pressed, true)
 
 
 func _on_volume_changed(_val: float) -> void:

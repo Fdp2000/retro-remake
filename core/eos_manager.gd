@@ -68,9 +68,6 @@ func _ready() -> void:
 	var budget_ms: int = maxi(floori((0.3 * 1000.0) / max_fps), 2)
 	create_opts.tick_budget_in_milliseconds = budget_ms
 
-	if OS.get_name() == "Windows":
-		create_opts.flags = EOS.Platform.PlatformFlags.WindowsEnableOverlayOpengl
-
 	# 3. Initialize platform
 	var create_success: bool = EOS.Platform.platform_create(create_opts)
 	if not create_success:

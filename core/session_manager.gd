@@ -7,6 +7,7 @@ const FFA_BUCKET_ID: String = "1:SpyVsSpy:FFA"
 const ATTR_HOST_PUID: String = "HOST_PUID"
 const ATTR_MATCH_TYPE: String = "MATCH_TYPE"
 const ATTR_ROOM_CODE: String = "ROOM_CODE"
+const ATTR_PLAYER_COUNT: String = "PLAYER_COUNT"
 const CHAR_SET: String = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789" # Excludes 0, O, 1, I to avoid visual ambiguity
 
 enum MatchType { QUICK, PRIVATE }
@@ -82,6 +83,7 @@ func create_and_host_session(match_type: MatchType, custom_code: String = "", fr
 	session_mod.add_attribute(ATTR_HOST_PUID, EOSManager.local_puid, EOS.Sessions.SessionAttributeAdvertisementType.Advertise)
 	session_mod.add_attribute(ATTR_MATCH_TYPE, "QUICK" if match_type == MatchType.QUICK else "PRIVATE", EOS.Sessions.SessionAttributeAdvertisementType.Advertise)
 	session_mod.add_attribute(ATTR_ROOM_CODE, custom_code if match_type == MatchType.PRIVATE else "NONE", EOS.Sessions.SessionAttributeAdvertisementType.Advertise)
+	session_mod.add_attribute(ATTR_PLAYER_COUNT, 1, EOS.Sessions.SessionAttributeAdvertisementType.Advertise)
 
 	var update_opts := EOS.Sessions.UpdateSessionOptions.new()
 	update_opts.session_modification = session_mod
@@ -176,13 +178,19 @@ func _is_host_blacklisted(puid: String) -> bool:
 	return true
 
 
-func set_session_matchmaking_open(is_open: bool) -> void:
+func set_session_matchmaking_open(is_open: bool, player_count: int = -1) -> void:
 	if not is_hosting_session or active_session_name.is_empty():
 		return
-	_update_session_match_type("QUICK" if is_open else "CLOSED")
+	_update_session_advertisement("QUICK" if is_open else "CLOSED", player_count)
 
 
-func _update_session_match_type(match_type_str: String) -> void:
+func set_session_player_count(player_count: int) -> void:
+	if not is_hosting_session or active_session_name.is_empty():
+		return
+	_update_session_advertisement("", player_count)
+
+
+func _update_session_advertisement(match_type_str: String, player_count: int = -1) -> void:
 	if active_session_name.is_empty():
 		return
 
@@ -194,13 +202,19 @@ func _update_session_match_type(match_type_str: String) -> void:
 		return
 
 	var session_mod: EOSGSessionModification = mod_res.session_modification
-	session_mod.add_attribute(ATTR_MATCH_TYPE, match_type_str, EOS.Sessions.SessionAttributeAdvertisementType.Advertise)
-	session_mod.set_join_in_progress_allowed(match_type_str == "QUICK")
+	if not match_type_str.is_empty():
+		session_mod.add_attribute(ATTR_MATCH_TYPE, match_type_str, EOS.Sessions.SessionAttributeAdvertisementType.Advertise)
+		session_mod.set_join_in_progress_allowed(match_type_str == "QUICK")
+	if player_count >= 1:
+		session_mod.add_attribute(ATTR_PLAYER_COUNT, player_count, EOS.Sessions.SessionAttributeAdvertisementType.Advertise)
 
 	var update_opts := EOS.Sessions.UpdateSessionOptions.new()
 	update_opts.session_modification = session_mod
 	EOS.Sessions.SessionsInterface.update_session(update_opts)
-	print("[SessionManager] Session advertisement updated: MATCH_TYPE = %s" % match_type_str)
+	print("[SessionManager] Session advertisement updated: MATCH_TYPE=%s PLAYER_COUNT=%d" % [
+		match_type_str if not match_type_str.is_empty() else "UNCHANGED",
+		player_count
+	])
 
 
 func _quick_match_bucket(free_for_all: bool) -> String:
@@ -239,9 +253,8 @@ func start_quick_match(free_for_all: bool = false) -> void:
 	if not is_searching:
 		return
 
-	var candidates: Array[String] = _find_candidate_hosts_in_search(session_search)
-	if not candidates.is_empty():
-		var chosen_host_puid: String = candidates.pick_random()
+	var chosen_host_puid: String = _choose_candidate_host(session_search, free_for_all)
+	if not chosen_host_puid.is_empty():
 		matchmaking_status_changed.emit("Found host. Connecting...")
 		active_session_name = SESSION_NAME
 		is_hosting_session = false
@@ -265,9 +278,8 @@ func start_quick_match(free_for_all: bool = false) -> void:
 	if not is_searching:
 		return
 
-	candidates = _find_candidate_hosts_in_search(session_search)
-	if not candidates.is_empty():
-		var chosen_host_puid: String = candidates.pick_random()
+	chosen_host_puid = _choose_candidate_host(session_search, free_for_all)
+	if not chosen_host_puid.is_empty():
 		matchmaking_status_changed.emit("Found host. Connecting...")
 		active_session_name = SESSION_NAME
 		is_hosting_session = false
@@ -365,6 +377,58 @@ func _create_session_search() -> EOSGSessionSearch:
 	if not EOS.is_success(ret) or not ret.has("session_search"):
 		return null
 	return ret.session_search
+
+
+func _choose_candidate_host(session_search: EOSGSessionSearch, prioritize_most_players: bool) -> String:
+	if not prioritize_most_players:
+		var candidates: Array[String] = _find_candidate_hosts_in_search(session_search)
+		return candidates.pick_random() if not candidates.is_empty() else ""
+
+	var scored: Array[Dictionary] = []
+	var count: int = session_search.get_search_result_count()
+	for i in range(count):
+		var puid: String = _extract_host_puid(session_search, i)
+		if puid.is_empty() or puid == EOSManager.local_puid:
+			continue
+		if _is_host_blacklisted(puid):
+			print("[SessionManager] Skipping blacklisted/unreachable host: ", puid)
+			continue
+		var player_count: int = _extract_session_player_count(session_search, i)
+		if player_count >= NetworkManager.MAX_PLAYERS:
+			continue
+		scored.append({"puid": puid, "player_count": player_count})
+
+	if scored.is_empty():
+		return ""
+	scored.shuffle()
+	scored.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		return int(a["player_count"]) > int(b["player_count"])
+	)
+	return str(scored[0]["puid"])
+
+
+func _extract_session_player_count(session_search: EOSGSessionSearch, index: int) -> int:
+	var copy_res: Dictionary = session_search.copy_search_result_by_index(index)
+	if not EOS.is_success(copy_res) or not copy_res.has("session_details"):
+		return 1
+
+	var session_details: EOSGSessionDetails = copy_res.session_details
+	if not session_details:
+		return 1
+
+	var attr_res: Dictionary = session_details.copy_session_attribute_by_key(ATTR_PLAYER_COUNT)
+	if EOS.is_success(attr_res) and attr_res.has("session_attribute"):
+		var sa = attr_res.session_attribute
+		if sa is Dictionary:
+			if sa.has("data"):
+				var data = sa.data
+				if data is Dictionary and data.has("value"):
+					return maxi(1, int(data.value))
+				if data is int or data is float:
+					return maxi(1, int(data))
+			if sa.has("value"):
+				return maxi(1, int(sa.value))
+	return 1
 
 
 func _find_candidate_hosts_in_search(session_search: EOSGSessionSearch) -> Array[String]:

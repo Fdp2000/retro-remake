@@ -220,6 +220,8 @@ func _on_eos_peer_connection_established(data: Dictionary) -> void:
 
 
 func _on_eos_peer_connection_interrupted(data: Dictionary) -> void:
+	if peer == null:
+		return
 	var remote_user_id: String = str(data.get("remote_user_id", ""))
 	print("NetworkManager: Connection interrupted with peer %s" % remote_user_id)
 
@@ -233,8 +235,7 @@ func _on_eos_peer_connection_interrupted(data: Dictionary) -> void:
 			_interrupted_timers.erase(remote_user_id)
 			if peer != null and not is_host():
 				print("NetworkManager: Host connection interruption timed out. Triggering server_disconnected.")
-				_cleanup_peer(true)
-				server_disconnected.emit()
+				_handle_deferred_server_disconnect()
 			elif peer != null and is_host():
 				var resolved_pid: int = _resolve_eos_peer_id(remote_user_id)
 				print("NetworkManager: Client connection interruption timed out for %s (peer %d)." % [remote_user_id, resolved_pid])
@@ -244,20 +245,28 @@ func _on_eos_peer_connection_interrupted(data: Dictionary) -> void:
 
 
 func _on_eos_peer_connection_closed(data: Dictionary) -> void:
+	if peer == null:
+		return
 	var remote_user_id: String = str(data.get("remote_user_id", ""))
 	_interrupted_timers.erase(remote_user_id)
 	var reason: String = str(data.get("reason", ""))
 	print("NetworkManager: Connection closed with peer %s (reason: %s)" % [remote_user_id, reason])
 
 	if not is_host():
-		print("NetworkManager: Host peer connection was closed. Triggering server_disconnected.")
-		_cleanup_peer(true)
-		server_disconnected.emit()
+		print("NetworkManager: Host peer connection was closed. Scheduling server_disconnected.")
+		call_deferred("_handle_deferred_server_disconnect")
 	else:
 		var resolved_pid: int = _resolve_eos_peer_id(remote_user_id)
 		print("NetworkManager: Client peer connection was closed for %s (peer %d)." % [remote_user_id, resolved_pid])
 		if resolved_pid > 1:
 			player_disconnected.emit(resolved_pid)
+
+
+func _handle_deferred_server_disconnect() -> void:
+	if peer == null:
+		return
+	_cleanup_peer(true)
+	server_disconnected.emit()
 
 
 func disconnect_session() -> void:
@@ -267,8 +276,17 @@ func disconnect_session() -> void:
 func _cleanup_peer(clean_session: bool = true) -> void:
 	_interrupted_timers.clear()
 	if peer != null:
-		peer.close()
+		var closing_peer: MultiplayerPeer = peer
 		peer = null
+		if closing_peer is EOSGMultiplayerPeer:
+			var eos_peer: EOSGMultiplayerPeer = closing_peer as EOSGMultiplayerPeer
+			if eos_peer.peer_connection_established.is_connected(_on_eos_peer_connection_established):
+				eos_peer.peer_connection_established.disconnect(_on_eos_peer_connection_established)
+			if eos_peer.peer_connection_interrupted.is_connected(_on_eos_peer_connection_interrupted):
+				eos_peer.peer_connection_interrupted.disconnect(_on_eos_peer_connection_interrupted)
+			if eos_peer.peer_connection_closed.is_connected(_on_eos_peer_connection_closed):
+				eos_peer.peer_connection_closed.disconnect(_on_eos_peer_connection_closed)
+		closing_peer.close()
 	multiplayer.multiplayer_peer = null
 	if clean_session and current_mode == NetworkMode.EOS_P2P:
 		SessionManager.destroy_active_session()

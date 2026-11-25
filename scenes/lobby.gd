@@ -10,9 +10,9 @@ const MAIN_MENU_OPTIONS_UI_SCRIPT = preload("res://ui/main_menu_options_ui.gd")
 # State Dictionary: slot (1..4) -> {"slot": int, "role": int, "peer_id": int, "ready": bool, "name": String}
 var lobby_state: Dictionary = {}
 
-const FAN_AUDIO := "res://Assets/SFX/Audio Candidates/Building and City Ambience/Ambience Ceiling Fan 01.wav"
-const RELAY_AUDIO := "res://Assets/SFX/Audio Candidates/Trap and Item Cues/Cartoon Metal Clinks 01.wav"
-const READY_AUDIO := "res://Assets/SFX/Audio Candidates/Trap and Item Cues/Cartoon Bell Hit 01.wav"
+const FAN_AUDIO := "res://Assets/SFX/Lobby/Ambience Ceiling Fan 01.wav"
+const RELAY_AUDIO := "res://Assets/SFX/Lobby/Cartoon Metal Clinks 01.wav"
+const READY_AUDIO := "res://Assets/SFX/Lobby/Cartoon Bell Hit 01.wav"
 
 var _profile := ConfigFile.new()
 var _relay_audio: AudioStreamPlayer
@@ -30,7 +30,6 @@ var is_in_matchmaking_queue: bool = false
 var matchmaking_search_elapsed: float = 0.0
 var _spawner_cheatsheet_ui: Control = null
 var _options_ui: MainMenuOptionsUI = null
-var _options_cog_button: Button = null
 var _slot_cards: Dictionary = {} # slot (1..4) -> {"card": PanelContainer, "title": Label, "swatch": ColorRect, "name": Label, "status": Label}
 
 # UI References
@@ -93,6 +92,8 @@ func _ready() -> void:
 	_room_free_for_all = _free_for_all
 	$MarginContainer/MatchmakingContainer/MatchmakingPanel/GameModeRow/DuelButton.pressed.connect(_open_play_options.bind(false))
 	$MarginContainer/MatchmakingContainer/MatchmakingPanel/GameModeRow/FFAButton.pressed.connect(_open_play_options.bind(true))
+	$MarginContainer/MatchmakingContainer/MatchmakingPanel/OptionsButton.pressed.connect(_on_options_pressed)
+	$MarginContainer/MatchmakingContainer/MatchmakingPanel/QuitButton.pressed.connect(_on_quit_pressed)
 	play_options_back.pressed.connect(_close_play_options)
 	cancel_match_button.visibility_changed.connect(func(): play_options_back.disabled = cancel_match_button.visible or _creating_private_room)
 	$MarginContainer/DeveloperContainer/DeveloperPanel/CloseButton.pressed.connect(_toggle_developer_tools)
@@ -306,6 +307,18 @@ func _enter_staging() -> void:
 		)
 
 
+func _on_quit_pressed() -> void:
+	var quit_btn: Button = get_node_or_null("MarginContainer/MatchmakingContainer/MatchmakingPanel/QuitButton") as Button
+	if quit_btn != null:
+		quit_btn.disabled = true
+	if get_tree() != null:
+		await get_tree().create_timer(0.08).timeout
+		if get_tree() != null:
+			if get_tree().root != null:
+				get_tree().root.propagate_notification(NOTIFICATION_WM_CLOSE_REQUEST)
+			get_tree().quit()
+
+
 func _open_play_options(free_for_all: bool) -> void:
 	_free_for_all = free_for_all
 	play_options_title.text = "Free-for-All · 3–4 agents" if free_for_all else "1v1 · Two agents"
@@ -408,6 +421,8 @@ func _setup_console_audio() -> void:
 func _add_console_audio(path: String, volume: float) -> AudioStreamPlayer:
 	var player := AudioStreamPlayer.new()
 	player.volume_db = volume
+	if AudioServer.get_bus_index(&"SFX") != -1:
+		player.bus = &"SFX"
 	if ResourceLoader.exists(path):
 		player.stream = load(path) as AudioStream
 	add_child(player)
@@ -708,9 +723,10 @@ func _on_player_connected(peer_id: int) -> void:
 	}
 	sync_lobby_state.rpc(lobby_state, _room_free_for_all)
 
-	# Close quick match advertisement when the room is full
-	if NetworkManager.current_mode == NetworkManager.NetworkMode.EOS_P2P and SessionManager.current_room_code.is_empty() and _get_occupied_slot_count() >= _room_capacity():
-		SessionManager.set_session_matchmaking_open(false)
+	# Update quick match player count and close advertisement when the room is full
+	if NetworkManager.current_mode == NetworkManager.NetworkMode.EOS_P2P and SessionManager.current_room_code.is_empty():
+		var occupied: int = _get_occupied_slot_count()
+		SessionManager.set_session_matchmaking_open(occupied < _room_capacity(), occupied)
 
 	if is_in_matchmaking_queue:
 		search_status_label.text = "Match found!"
@@ -752,9 +768,10 @@ func _on_player_disconnected(peer_id: int) -> void:
 	sync_lobby_state.rpc(lobby_state, _room_free_for_all)
 	_update_staging_ui()
 
-	# Re-open quick match searches when a slot frees up.
-	if NetworkManager.current_mode == NetworkManager.NetworkMode.EOS_P2P and SessionManager.current_room_code.is_empty() and _get_occupied_slot_count() < _room_capacity():
-		SessionManager.set_session_matchmaking_open(true)
+	# Re-open quick match searches and update player count when a slot frees up.
+	if NetworkManager.current_mode == NetworkManager.NetworkMode.EOS_P2P and SessionManager.current_room_code.is_empty():
+		var occupied: int = _get_occupied_slot_count()
+		SessionManager.set_session_matchmaking_open(occupied < _room_capacity(), occupied)
 
 
 @rpc("any_peer", "call_local", "reliable")
@@ -882,25 +899,10 @@ func _setup_options_menu() -> void:
 		_options_ui.name = "MainMenuOptionsUI"
 		add_child(_options_ui)
 
-	if _options_cog_button == null:
-		_options_cog_button = Button.new()
-		_options_cog_button.name = "OptionsCogButton"
-		_options_cog_button.text = "⚙"
-		_options_cog_button.tooltip_text = "Options"
-		_options_cog_button.anchor_left = 1.0
-		_options_cog_button.anchor_top = 1.0
-		_options_cog_button.anchor_right = 1.0
-		_options_cog_button.anchor_bottom = 1.0
-		_options_cog_button.offset_left = -58.0
-		_options_cog_button.offset_top = -58.0
-		_options_cog_button.offset_right = -16.0
-		_options_cog_button.offset_bottom = -16.0
-		_options_cog_button.add_theme_font_size_override("font_size", 24)
-		_options_cog_button.pressed.connect(func() -> void:
-			if _options_ui != null:
-				_options_ui.open_options()
-		)
-		add_child(_options_cog_button)
+
+func _on_options_pressed() -> void:
+	if _options_ui != null:
+		_options_ui.open_options()
 
 
 func open_spawner_cheatsheet() -> void:
